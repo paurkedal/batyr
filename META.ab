@@ -1,0 +1,10 @@
+version = "$pkg_version"
+description = "A jabber logger with a web-based interface"
+
+package "web" (
+  description = "Batyr web interface"
+  version = "$pkg_version"
+  directory = "server"
+  requires = "eliom.server,erm_xmpp,prime,prime.testing"
+  archive(byte) = "batyr.cma"
+)

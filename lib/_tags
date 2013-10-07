@@ -1,0 +1,2 @@
+true: package(erm_xmpp), package(lwt.ssl)
+<*.ml>: syntax(camlp4o), package(lwt.syntax)

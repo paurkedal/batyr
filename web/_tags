@@ -1,0 +1,11 @@
+true: package(prime), package(prime.testing)
+
+<shared/*.ml>: syntax(camlp4o), package(js_of_ocaml.deriving.syntax)
+
+<server/*.eliom>: syntax(camlp4o), package(eliom.syntax.server)
+<server/*.ml>: syntax(camlp4o), package(lwt.syntax)
+<server/*>: thread, package(eliom.server)
+
+<client/*.eilom>: syntax(camlp4o), package(eliom.syntax.client)
+<client/*.ml>: syntax(camlp4o), package(js_of_ocaml.syntax)
+<client/*>: package(eliom.client)

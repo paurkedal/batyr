@@ -1,0 +1,8 @@
+/META
+/Makefile
+/_build
+/_var
+/configure
+/setup.data
+/setup.log
+/setup.ml

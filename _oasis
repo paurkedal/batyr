@@ -1,0 +1,31 @@
+OASISFormat: 0.3
+Name: batyr
+Version: 0.1
+Synopsis: A jabber logger and web interface
+Authors: Petter A. Urkedal
+License: GPL-3
+Plugins: DevFiles (0.3)
+
+FilesAB: META.ab
+
+BuildType: custom (0.3)
+BuildDepends: eliom, erm_xmpp, prime
+XCustomBuild: ocamlbuild-with-findlib lib.otarget client.otarget server.otarget
+XCustomBuildClean: ocamlbuild-with-findlib -clean
+
+InstallType: custom (0.3)
+XCustomInstall:
+  set -e
+  ocamlbuild install batyr META \
+    _build/web/server/*.cma \
+    _build/web/server/*.cmi
+  install -d $datadir/$pkg_name/static/css
+  install static/css/*.css $datadir/$pkg_name/static/css/
+  install _build/static/*.js $datadir/$pkg_name/static/
+  echo "Installed static web content under $datadir/$pkg_name/static"
+  install _build/$pkg_name.conf $datadir/$pkg_name/$pkg_name.conf.sample
+  echo "Installed sample config $datadir/$pkg_name/$pkg_name.conf.sample"
+XCustomUninstall:
+  ocamlfind remove $pkg_name
+  rm -rf $datadir/$pkg_name
+  echo "Removed $datadir/$pkg_name"
