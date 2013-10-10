@@ -31,7 +31,7 @@ let or_null = function None -> Postgresql.null | Some s -> s
 module Decode = struct
   type 'a t = string array -> int -> 'a * int
 
-  let ( * ) f g row i =
+  let ( ** ) f g row i =
     let x, i = f row i in
     let y, i = g row i in
     (x, y), i
@@ -49,6 +49,10 @@ module Decode = struct
   let float row i =
     try float_of_string row.(i), i + 1 with
     | Failure _ -> raise_resperr "Cannot convert %s to float." row.(i)
+
+  let option decode row i =
+    (if row.(i) = Postgresql.null then None else Some (fst (decode row i))),
+    i + 1
 
   let call d row =
     try
@@ -72,7 +76,7 @@ let check_tuples_ok r =
   | Bad_response | Nonfatal_error | Fatal_error -> failwith r#error
   | _ -> Lwt.fail (Response_error "Expected Tuples_ok or an error response.")
 
-class conn
+class connection
   ?host ?hostaddr ?port ?dbname ?user ?password ?options ?tty
   ?requiressl ?conninfo () =
 object (self)
@@ -154,3 +158,7 @@ object (self)
       List.sample (fun i -> Decode.call decode (r#get_tuple i)) r#ntuples)
 
 end
+
+let pool = Lwt_pool.create 5 (fun () -> Lwt.return (new connection ()))
+let quick_pool = Lwt_pool.create 3 (fun () -> Lwt.return (new connection ()))
+let use ?(quick = false) = Lwt_pool.use (if quick then quick_pool else pool)

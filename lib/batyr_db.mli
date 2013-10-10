@@ -21,17 +21,18 @@ val or_null : string option -> string
 module Decode : sig
   type 'a t
 
-  val ( * ) : 'a t -> 'b t -> ('a * 'b) t
+  val ( ** ) : 'a t -> 'b t -> ('a * 'b) t
 
   val string : string t
   val bool : bool t
   val int : int t
   val float : float t
+  val option : 'a t -> 'a option t
 
   val call : 'a t -> string array -> 'a
 end
 
-class conn :
+class connection :
   ?host: string -> ?hostaddr: string -> ?port: string  ->
   ?dbname: string -> ?user: string -> ?password: string ->
   ?options: string -> ?tty: string -> ?requiressl: string ->
@@ -67,3 +68,5 @@ object
     ?params: string array -> ?binary_params: bool array -> string ->
     'a list Lwt.t
 end
+
+val use : ?quick: bool -> (connection -> 'a Lwt.t) -> 'a Lwt.t
