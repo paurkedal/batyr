@@ -14,6 +14,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+module JID = JID
+
 module String_map = Map.Make (String)
 module Chat = struct
   include XMPP.Make (Lwt) (Xmlstream.XmlStream) (String_map)

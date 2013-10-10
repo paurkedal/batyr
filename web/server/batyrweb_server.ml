@@ -16,21 +16,16 @@
 
 open Eliom_content
 
-module Main_app =
-  Eliom_registration.App (struct let application_name = "web-batyrweb" end)
-
 let main_service =
   Eliom_service.service ~path:[] ~get_params:Eliom_parameter.unit ()
 
-let main_handler () () =
-  Lwt.return Html5.D.(
-    Eliom_tools.D.html
-      ~title:"Batyr"
-      ~css:[["css"; "batyr.css"]]
-      (body [
-	h1 [pcdata "Batyr"];
-      ])
-  )
+let admin_service =
+  Eliom_service.service ~path:["admin"] ~get_params:Eliom_parameter.unit ()
 
-let () =
-  Main_app.register ~service:main_service main_handler
+module Layout = struct
+  module D = struct
+    let page title content =
+      Eliom_tools.D.html ~title ~css:[["css"; "batyr.css"]]
+	(Html5.D.body (Html5.D.h1 [Html5.D.pcdata title] :: content))
+  end
+end

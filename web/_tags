@@ -5,6 +5,7 @@ true: package(prime), package(prime.testing)
 <server/*.eliom>: syntax(camlp4o), package(eliom.syntax.server)
 <server/*.ml>: syntax(camlp4o), package(lwt.syntax)
 <server/*>: thread, package(eliom.server)
+<server/*>: use_batyr, package(postgresql)
 
 <client/*.eilom>: syntax(camlp4o), package(eliom.syntax.client)
 <client/*.ml>: syntax(camlp4o), package(js_of_ocaml.syntax)

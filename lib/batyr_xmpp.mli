@@ -18,6 +18,8 @@
 
 (** {2 Basic Session} *)
 
+module JID : module type of JID
+
 module Chat : sig
 
   include XMPP.S
