@@ -36,11 +36,18 @@ module Decode = struct
     let y, i = g row i in
     (x, y), i
 
+  let unit row i =
+    match row.(i) with
+    | "" -> (), i + 1
+    | _ -> raise_resperr "Non-empty response %s for unit." row.(i)
+
   let string row i = row.(i), i + 1
 
   let bool row i =
-    try bool_of_string row.(i), i + 1 with
-    | Invalid_argument _ -> raise_resperr "Cannot convert %s to bool." row.(i)
+    match row.(i) with
+    | "t" | "true" -> true, i + 1
+    | "f" | "false" -> false, i + 1
+    | _ -> raise_resperr "Cannot convert %s to bool." row.(i)
 
   let int row i =
     try int_of_string row.(i), i + 1 with

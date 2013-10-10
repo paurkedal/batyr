@@ -23,6 +23,7 @@ module Decode : sig
 
   val ( ** ) : 'a t -> 'b t -> ('a * 'b) t
 
+  val unit : unit t
   val string : string t
   val bool : bool t
   val int : int t
