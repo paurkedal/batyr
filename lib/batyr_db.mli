@@ -33,6 +33,43 @@ module Decode : sig
   val call : 'a t -> string array -> 'a
 end
 
+module Expr : sig
+  type 'a t
+
+  val to_sql : ?first_index: int -> 'a t -> string * string array
+
+  val bool : bool -> bool t
+  val int : int -> int t
+  val float : float -> float t
+  val string : string -> string t
+  val var : string -> 'a t
+
+  val not : bool t -> bool t
+  val (&&) : bool t -> bool t -> bool t
+  val (||) : bool t -> bool t -> bool t
+  val (=) : 'a t -> 'a t -> bool t
+  val (<>) : 'a t -> 'a t -> bool t
+  val (<=) : 'a t -> 'a t -> bool t
+  val (>=) : 'a t -> 'a t -> bool t
+  val (<) : 'a t -> 'a t -> bool t
+  val (>) : 'a t -> 'a t -> bool t
+  val (=~) : 'a t -> string -> bool t
+  val (=~*) : 'a t -> string -> bool t
+
+  val (~-) : int t -> int t
+  val (+) : int t -> int t -> int t
+  val (-) : int t -> int t -> int t
+  val ( * ) : int t -> int t -> int t
+  val (/) : int t -> int t -> int t
+  val (mod) : int t -> int t -> int t
+
+  val (~-.) : float t -> float t
+  val (+.) : float t -> float t -> float t
+  val (-.) : float t -> float t -> float t
+  val ( *. ) : float t -> float t -> float t
+  val (/.) : float t -> float t -> float t
+end
+
 class connection :
   ?host: string -> ?hostaddr: string -> ?port: string  ->
   ?dbname: string -> ?user: string -> ?password: string ->

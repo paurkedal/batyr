@@ -71,6 +71,144 @@ module Decode = struct
       raise (Response_error "The returned row is too short.")
 end
 
+module Expr = struct
+
+  type op =
+    | Func of string
+    | Prefix of string * int * int
+    | Suffix of string * int * int
+    | Infix of string * int * int list
+
+  type u =
+    | Literal of string
+(*
+    | Bool of bool
+    | Int of int
+    | Float of float
+*)
+    | String of string
+    | Var of string
+    | Call of op * u list
+
+  type 'a t = u
+
+  let p_comma = 1
+
+  type acc = {
+    mutable acc_index : int;
+    mutable acc_params : string list;
+    acc_buffer : Buffer.t;
+  }
+
+  let add_param acc s =
+    bprintf acc.acc_buffer "$%d" acc.acc_index;
+    acc.acc_index <- acc.acc_index + 1;
+    acc.acc_params <- s :: acc.acc_params
+
+  let rec to_sql' acc prec = function
+    | Literal s -> Buffer.add_string acc.acc_buffer s
+(*
+    | Bool x -> add_param acc (string_of_bool x)
+    | Int x -> add_param acc (string_of_int x)
+    | Float x -> add_param acc (string_of_float x)
+*)
+    | String x -> add_param acc x
+    | Var v -> Buffer.add_string acc.acc_buffer v
+    | Call (Func name, args) ->
+      Buffer.add_string acc.acc_buffer name;
+      Buffer.add_char acc.acc_buffer '(';
+      let is_first = ref true in
+      List.iter
+	(fun arg ->
+	  if !is_first then is_first := false else
+	    Buffer.add_string acc.acc_buffer ", ";
+	  to_sql' acc p_comma arg)
+	args;
+      Buffer.add_char acc.acc_buffer ')'
+    | Call (Prefix (name, p, p0), [arg]) ->
+      if prec > p then Buffer.add_char acc.acc_buffer '(';
+      Buffer.add_string acc.acc_buffer name;
+      Buffer.add_char acc.acc_buffer ' ';
+      to_sql' acc p0 arg;
+      if prec > p then Buffer.add_char acc.acc_buffer ')'
+    | Call (Suffix (name, p, p0), [arg]) ->
+      if prec > p then Buffer.add_char acc.acc_buffer '(';
+      to_sql' acc p0 arg;
+      Buffer.add_string acc.acc_buffer name;
+      Buffer.add_char acc.acc_buffer ' ';
+      if prec > p then Buffer.add_char acc.acc_buffer ')'
+    | Call ((Prefix _ | Suffix _), _) -> assert false
+    | Call (Infix (name, p, ps), args) ->
+      if prec > p then Buffer.add_char acc.acc_buffer '(';
+      let is_first = ref true in
+      List.iter2
+	(fun p arg ->
+	  if !is_first then is_first := false else begin
+	    Buffer.add_char acc.acc_buffer ' ';
+	    Buffer.add_string acc.acc_buffer name;
+	    Buffer.add_char acc.acc_buffer ' '
+	  end;
+	  to_sql' acc p arg)
+	ps args;
+      if prec > p then Buffer.add_char acc.acc_buffer ')'
+
+  let to_sql ?(first_index = 1) e =
+    let acc = {
+      acc_index = first_index;
+      acc_params = [];
+      acc_buffer = Buffer.create 512;
+    } in
+    to_sql' acc 0 e;
+    (Buffer.contents acc.acc_buffer, Array.of_list (List.rev acc.acc_params))
+
+  let prefix prec name = Prefix (name, prec, prec)
+  let suffix prec name = Suffix (name, prec, prec)
+  let infixA prec name = Infix (name, prec, [prec; prec])
+  let infixB prec name = Infix (name, prec, [prec + 1; prec + 1])
+  let infixL prec name = Infix (name, prec, [prec; prec + 1])
+  let infixR prec name = Infix (name, prec, [prec + 1; prec])
+  let call1 op e0 = Call (op, [e0])
+  let call2 op e0 e1 = Call (op, [e0; e1])
+
+  let literal x = Literal x
+(*
+  let bool x = Bool x
+  let int x = Int x
+  let float x = Float x
+*)
+  let bool x = Literal (string_of_bool x)
+  let int x = Literal (string_of_int x)
+  let float x = Literal (string_of_float x)
+  let string x = String x
+  let var v = Var v
+
+  let not	= let op = prefix 12 "not" in call1 op
+  let (||)	= let op = infixA 11 "or" in call2 op
+  let (&&)	= let op = infixA 10 "and" in call2 op
+  let is_null	= let op = suffix 18 "is null" in call1 op
+  let is_not_null=let op = suffix 18 "is not null" in call1 op
+  let (=)	= let op = infixB 15 "=" in call2 op
+  let (<>)	= let op = infixB 15 "!=" in call2 op
+  let (<=)	= let op = infixB 15 "<=" in call2 op
+  let (>=)	= let op = infixB 15 ">=" in call2 op
+  let (<)	= let op = infixB 15 "<" in call2 op
+  let (>)	= let op = infixB 15 ">" in call2 op
+  let (=~)	= let op = infixB 15 "~" in fun x re -> call2 op x (string re)
+  let ( =~* )	= let op = infixB 15 "~*" in fun x re -> call2 op x (string re)
+
+  let (~-)	= let op = prefix 25 "-" in call1 op
+  let (+)	= let op = infixL 20 "+" in call2 op
+  let (-)	= let op = infixL 20 "-" in call2 op
+  let ( * )	= let op = infixL 21 "*" in call2 op
+  let (/)	= let op = infixL 21 "/" in call2 op
+  let (mod)	= let op = infixL 21 "%" in call2 op
+  let (~-.)	= let op = prefix 25 "-" in call1 op
+  let (+.)	= let op = infixL 20 "+" in call2 op
+  let (-.)	= let op = infixL 20 "-" in call2 op
+  let ( *. )	= let op = infixL 21 "*" in call2 op
+  let (/.)	= let op = infixL 21 "/" in call2 op
+end
+
 let check_command_ok r =
   match r#status with
   | Command_ok -> Lwt.return_unit
