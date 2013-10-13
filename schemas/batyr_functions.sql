@@ -34,12 +34,12 @@ CREATE OR REPLACE FUNCTION batyr.make_jid(jid_ text, tscr boolean)
 		   RETURNS integer AS $$
 DECLARE r integer;
 BEGIN
-    FOR r IN SELECT jid_id FROM batyr.jids WHERE jid = jid_
+    FOR r IN SELECT peer_id FROM batyr.peers WHERE jid = jid_
     LOOP
 	RETURN r;
     END LOOP;
-    FOR r IN INSERT INTO batyr.jids (jid, transcribe)
-		  VALUES (jid_, tscr) RETURNING jid_id
+    FOR r IN INSERT INTO batyr.peers (jid, transcribe)
+		  VALUES (jid_, tscr) RETURNING peer_id
     LOOP
 	RETURN r;
     END LOOP;
@@ -52,6 +52,6 @@ DECLARE oi integer; ji integer;
 BEGIN
     oi := batyr.make_operator(t, n);
     ji := batyr.make_jid(j, false);
-    UPDATE batyr.jids SET operator_id = oi WHERE jid_id = ji;
+    UPDATE batyr.peers SET operator_id = oi WHERE peer_id = ji;
 END
 $$ LANGUAGE plpgsql;

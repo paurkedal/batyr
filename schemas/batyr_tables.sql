@@ -24,8 +24,8 @@ CREATE TABLE batyr.operators (
     UNIQUE (operator_type, operator_name)
 );
 
-CREATE TABLE batyr.jids (
-    jid_id SERIAL PRIMARY KEY,
+CREATE TABLE batyr.peers (
+    peer_id SERIAL PRIMARY KEY,
     jid text UNIQUE NOT NULL,
     operator_id integer REFERENCES batyr.operators,
     transcribe boolean NOT NULL
@@ -37,9 +37,9 @@ CREATE TYPE batyr.message_type
 CREATE TABLE batyr.messages (
     message_id SERIAL PRIMARY KEY,
     auxid text,
-    seen_time timestamp NOT NULL DEFAULT now(),
-    from_id integer NOT NULL REFERENCES batyr.jids,
-    to_id integer REFERENCES batyr.jids,
+    seen_time timestamp NOT NULL DEFAULT (current_timestamp AT TIME ZONE 'UTC'),
+    sender_id integer NOT NULL REFERENCES batyr.peers,
+    recipient_id integer REFERENCES batyr.peers,
     message_type batyr.message_type,
     subject text,
     thread text,
