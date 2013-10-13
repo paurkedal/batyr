@@ -1,4 +1,10 @@
 body {
-	background-color: #eee;
+	background-color: #fff;
 	color: #000;
+	margin-left: 5mm;
 }
+.hour { font-size: smaller; font-weight: bold; color: #999; }
+.sender { color: #c20; }
+.sender.jid { font-family: monospace; }
+.sender.meta { font-family: monospace; }
+p.message { margin: 1mm 0; padding-left: 5mm; text-indent: -5mm; }

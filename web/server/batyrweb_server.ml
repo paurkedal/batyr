@@ -19,6 +19,13 @@ open Eliom_content
 let main_service =
   Eliom_service.service ~path:[] ~get_params:Eliom_parameter.unit ()
 
+let transcript_service =
+  Eliom_service.service ~path:["rooms"]
+    ~get_params:Eliom_parameter.
+      (suffix_prod (string "chatroom") ((float "tI") ** opt (float "tF") **
+					opt (string "pat")))
+    ()
+
 let admin_service =
   Eliom_service.service ~path:["admin"] ~get_params:Eliom_parameter.unit ()
 
