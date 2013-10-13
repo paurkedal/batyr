@@ -1,3 +1,4 @@
 true: thread, package(erm_xmpp), package(lwt.ssl)
 true: package(prime), package(postgresql)
+true: package(calendar)
 <*.ml>: syntax(camlp4o), package(lwt.syntax)

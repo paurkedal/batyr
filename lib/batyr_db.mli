@@ -28,6 +28,7 @@ module Decode : sig
   val bool : bool t
   val int : int t
   val float : float t
+  val epoch : float t
   val option : 'a t -> 'a option t
 
   val call : 'a t -> string array -> 'a
@@ -42,6 +43,7 @@ module Expr : sig
   val int : int -> int t
   val float : float -> float t
   val string : string -> string t
+  val epoch : float -> [`timestamp] t
   val var : string -> 'a t
 
   val not : bool t -> bool t

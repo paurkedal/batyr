@@ -15,10 +15,12 @@
  *)
 
 open Batyr_prereq
+open CalendarLib
 open Postgresql
 open Printf
 open Unprime_array
 open Unprime_list
+open Unprime_string
 
 let section = Lwt_log.Section.make "Terra_db"
 
@@ -56,6 +58,20 @@ module Decode = struct
   let float row i =
     try float_of_string row.(i), i + 1 with
     | Failure _ -> raise_resperr "Cannot convert %s to float." row.(i)
+
+  let epoch_of_timestamp ts =
+    let sec, subsec =
+      try
+	let i = String.index ts '.' in
+	String.slice 0 i ts, float_of_string (String.slice_from i ts)
+      with Not_found ->
+	ts, 0.0 in
+    let caltime = Printer.Calendar.from_fstring "%F %T%z" (sec ^ "+0000") in
+    Calendar.to_unixfloat caltime +. subsec
+
+  let epoch row i =
+    try epoch_of_timestamp row.(i), i + 1 with
+    | Failure _ -> raise_resperr "Cannot interpret time %s." row.(i)
 
   let option decode row i =
     (if row.(i) = Postgresql.null then None else Some (fst (decode row i))),
@@ -180,6 +196,12 @@ module Expr = struct
   let int x = Literal (string_of_int x)
   let float x = Literal (string_of_float x)
   let string x = String x
+  let epoch x =
+    let open Unix in
+    let tm = gmtime x in
+    String (sprintf "%04d-%02d-%02d %02d:%02d:%02d"
+		    (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+		    tm.tm_hour tm.tm_min tm.tm_sec)
   let var v = Var v
 
   let not	= let op = prefix 12 "not" in call1 op

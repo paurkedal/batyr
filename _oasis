@@ -9,7 +9,8 @@ Plugins: DevFiles (0.3)
 FilesAB: META.ab
 
 BuildType: custom (0.3)
-BuildDepends: eliom, erm_xmpp, postgresql, prime
+BuildDepends: eliom, erm_xmpp, calendar, lwt, lwt.ssl,
+  postgresql, prime, prime.testing
 XCustomBuild: ocamlbuild-with-findlib lib.otarget client.otarget server.otarget
 XCustomBuildClean: ocamlbuild-with-findlib -clean
 
