@@ -18,7 +18,7 @@
 
 (** {2 Basic Session} *)
 
-module JID : module type of JID
+module JID : module type of JID with type t = JID.t
 
 module Chat : sig
 

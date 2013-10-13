@@ -31,6 +31,19 @@ CREATE TABLE batyr.peers (
     transcribe boolean NOT NULL
 );
 
+CREATE TABLE batyr.xmpp_connections (
+    peer_id integer PRIMARY KEY REFERENCES batyr.peers,
+    server_port integer NOT NULL DEFAULT 5222,
+    client_password text NOT NULL,
+    is_active boolean NOT NULL
+);
+
+CREATE TABLE batyr.chatrooms (
+    peer_id integer PRIMARY KEY REFERENCES batyr.peers,
+    connection_id integer NOT NULL REFERENCES batyr.xmpp_connections,
+    is_joined boolean NOT NULL
+);
+
 CREATE TYPE batyr.message_type
     AS ENUM ('normal', 'chat', 'groupchat', 'headline');
 
