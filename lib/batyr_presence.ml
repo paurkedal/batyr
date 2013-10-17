@@ -66,30 +66,30 @@ let on_message_error chat ?id ?jid_from ?jid_to ?lang error =
   Lwt_log.error_f "Message error; %s; %s"
 		  (String.concat ", " props) error.StanzaError.err_text
 
-let chat_handler connection_id chat =
+let chat_handler account_id chat =
   Chat.register_iq_request_handler chat Chat_version.ns_version on_version;
   Chat.register_stanza_handler chat (Chat.ns_client, "message")
     (Chat.parse_message ~callback:on_message ~callback_error:on_message_error);
   Batyr_db.(use (fun dbh ->
     dbh#query_list Decode.string
-      ~params:[|string_of_int connection_id|]
+      ~params:[|string_of_int account_id|]
       "SELECT jid FROM batyr.chatrooms NATURAL JOIN batyr.peers \
-       WHERE connection_id = $1 AND is_joined = true")) >>=
+       WHERE account_id = $1 AND is_joined = true")) >>=
     Lwt_list.iter_s (fun jid -> Chat_muc.enter_room chat (JID.of_string jid))
 
 let start_chat_sessions () =
   Batyr_db.use begin fun dbh ->
     dbh#query_array Batyr_db.Decode.(int ** string ** int ** string)
       "SELECT peer_id, jid, server_port, client_password \
-       FROM batyr.xmpp_connections NATURAL JOIN batyr.peers \
+       FROM batyr.accounts NATURAL JOIN batyr.peers \
        WHERE is_active = true" >|=
-    Array.iter (fun (connection_id, (jid_s, (port, password))) ->
+    Array.iter (fun (account_id, (jid_s, (port, password))) ->
       let {JID.node; JID.domain; JID.resource} = JID.of_string jid_s in
       let params = Chat_params.make ~server:domain ~port ~username:node
 				    ~password ~resource () in
       let session_key = domain, port, node, resource in
       if not (Hashtbl.mem chat_sessions session_key) then begin
 	Hashtbl.add chat_sessions session_key true;
-	Lwt.async (fun () -> with_chat (chat_handler connection_id) params)
+	Lwt.async (fun () -> with_chat (chat_handler account_id) params)
       end)
   end
