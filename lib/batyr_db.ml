@@ -275,7 +275,14 @@ object (self)
       end
 
   method query ?params ?binary_params qs =
-    Lwt_log.debug_f ~section "Sending query \"%s\"." qs >>
+    (if Lwt_log.Section.level section = Lwt_log.Debug then
+      match params with
+      | None -> Lwt_log.debug_f ~section "Sending query \"%s\"." qs
+      | Some params ->
+	let params = Array.to_list params in
+	Lwt_log.debug_f ~section "Sending query \"%s\" [|%s|]." qs
+			  (String.concat "; " (List.map String.escaped params))
+     else Lwt.return_unit) >>
     Lwt.wrap (fun () -> self#send_query ?params ?binary_params qs) >>
     self#fetch_last_result
 
