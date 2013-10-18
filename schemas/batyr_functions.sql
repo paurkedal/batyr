@@ -13,17 +13,17 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-CREATE OR REPLACE FUNCTION batyr.make_operator(t batyr.operator_type, n text)
+CREATE OR REPLACE FUNCTION batyr.make_peerbin(t batyr.peerbin_type, n text)
 		   RETURNS integer AS $$
 DECLARE r integer;
 BEGIN
-    FOR r IN SELECT operator_id FROM batyr.operators
-	      WHERE operator_type = t AND operator_name = n
+    FOR r IN SELECT peerbin_id FROM batyr.peerbins
+	      WHERE peerbin_type = t AND peerbin_name = n
     LOOP
 	RETURN r;
     END LOOP;
-    FOR r IN INSERT INTO batyr.operators (operator_type, operator_name)
-		  VALUES (t, n) RETURNING operator_id
+    FOR r IN INSERT INTO batyr.peerbins (peerbin_type, peerbin_name)
+		  VALUES (t, n) RETURNING peerbin_id
     LOOP
 	RETURN r;
     END LOOP;
@@ -46,12 +46,12 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION batyr.connect(t batyr.operator_type, n text, j text)
+CREATE OR REPLACE FUNCTION batyr.connect(t batyr.peerbin_type, n text, j text)
 		   RETURNS void AS $$
 DECLARE oi integer; ji integer;
 BEGIN
-    oi := batyr.make_operator(t, n);
+    oi := batyr.make_peerbin(t, n);
     ji := batyr.make_jid(j, false);
-    UPDATE batyr.peers SET operator_id = oi WHERE peer_id = ji;
+    UPDATE batyr.peers SET peerbin_id = oi WHERE peer_id = ji;
 END
 $$ LANGUAGE plpgsql;

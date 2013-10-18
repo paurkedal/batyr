@@ -15,18 +15,18 @@
 
 CREATE SCHEMA batyr;
 
-CREATE TYPE batyr.operator_type AS ENUM ('person', 'bot', 'chatroom');
+CREATE TYPE batyr.peerbin_type AS ENUM ('person', 'bot', 'chatroom');
 
-CREATE TABLE batyr.operators (
-    operator_id SERIAL PRIMARY KEY,
-    operator_name text UNIQUE NOT NULL,
-    operator_type batyr.operator_type NOT NULL
+CREATE TABLE batyr.peerbins (
+    peerbin_id SERIAL PRIMARY KEY,
+    peerbin_name text UNIQUE NOT NULL,
+    peerbin_type batyr.peerbin_type NOT NULL
 );
 
 CREATE TABLE batyr.peers (
     peer_id SERIAL PRIMARY KEY,
     jid text UNIQUE NOT NULL,
-    operator_id integer REFERENCES batyr.operators,
+    peerbin_id integer REFERENCES batyr.peerbins,
     transcribe boolean NOT NULL
 );
 

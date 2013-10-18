@@ -61,9 +61,9 @@
 	    Batyr_db.use begin fun dbh ->
 	      dbh#query_list
 		Batyr_db.Decode.(string ** string ** bool)
-		"SELECT operator_name, jid, transcribe \
-		 FROM batyr.operators NATURAL JOIN batyr.peers \
-		 WHERE operator_type = 'chatroom'"
+		"SELECT peerbin_name, jid, transcribe \
+		 FROM batyr.peerbins NATURAL JOIN batyr.peers \
+		 WHERE peerbin_type = 'chatroom'"
 	      end in
 	  let chatroom_of_entry (name, (jid, transcribe)) =
 	    {name; jid; transcribe} in
@@ -87,8 +87,8 @@
 	    match_lwt
 	      dbh#query_option Batyr_db.Decode.(string)
 		~params:[|chatroom.jid|]
-		"SELECT operator_name \
-		 FROM batyr.operators NATURAL JOIN batyr.peers \
+		"SELECT peerbin_name \
+		 FROM batyr.peerbins NATURAL JOIN batyr.peers \
 		 WHERE jid = $1"
 	    with
 	    | None ->
@@ -111,7 +111,7 @@
 	  Batyr_db.use begin fun dbh ->
 	    dbh#command
 	      ~params:[|chatroom.jid|]
-	      "UPDATE batyr.peers SET operator_id = NULL WHERE jid = $1"
+	      "UPDATE batyr.peers SET peerbin_id = NULL WHERE jid = $1"
 	  end >|= fun () ->
 	  update (Some (Remove_chatroom chatroom)))
 	(fun xc ->

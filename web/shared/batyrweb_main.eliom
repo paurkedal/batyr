@@ -41,9 +41,9 @@ let main_handler () () =
   lwt chatrooms =
     Batyr_db.use (fun dbh ->
       dbh#query_list Batyr_db.Decode.string
-	"SELECT DISTINCT operator_name \
-	 FROM batyr.operators NATURAL JOIN batyr.peers \
-	 WHERE operator_type = 'chatroom'") in
+	"SELECT DISTINCT peerbin_name \
+	 FROM batyr.peerbins NATURAL JOIN batyr.peers \
+	 WHERE peerbin_type = 'chatroom'") in
   let render_room_link chatroom =
     Html5.D.(li [a ~service:transcript_service [pcdata chatroom]
 		   (chatroom, (0.0, (None, None)))]) in
@@ -69,7 +69,7 @@ let client_transcript_service =
       Lwt_log.ign_debug_f "Requesting transcript for %s from %g." room tI;
       let cond =
 	Batyr_db.Expr.(
-	  (var "recipient.operator_name" = string room
+	  (var "recipient.peerbin_name" = string room
 	    && epoch tI <= var "seen_time")
 	  |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
 	  |> Option.fold (fun pat -> (&&) (var "subject" =~ pat ||
@@ -84,14 +84,14 @@ let client_transcript_service =
 	      dbh#query_array ~params
 		Batyr_db.Decode.(epoch ** string ** option string **
 				 option string ** option string ** option string)
-		(sprintf "SELECT seen_time, sender.jid, sender.operator_name, \
+		(sprintf "SELECT seen_time, sender.jid, sender.peerbin_name, \
 				 subject, thread, body \
 			  FROM batyr.messages \
-			  JOIN (batyr.operators NATURAL JOIN batyr.peers) \
+			  JOIN (batyr.peerbins NATURAL JOIN batyr.peers) \
 			    AS recipient \
 			    ON recipient_id = recipient.peer_id  \
-			  JOIN (batyr.peers LEFT JOIN batyr.operators \
-				USING (operator_id)) \
+			  JOIN (batyr.peers LEFT JOIN batyr.peerbins \
+				USING (peerbin_id)) \
 			    AS sender \
 			    ON sender_id = sender.peer_id \
 			  WHERE %s \
