@@ -19,9 +19,8 @@ CREATE TYPE batyr.operator_type AS ENUM ('person', 'bot', 'chatroom');
 
 CREATE TABLE batyr.operators (
     operator_id SERIAL PRIMARY KEY,
-    operator_type batyr.operator_type NOT NULL,
-    operator_name text NOT NULL,
-    UNIQUE (operator_type, operator_name)
+    operator_name text UNIQUE NOT NULL,
+    operator_type batyr.operator_type NOT NULL
 );
 
 CREATE TABLE batyr.peers (
