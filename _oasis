@@ -17,9 +17,9 @@ XCustomBuildClean: ocamlbuild-with-findlib -clean
 InstallType: custom (0.3)
 XCustomInstall:
   set -e
-  ocamlbuild install batyr META \
-    _build/web/server/*.cma \
-    _build/web/server/*.cmi
+  ocamlfind install batyr META \
+    lib/*.mli _build/lib/*.cmi _build/lib/*.cma _build/lib/*.cmxa \
+    _build/web/server/*.cmi _build/web/server/*.cma
   install -d $datadir/$pkg_name/static/css
   install static/css/*.css $datadir/$pkg_name/static/css/
   install _build/static/*.js $datadir/$pkg_name/static/
