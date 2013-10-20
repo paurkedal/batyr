@@ -22,7 +22,7 @@ open Unprime_array
 open Unprime_list
 open Unprime_string
 
-let section = Lwt_log.Section.make "Terra_db"
+let section = Lwt_log.Section.make "batyr.db"
 
 exception Response_error of string
 let raise_resperr fmt = ksprintf (fun s -> raise (Response_error s)) fmt
@@ -250,6 +250,24 @@ object (self)
   inherit Postgresql.connection ?host ?hostaddr ?port ?dbname ?user ?password
 				?options ?tty ?requiressl ?conninfo ()
 
+  val mutable accounting = false
+  val mutable n_queries = 0
+  val mutable n_affected = 0
+  val mutable n_transferred = 0
+
+  method private cost =
+      10000 * n_queries
+    +   100 * n_affected
+    +  1000 * n_transferred
+  method start_accounting =
+    n_queries <- 0;
+    n_affected <- 0;
+    n_transferred <- 0;
+    accounting <- true
+  method stop_accounting =
+    accounting <- false;
+    self#cost
+
   method private wait_for_result =
     let socket_fd = Lwt_unix.of_unix_file_descr (Obj.magic self#socket) in
     let rec hold () =
@@ -260,7 +278,17 @@ object (self)
 
   method fetch_result =
     Lwt_log.debug_f ~section "Waiting for result." >>
-    self#wait_for_result >> Lwt.wrap (fun () -> self#get_result)
+    self#wait_for_result >>
+    match_lwt Lwt.wrap (fun () -> self#get_result) with
+    | None -> Lwt.return_none
+    | Some r as r_opt ->
+      if accounting then begin
+	n_queries <- n_queries + 1;
+	n_affected <- n_affected
+		    + (match r#cmd_tuples with "" -> 0 | s -> int_of_string s);
+	n_transferred <- n_transferred + r#ntuples
+      end;
+      Lwt.return r_opt
 
   method fetch_last_result =
     match_lwt self#fetch_result with

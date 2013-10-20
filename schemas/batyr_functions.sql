@@ -13,45 +13,72 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-CREATE OR REPLACE FUNCTION batyr.make_peerbin(t batyr.peerbin_type, n text)
-		   RETURNS integer AS $$
+CREATE OR REPLACE FUNCTION batyr.make_domain(dom text) RETURNS integer AS $$
 DECLARE r integer;
 BEGIN
-    FOR r IN SELECT peerbin_id FROM batyr.peerbins
-	      WHERE peerbin_type = t AND peerbin_name = n
+    FOR r IN SELECT domain_id FROM batyr.domains WHERE domain_name = dom
     LOOP
 	RETURN r;
     END LOOP;
-    FOR r IN INSERT INTO batyr.peerbins (peerbin_type, peerbin_name)
-		  VALUES (t, n) RETURNING peerbin_id
+    FOR r IN INSERT INTO batyr.domains (domain_name) VALUES (dom)
+	     RETURNING domain_id
     LOOP
 	RETURN r;
     END LOOP;
 END
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION batyr.make_jid(jid_ text, tscr boolean)
+CREATE OR REPLACE FUNCTION batyr.make_node(dn text, nn text)
 		   RETURNS integer AS $$
-DECLARE r integer;
+DECLARE di integer; r integer;
 BEGIN
-    FOR r IN SELECT peer_id FROM batyr.peers WHERE jid = jid_
+    di := batyr.make_domain(dn);
+    FOR r IN SELECT node_id FROM batyr.nodes
+	      WHERE domain_id = di AND node_name = nn
     LOOP
 	RETURN r;
     END LOOP;
-    FOR r IN INSERT INTO batyr.peers (jid, transcribe)
-		  VALUES (jid_, tscr) RETURNING peer_id
+    FOR r IN INSERT INTO batyr.nodes (domain_id, node_name) VALUES (di, nn)
+	     RETURNING node_id
     LOOP
 	RETURN r;
     END LOOP;
 END
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION batyr.connect(t batyr.peerbin_type, n text, j text)
-		   RETURNS void AS $$
-DECLARE oi integer; ji integer;
+CREATE OR REPLACE FUNCTION batyr.make_peer(dn text, nn text, rn text)
+		   RETURNS integer AS $$
+DECLARE ni integer; r integer;
 BEGIN
-    oi := batyr.make_peerbin(t, n);
-    ji := batyr.make_jid(j, false);
-    UPDATE batyr.peers SET peerbin_id = oi WHERE peer_id = ji;
+    ni := batyr.make_node(dn, nn);
+    FOR r IN SELECT peer_id FROM batyr.peers
+	      WHERE node_id = ni AND resource = rn
+    LOOP
+	RETURN r;
+    END LOOP;
+    FOR r IN INSERT INTO batyr.peers (node_id, resource) VALUES (ni, rn)
+	     RETURNING peer_id
+    LOOP
+	RETURN r;
+    END LOOP;
+END
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION
+    batyr.update_muc_room(ni integer, a text, d text, t boolean)
+RETURNS boolean AS $$
+DECLARE r integer;
+BEGIN
+    FOR r IN SELECT true FROM batyr.muc_rooms WHERE node_id = ni
+    LOOP
+	UPDATE batyr.muc_rooms
+	   SET room_alias = a, room_description = d, transcribe = t
+	 WHERE node_id = ni;
+	RETURN false;
+    END LOOP;
+    INSERT INTO batyr.muc_rooms (node_id, room_alias, room_description,
+				 transcribe)
+	VALUES (ni, a, d, t);
+    RETURN true;
 END
 $$ LANGUAGE plpgsql;

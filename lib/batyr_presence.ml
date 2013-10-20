@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Batyr_data
 open Batyr_prereq
 open Batyr_xmpp
 open Printf
@@ -42,18 +43,19 @@ let on_message chat stanza =
   match Chat.(stanza.jid_from, stanza.jid_to, stanza.content.message_type) with
   | Some sender, Some recipient, Some message_type
       when is_transcribed recipient ->
+    lwt sender_id = Peer.id (Peer.of_jid sender) in
+    lwt recipient_id = Peer.id (Peer.of_jid (JID.of_string recipient)) in
     Batyr_db.(use begin fun dbh ->
       dbh#command
 	~params:[|or_null stanza.Chat.id;
-		  JID.string_of_jid sender; recipient;
+		  string_of_int sender_id; string_of_int recipient_id;
 		  string_of_message_type message_type;
 		  or_null stanza.Chat.content.Chat.subject;
 		  or_null stanza.Chat.content.Chat.thread;
 		  or_null stanza.Chat.content.Chat.body|]
 	"INSERT INTO batyr.messages (auxid, sender_id, recipient_id, \
 				     message_type, subject, thread, body) \
-	 VALUES ($1, batyr.make_jid($2, false), batyr.make_jid($3, false), \
-		 $4, $5, $6, $7)"
+	 VALUES ($1, $2, $3, $4, $5, $6, $7)"
     end)
   | _ -> Lwt.return_unit
 
@@ -71,25 +73,29 @@ let chat_handler account_id chat =
   Chat.register_stanza_handler chat (Chat.ns_client, "message")
     (Chat.parse_message ~callback:on_message ~callback_error:on_message_error);
   Batyr_db.(use (fun dbh ->
-    dbh#query_list Decode.string
+    dbh#query_list Decode.int
       ~params:[|string_of_int account_id|]
-      "SELECT jid FROM batyr.chatrooms NATURAL JOIN batyr.peers \
-       WHERE account_id = $1 AND is_joined = true")) >>=
-    Lwt_list.iter_s (fun jid -> Chat_muc.enter_room chat (JID.of_string jid))
+      "SELECT peer_id FROM batyr.muc_presence NATURAL JOIN batyr.peers \
+       WHERE account_id = $1 AND is_present = true")) >>=
+    Lwt_list.iter_s
+      (fun peer_id ->
+	lwt peer = Peer.of_id peer_id in
+	Chat_muc.enter_room chat (Peer.jid peer))
 
 let start_chat_sessions () =
   Batyr_db.use begin fun dbh ->
-    dbh#query_array Batyr_db.Decode.(int ** string ** int ** string)
-      "SELECT peer_id, jid, server_port, client_password \
+    dbh#query_list Batyr_db.Decode.(int ** int ** string)
+      "SELECT peer_id, server_port, client_password \
        FROM batyr.accounts NATURAL JOIN batyr.peers \
-       WHERE is_active = true" >|=
-    Array.iter (fun (account_id, (jid_s, (port, password))) ->
-      let {JID.node; JID.domain; JID.resource} = JID.of_string jid_s in
-      let params = Chat_params.make ~server:domain ~port ~username:node
-				    ~password ~resource () in
-      let session_key = domain, port, node, resource in
+       WHERE is_active = true" >>=
+    Lwt_list.iter_s (fun (peer_id, (port, password)) ->
+      Peer.of_id peer_id >|= fun peer ->
+      let {JID.lnode; JID.ldomain; JID.lresource} = Peer.jid peer in
+      let params = Chat_params.make ~server:ldomain ~port ~username:lnode
+				    ~password ~resource:lresource () in
+      let session_key = ldomain, port, lnode, lresource in
       if not (Hashtbl.mem chat_sessions session_key) then begin
 	Hashtbl.add chat_sessions session_key true;
-	Lwt.async (fun () -> with_chat (chat_handler account_id) params)
+	Lwt.async (fun () -> with_chat (chat_handler peer_id) params)
       end)
   end

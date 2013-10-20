@@ -80,6 +80,9 @@ class connection :
 object
   inherit Postgresql.connection
 
+  method start_accounting : unit
+  method stop_accounting : int
+
   method fetch_result : Postgresql.result option Lwt.t
 
   method fetch_last_result : Postgresql.result Lwt.t

@@ -24,6 +24,7 @@
   let query_limit = 100
 }}
 {server{
+  open Batyr_data
   open Batyr_prereq
   open Batyrweb_server
 }}
@@ -38,17 +39,20 @@
 }}
 
 let main_handler () () =
-  lwt chatrooms =
+  lwt rooms =
     Batyr_db.use (fun dbh ->
-      dbh#query_list Batyr_db.Decode.string
-	"SELECT DISTINCT peerbin_name \
-	 FROM batyr.peerbins NATURAL JOIN batyr.peers \
-	 WHERE peerbin_type = 'chatroom'") in
-  let render_room_link chatroom =
-    Html5.D.(li [a ~service:transcript_service [pcdata chatroom]
-		   (chatroom, (0.0, (None, None)))]) in
-  let chatrooms_ul = Html5.D.ul (List.map render_room_link chatrooms) in
-  Lwt.return (Layout.D.page "Chatrooms" [chatrooms_ul])
+      dbh#query_list Batyr_db.Decode.int
+	"SELECT DISTINCT node_id \
+	 FROM batyr.muc_rooms NATURAL JOIN batyr.nodes \
+			      NATURAL JOIN batyr.domains") in
+  let render_room_link node_id =
+    lwt node = Node.of_id node_id in
+    let node_jid = Node.to_string node in
+    Lwt.return Html5.D.(li [a ~service:transcript_service [pcdata node_jid]
+			      (node_jid, (0.0, (None, None)))]) in
+  lwt room_lis = Lwt_list.map_p render_room_link rooms in
+  let rooms_ul = Html5.D.ul room_lis in
+  Lwt.return (Layout.D.page "Chatrooms" [rooms_ul])
 
 {shared{
   type message = {
@@ -65,64 +69,56 @@ let client_transcript_service =
   Eliom_registration.Ocaml.register_coservice'
     ~get_params:Eliom_parameter.
       (string "room" ** float "tI" ** opt (float "tF") ** opt (string "pat"))
-    begin fun (room, (tI, (tF_opt, pat_opt))) () ->
-      Lwt_log.ign_debug_f "Requesting transcript for %s from %g." room tI;
-      let cond =
-	Batyr_db.Expr.(
-	  (var "recipient.peerbin_name" = string room
-	    && epoch tI <= var "seen_time")
-	  |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
-	  |> Option.fold (fun pat -> (&&) (var "subject" =~ pat ||
-					   var "thread" =~ pat ||
-					   var "body" =~ pat)) pat_opt
-	) in
-      let cond_str, params = Batyr_db.Expr.to_sql cond in
-      Lwt.catch
-	begin fun () ->
-	  Batyr_db.use
-	    (fun dbh ->
-	      dbh#query_array ~params
-		Batyr_db.Decode.(epoch ** string ** option string **
-				 option string ** option string ** option string)
-		(sprintf "SELECT seen_time, sender.jid, sender.peerbin_name, \
-				 subject, thread, body \
-			  FROM batyr.messages \
-			  JOIN (batyr.peerbins NATURAL JOIN batyr.peers) \
-			    AS recipient \
-			    ON recipient_id = recipient.peer_id  \
-			  JOIN (batyr.peers LEFT JOIN batyr.peerbins \
-				USING (peerbin_id)) \
-			    AS sender \
-			    ON sender_id = sender.peer_id \
-			  WHERE %s \
-			  ORDER BY seen_time, message_id LIMIT %d"
-			 cond_str query_limit)) >|=
-	  Array.map
-	    (fun (time, (sender_jid, (sender_name,
-		  (subject_opt, (thread_opt, body_opt))))) ->
-	      let sender =
-		match sender_name with
-		| None -> "jid", sender_jid
-		| Some name -> "name", name in
-	      { msg_time = time;
-		msg_sender_cls = fst sender;
-		msg_sender = snd sender;
-		msg_subject = subject_opt;
-		msg_thread = thread_opt;
-		msg_body = body_opt })
-	end
-	begin fun xc ->
-	  let msg = Printexc.to_string xc in
-	  Lwt_log.error_f "Failed query of transcript list: %s" msg >>
-	  Lwt.return [|{
-	    msg_time = Unix.time ();
-	    msg_sender_cls = "meta";
-	    msg_sender = "system";
-	    msg_subject = Some "System Error";
-	    msg_thread = None;
-	    msg_body = Some (sprintf "Query failed: %s" msg);
-	  }|]
-	end
+    begin fun (room_jid, (tI, (tF_opt, pat_opt))) () -> Lwt.catch
+      begin fun () ->
+	Lwt_log.debug_f "Requesting transcript for %s from %g." room_jid tI >>
+	lwt room = Lwt.wrap1 Node.of_string room_jid in
+	lwt room_id = Node.id room in
+	let cond =
+	  Batyr_db.Expr.(
+	    (var "sender.node_id" = int room_id
+	      && epoch tI <= var "seen_time")
+	    |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
+	    |> Option.fold (fun pat -> (&&) (var "subject" =~ pat ||
+					     var "thread" =~ pat ||
+					     var "body" =~ pat)) pat_opt
+	  ) in
+	let cond_str, params = Batyr_db.Expr.to_sql cond in
+	Batyr_db.use
+	  (fun dbh ->
+	    dbh#query_list ~params
+	      Batyr_db.Decode.(epoch ** int ** option string **
+			       option string ** option string)
+	      (sprintf "SELECT seen_time, sender_id, subject, thread, body \
+			FROM batyr.messages \
+			JOIN (batyr.peers NATURAL JOIN batyr.nodes) \
+			  AS sender \
+			  ON sender_id = sender.peer_id \
+			WHERE %s \
+			ORDER BY seen_time, message_id LIMIT %d"
+		       cond_str query_limit)) >>=
+	Lwt_list.map_p
+	  (fun (time, (sender_id, (subject_opt, (thread_opt, body_opt)))) ->
+	    Peer.of_id sender_id >|= fun sender_peer ->
+	    { msg_time = time;
+	      msg_sender_cls = "jid";
+	      msg_sender = Peer.resource sender_peer;
+	      msg_subject = subject_opt;
+	      msg_thread = thread_opt;
+	      msg_body = body_opt })
+      end
+      begin fun xc ->
+	let msg = Printexc.to_string xc in
+	Lwt_log.error_f "Failed query of transcript list: %s" msg >>
+	Lwt.return [{
+	  msg_time = Unix.time ();
+	  msg_sender_cls = "meta";
+	  msg_sender = "system";
+	  msg_subject = Some "System Error";
+	  msg_thread = None;
+	  msg_body = Some (sprintf "Query failed: %s" msg);
+	}]
+      end
     end
 
 {client{
@@ -134,7 +130,7 @@ let client_transcript_service =
       >|= fun messages ->
     transcript_dom##innerHTML <- Js.string "";
     let current_day = ref (0, 0, 0) in
-    Array.iter
+    List.iter
       (fun msg ->
 	let open Html5.F in
 	let msg_frag =

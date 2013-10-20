@@ -15,19 +15,23 @@
 
 CREATE SCHEMA batyr;
 
-CREATE TYPE batyr.peerbin_type AS ENUM ('person', 'bot', 'chatroom');
+CREATE TABLE batyr.domains (
+    domain_id SERIAL PRIMARY KEY,
+    domain_name text UNIQUE NOT NULL
+);
 
-CREATE TABLE batyr.peerbins (
-    peerbin_id SERIAL PRIMARY KEY,
-    peerbin_name text UNIQUE NOT NULL,
-    peerbin_type batyr.peerbin_type NOT NULL
+CREATE TABLE batyr.nodes (
+    node_id SERIAL PRIMARY KEY,
+    domain_id integer NOT NULL REFERENCES batyr.domains,
+    node_name text NOT NULL,
+    UNIQUE (domain_id, node_name)
 );
 
 CREATE TABLE batyr.peers (
     peer_id SERIAL PRIMARY KEY,
-    jid text UNIQUE NOT NULL,
-    peerbin_id integer REFERENCES batyr.peerbins,
-    transcribe boolean NOT NULL
+    node_id integer NOT NULL REFERENCES batyr.nodes,
+    resource text NOT NULL,
+    UNIQUE (node_id, resource)
 );
 
 CREATE TABLE batyr.accounts (
@@ -37,10 +41,17 @@ CREATE TABLE batyr.accounts (
     is_active boolean NOT NULL
 );
 
-CREATE TABLE batyr.chatrooms (
+CREATE TABLE batyr.muc_rooms (
+    node_id integer PRIMARY KEY REFERENCES batyr.nodes,
+    room_alias text UNIQUE,
+    room_description text,
+    transcribe boolean NOT NULL
+);
+
+CREATE TABLE batyr.muc_presence (
     peer_id integer PRIMARY KEY REFERENCES batyr.peers,
     account_id integer NOT NULL REFERENCES batyr.accounts,
-    is_joined boolean NOT NULL
+    is_present boolean NOT NULL
 );
 
 CREATE TYPE batyr.message_type

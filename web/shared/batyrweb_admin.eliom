@@ -23,14 +23,13 @@
   module Chatroom_base = struct
 
     type t = {
-      name : string;
-      jid : string;
+      room_jid : string;
+      room_alias : string option;
+      room_description : string option;
       transcribe : bool;
     } deriving (Json)
 
-    let compare r0 r1 =
-      let c = compare r0.name r1.name in
-      if c <> 0 then c else compare r0.jid r1.jid
+    let compare r0 r1 = compare r0.room_jid r1.room_jid
   end
 
   type chatroom = Chatroom_base.t deriving (Json)
@@ -42,6 +41,7 @@
 }}
 
 {server{
+  open Batyr_data
   open Batyr_prereq
   open Batyr_xmpp
   open Batyrweb_server
@@ -60,88 +60,88 @@
 	  lwt entries =
 	    Batyr_db.use begin fun dbh ->
 	      dbh#query_list
-		Batyr_db.Decode.(string ** string ** bool)
-		"SELECT peerbin_name, jid, transcribe \
-		 FROM batyr.peerbins NATURAL JOIN batyr.peers \
-		 WHERE peerbin_type = 'chatroom'"
+		Batyr_db.Decode.(int ** option string ** option string ** bool)
+		"SELECT node_id, room_alias, room_description, transcribe \
+		 FROM batyr.muc_rooms NATURAL JOIN batyr.nodes"
 	      end in
-	  let chatroom_of_entry (name, (jid, transcribe)) =
-	    {name; jid; transcribe} in
-	  Lwt.return (List.map chatroom_of_entry entries))
+	  let chatroom_of_entry
+		(node_id, (room_alias, (room_description, transcribe))) =
+	    lwt node = Node.of_id node_id in
+	    let room_jid = Node.to_string node in
+	    Lwt.return {room_jid; room_alias; room_description; transcribe} in
+	  Lwt_list.map_p chatroom_of_entry entries)
 	(fun xc ->
 	  Lwt_log.error_f "Failed to query connections: %s"
 			  (Printexc.to_string xc) >>
 	  Lwt.return [])
 
-    let normalize_jid jid = JID.string_of_jid (JID.of_string jid)
-
-    let add chatroom =
-      if chatroom.name = ""
-	then Lwt.return (Failed "Room name not specified.") else
-      if try ignore (JID.of_string chatroom.jid); false with _ -> true
-	then Lwt.return (Failed "Invalid Jabber id.") else
-      let chatroom = {chatroom with jid = normalize_jid chatroom.jid} in
+    let add room =
       Lwt.catch
 	(fun () ->
+	  lwt node = Lwt.wrap1 Node.of_string room.room_jid in
+	  lwt node_id = Node.id node in
+	  let room = {room with room_jid = Node.to_string node} in
 	  Batyr_db.use begin fun dbh ->
-	    match_lwt
-	      dbh#query_option Batyr_db.Decode.(string)
-		~params:[|chatroom.jid|]
-		"SELECT peerbin_name \
-		 FROM batyr.peerbins NATURAL JOIN batyr.peers \
-		 WHERE jid = $1"
-	    with
-	    | None ->
-	      dbh#query_single Batyr_db.Decode.unit
-		~params:[|chatroom.name; chatroom.jid|]
-		"SELECT batyr.connect('chatroom', $1, $2)" >>
-	      (update (Some (Add_chatroom chatroom)); Lwt.return (Ok ()))
-	    | Some room ->
-	      Lwt.return (Failed (sprintf "Disconnect %s from %s first."
-					  chatroom.jid room))
+	    dbh#query_single Batyr_db.Decode.bool
+	      ~params:[|
+		string_of_int node_id;
+		Batyr_db.or_null room.room_alias;
+		Batyr_db.or_null room.room_description;
+		string_of_bool room.transcribe;
+	      |]
+	      "SELECT batyr.update_muc_room($1, $2, $3, $4)" >>= fun _ ->
+	    (update (Some (Add_chatroom room)); Lwt.return (Ok ()))
 	  end)
 	(fun xc ->
-	  Lwt_log.error_f "Failed to connect %s to %s: %s"
-			  chatroom.jid chatroom.name (Printexc.to_string xc) >>
-	  Lwt.return (Failed "Server side error."))
+	  Lwt_log.error_f "Failed to create or update %s: %s"
+			  room.room_jid (Printexc.to_string xc) >>
+	  Lwt.return (Failed "Error creating or updating room."))
 
-    let remove chatroom =
+    let remove room =
       Lwt.catch
 	(fun () ->
+	  lwt node = Lwt.wrap1 Node.of_string room.room_jid in
+	  lwt node_id = Node.id node in
 	  Batyr_db.use begin fun dbh ->
 	    dbh#command
-	      ~params:[|chatroom.jid|]
-	      "UPDATE batyr.peers SET peerbin_id = NULL WHERE jid = $1"
+	      ~params:[|string_of_int node_id|]
+	      "DELETE FROM batyr.muc_rooms WHERE node_id = $1"
 	  end >|= fun () ->
-	  update (Some (Remove_chatroom chatroom)))
+	  update (Some (Remove_chatroom room)))
 	(fun xc ->
-	  Lwt_log.error_f "Failed to disconnect %s from %s: %s"
-			  chatroom.jid chatroom.name (Printexc.to_string xc))
+	  Lwt_log.error_f "Failed to delete %s: %s"
+			  room.room_jid (Printexc.to_string xc))
   end
 
-  let sf_connections = server_function Json.t<unit> Chatroom.get_all
-  let sf_connect = server_function Json.t<chatroom> Chatroom.add
-  let sf_disconnect = server_function Json.t<chatroom> Chatroom.remove
+  let sf_get_all = server_function Json.t<unit> Chatroom.get_all
+  let sf_add = server_function Json.t<chatroom> Chatroom.add
+  let sf_remove = server_function Json.t<chatroom> Chatroom.remove
 
 }}
 
 {client{
   open Batyrweb_client
 
+  let input_value_opt inp =
+    match String.trim (Js.to_string inp##value) with
+    | "" -> None
+    | s -> Some s
+
   module Chatroom = struct
     include Chatroom_base
 
     let render_row r =
-      let disconnect_handler ev =
-	Lwt.async (fun () -> %sf_disconnect r) in
-      let disconnect_button =
-	Html5.D.(button ~a:[a_onclick disconnect_handler] ~button_type:`Button
-			[pcdata "< >"]) in
+      let remove_handler ev =
+	Lwt.async (fun () -> %sf_remove r) in
+      let remove_button =
+	Html5.D.(button ~a:[a_onclick remove_handler] ~button_type:`Button
+			[pcdata "delete"]) in
       Html5.D.([
-	td [pcdata r.name];
-	td [disconnect_button];
-	td [pcdata r.jid];
+	td [pcdata r.room_jid];
+	td [pcdata (Option.get_or "-" r.room_alias)];
+	td [pcdata (Option.get_or "-" r.room_description)];
 	td [pcdata (string_of_bool r.transcribe)];
+	td [remove_button];
       ])
   end
 
@@ -153,17 +153,20 @@ module Admin_app = Eliom_registration.App
 
 let admin_handler () () =
   let error_td = Html5.D.(td ~a:[a_class ["error"]] []) in
-  let name_inp = Html5.D.(input ~input_type:`Text ()) in
   let jid_inp = Html5.D.(input ~input_type:`Text ()) in
-  let connect_handler =
+  let alias_inp = Html5.D.(input ~input_type:`Text ()) in
+  let description_inp = Html5.D.(input ~input_type:`Text ()) in
+  let add_handler =
     {{fun ev ->
-      let name_dom = Html5.To_dom.of_input %name_inp in
       let jid_dom = Html5.To_dom.of_input %jid_inp in
+      let alias_dom = Html5.To_dom.of_input %alias_inp in
+      let description_dom = Html5.To_dom.of_input %description_inp in
       let error_dom = Html5.To_dom.of_td %error_td in
       Lwt.async begin fun () ->
-	%sf_connect Chatroom.({
-	  name = Js.to_string name_dom##value;
-	  jid = Js.to_string jid_dom##value;
+	%sf_add Chatroom.({
+	  room_jid = Js.to_string jid_dom##value;
+	  room_alias = input_value_opt alias_dom;
+	  room_description = input_value_opt description_dom;
 	  transcribe = false;
 	}) >|=
 	function
@@ -171,14 +174,15 @@ let admin_handler () () =
 	| Failed msg -> error_dom##innerHTML <- Js.string msg
       end
     }} in
-  let connect_button =
-    Html5.D.(button ~a:[a_onclick connect_handler] ~button_type:`Button
-		    [pcdata ">-<"]) in
+  let add_button =
+    Html5.D.(button ~a:[a_onclick add_handler] ~button_type:`Button
+		    [pcdata "add"]) in
   let chatrooms_table =
     Html5.D.(table ~a:[a_class ["edit"]]
-      (tr [th [pcdata "Room"]; th []; th [pcdata "Jabber id"];
+      (tr [th [pcdata "JID"]; th [pcdata "Alias"]; th [pcdata "Description"];
 	   th [pcdata "Transcribe"]])
-      [tr [td [name_inp]; td [connect_button]; td [jid_inp]; td []; error_td]]
+      [tr [td [jid_inp]; td [alias_inp]; td [description_inp];
+	   td [add_button]; error_td]]
     ) in
 
   ignore {unit{
@@ -186,7 +190,7 @@ let admin_handler () () =
       Chatrooms_live.create (Html5.To_dom.of_table %chatrooms_table) in
 
     Lwt.ignore_result
-      (%sf_connections () >|= List.iter (Chatrooms_live.add chatrooms_live));
+      (%sf_get_all () >|= List.iter (Chatrooms_live.add chatrooms_live));
 
     let update = function
       | Add_chatroom chatroom ->
