@@ -40,3 +40,12 @@ module Peer : sig
   val of_id : int -> t Lwt.t
   val id : t -> int Lwt.t
 end
+
+module Muc_room : sig
+  type t
+  val of_node : Node.t -> t Lwt.t
+  val node : t -> Node.t
+  val alias : t -> string option
+  val description : t -> string option
+  val min_message_time : t -> float option
+end

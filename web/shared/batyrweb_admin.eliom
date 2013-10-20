@@ -200,7 +200,7 @@ let admin_handler () () =
     Lwt.async (fun () -> Lwt_stream.iter update %update_comet)
   }};
 
-  Lwt.return Html5.D.(Layout.D.page "Administration" [
+  Lwt.return Html5.D.(Batyrweb_tools.D.page "Administration" [
     h2 [pcdata "Chatrooms"];
     chatrooms_table;
   ])

@@ -18,6 +18,7 @@
   open Eliom_content
   open Printf
   open Unprime
+  open Unprime_list
   open Unprime_option
 
   type chatroom = string
@@ -52,7 +53,7 @@ let main_handler () () =
 			      (node_jid, (0.0, (None, None)))]) in
   lwt room_lis = Lwt_list.map_p render_room_link rooms in
   let rooms_ul = Html5.D.ul room_lis in
-  Lwt.return (Layout.D.page "Chatrooms" [rooms_ul])
+  Lwt.return (Batyrweb_tools.D.page "Chatrooms" [rooms_ul])
 
 {shared{
   type message = {
@@ -122,14 +123,17 @@ let client_transcript_service =
     end
 
 {client{
+  let month_names = [|"Jan"; "Feb"; "Mar"; "Apr"; "May"; "Jun";
+		      "Jul"; "Aug"; "Sep"; "Oct"; "Nov"; "Dec"|]
   let day_names = [|"Sun"; "Mon"; "Tue"; "Wed"; "Thu"; "Fri"; "Sat"|]
 
-  let update_transcript_view ~room ~tI ?tF ?pat transcript_dom =
+  let render_messages ~room ~tI ?tF ?pat () =
     Eliom_client.call_caml_service ~service:%client_transcript_service
 				   (room, (tI, (tF, pat))) ()
       >|= fun messages ->
-    transcript_dom##innerHTML <- Js.string "";
     let current_day = ref (0, 0, 0) in
+    let transcript_div = Html5.D.div [] in
+    let transcript_dom = Html5.To_dom.of_div transcript_div in
     List.iter
       (fun msg ->
 	let open Html5.F in
@@ -172,23 +176,82 @@ let client_transcript_service =
 	     pcdata ": " ::
 	     msg_frag)) in
 	Dom.appendChild transcript_dom (Html5.To_dom.of_p message_p))
-      messages
+      messages;
+    [transcript_div]
+
+  let day_interval y m d =
+    let dI = jsnew Js.date_day(y, m - 1, d) in
+    let dF = jsnew Js.date_day(y, m - 1, d + 1) in
+    (0.001 *. Js.to_float dI##valueOf(), 0.001 *. Js.to_float dF##valueOf())
+
+  let month_interval y m =
+    let dI, dF = jsnew Js.date_month(y, m - 1), jsnew Js.date_month(y, m + 1) in
+    (0.001 *. Js.to_float dI##valueOf(), 0.001 *. Js.to_float dF##valueOf())
+
+  let year_interval y =
+    let dI, dF = jsnew Js.date_month(y, 0), jsnew Js.date_month(y + 1, 0) in
+    (0.001 *. Js.to_float dI##valueOf(), 0.001 *. Js.to_float dF##valueOf())
+
+  let update_transcript_view ~room ~min_time ?pat transcript_dom =
+    let jt_min = jsnew Js.date_fromTimeValue(min_time *. 1000.0) in
+    let jt_now = jsnew Js.date_now() in
+    let y_min = jt_min##getFullYear() in
+    let y_now = jt_now##getFullYear() in
+
+    let render_content y m d _ =
+      let tI, tF = day_interval y m d in
+      Eliom_lib.debug "Selected %04d-%02d-%02d = [%f, %f)." y m d tI tF;
+      render_messages ~room ~tI ~tF ?pat () in
+
+    let render_mdays y m = function
+      | [] ->
+	let tI, tF = month_interval y m in
+	render_messages ~room ~tI ~tF ?pat ()
+      | [d] ->
+	let last_day_of_m = jsnew Js.date_day(y, m + 1, -1) in
+	let days_in_m = last_day_of_m##getDate() + 1 in
+	let mdays = Array.init days_in_m (fun i -> sprintf "%d" (i + 1)) in
+	Batyrweb_tools.D.pager ~default_index:(d - 1) mdays
+			       (fun i -> render_content y m (i + 1))
+      | _ -> assert false in
+    let render_months y = function
+      | [] ->
+	let tI, tF = year_interval y in
+	render_messages ~room ~tI ~tF ?pat ()
+      | m :: d_ ->
+	Batyrweb_tools.D.pager ~default_index:(m - 1) month_names
+			       (fun i _ -> render_mdays y (i + 1) d_) in
+    let render_years = function
+      (* | [] -> render_messages ~room ~tI ?pat () *)
+      | [] -> assert false
+      | y :: m_d_ ->
+	let years = Array.init (y_now - y_min + 1)
+			       (fun dy -> sprintf "%04d" (y_min + dy)) in
+	Batyrweb_tools.D.pager ~default_index:(y - y_min) years
+			       (fun dy _ -> render_months (y_min + dy) m_d_) in
+    transcript_dom##innerHTML <- Js.string "";
+    render_years [y_now; 1; 1] >|=
+    List.iter
+      (fun el -> Dom.appendChild transcript_dom (Html5.To_dom.of_element el))
 }}
 
-let transcript_handler (room, (tI, (tF, pat))) () =
+let transcript_handler (room_jid, (tI, (tF, pat))) () =
   let transcript_div = Html5.D.(div ~a:[a_class ["transcript"]] []) in
+  let room_node = Node.of_string room_jid in
+  lwt room = Muc_room.of_node room_node in
+  let min_time = Option.get_else Sys.time (Muc_room.min_message_time room) in
   ignore {unit{
     let transcript_dom = Html5.To_dom.of_div %transcript_div in
     let tI = ref %tI in
     let tF = ref %tF in
     let pat = ref %pat in
     Lwt.ignore_result begin
-      update_transcript_view ~room:%room ~tI:!tI ?tF:!tF ?pat:!pat
+      update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat:!pat
 			     transcript_dom
     end
   }};
-  Lwt.return (Layout.D.page
-    (sprintf "Transcript of %s" room)
+  Lwt.return (Batyrweb_tools.D.page
+    (sprintf "Transcript of %s" room_jid)
     [transcript_div]
   )
 

@@ -47,6 +47,9 @@ module Node = struct
   let data_cache = Data_cache.create 23
   let id_cache = Id_cache.create 23
 
+  let dummy =
+    {id = -1; domain = ""; node = ""; beacon = Batyr_cache.dummy_beacon}
+
   let create ~domain ?(node = "") () =
     Data_cache.merge data_cache
       (Batyr_cache.cache Batyr_cache.Grade.basic
@@ -184,4 +187,57 @@ module Peer = struct
 	peer.id <- id;
 	Id_cache.add id_cache peer;
 	id)
+end
+
+module Muc_room = struct
+  type t = {
+    node : Node.t;
+    alias : string option;
+    description : string option;
+    transcribe : bool;
+    min_message_time : float option;
+    beacon : Batyr_cache.beacon;
+  }
+
+  module Node_bijection = struct
+    type domain = t
+    type codomain = Node.t
+    let f {node} = node
+    let f_inv node = {
+      node; alias = None; description = None; transcribe = false;
+      min_message_time = None; beacon = Batyr_cache.dummy_beacon;
+    }
+    let beacon {beacon} = beacon
+  end
+
+  module Node_cache = Batyr_cache.Cache_of_bijection (Node_bijection)
+  let node_cache = Node_cache.create 23
+
+  let node {node} = node
+  let alias {alias} = alias
+  let description {description} = description
+  let min_message_time {min_message_time} = min_message_time
+
+  let of_node node =
+    try Lwt.return (Node_cache.find_key node_cache node)
+    with Not_found ->
+      lwt node_id = Node.id node in
+      Batyr_db.use
+	(fun dbh ->
+	  dbh#start_accounting;
+	  dbh#query_single
+	    Batyr_db.Decode.(option string ** option string ** bool **
+			     option epoch)
+	    ~params:[|string_of_int node_id|]
+	    "SELECT room_alias, room_description, transcribe, \
+		    (SELECT min(seen_time) \
+		       FROM batyr.messages \
+		       JOIN (batyr.peers NATURAL JOIN batyr.nodes) AS sender \
+			 ON sender_id = sender.peer_id \
+		      WHERE node_id = $1) \
+	       FROM batyr.muc_rooms WHERE node_id = $1"
+	    >|= fun (alias, (description, (transcribe, min_message_time))) ->
+	  let grade = dbh#stop_accounting in
+	  Batyr_cache.cache grade (fun beacon ->
+	    {node; alias; description; transcribe; min_message_time; beacon}))
 end

@@ -29,12 +29,4 @@ let transcript_service =
 let admin_service =
   Eliom_service.service ~path:["admin"] ~get_params:Eliom_parameter.unit ()
 
-module Layout = struct
-  module D = struct
-    let page title content =
-      Eliom_tools.D.html ~title ~css:[["css"; "batyr.css"]]
-	(Html5.D.body (Html5.D.h1 [Html5.D.pcdata title] :: content))
-  end
-end
-
 let () = Lwt.async Batyr_presence.start_chat_sessions

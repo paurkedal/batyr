@@ -1,10 +1,47 @@
 body {
 	background-color: #fff;
 	color: #000;
-	margin-left: 5mm;
+	margin: 5mm;
 }
 .hour { font-size: smaller; font-weight: bold; color: #999; }
 .sender { color: #c20; }
 .sender.jid { font-family: monospace; }
 .sender.meta { font-family: monospace; }
 p.message { margin: 1mm 0; padding-left: 5mm; text-indent: -5mm; }
+
+a:link, .pager .tabs span { color: #07c; text-decoration: none; }
+a:hover, .pager .tabs span:hover { text-decoration: underline; }
+.pager .tabs span.selected { color: #000; text-decoration: none; }
+
+th { text-align: left; }
+table.edit th, table.edit td { padding: 0 2mm; }
+table.edit th:first-child, table.edit td:first-child { padding: 0; }
+
+.pager .tabs {
+	margin: 0;
+	margin-top: 0.3mm;
+	padding-top: 1.5mm;
+	border-bottom: solid thin #aaa;
+	font-weight: bold;
+}
+.pager .tabs span {
+	margin: 0;
+	padding: 0.5mm 1mm;
+	cursor: pointer;
+	border-left: solid thin transparent;
+	border-right: solid thin transparent;
+}
+.pager .tabs span.selected {
+	background-color: #fff;
+	text-decoration: none;
+	cursor: auto;
+	color: #000;
+	border: solid thin #aaa;
+	border-bottom: none;
+}
+.pager .clear {
+	background-color: #fff;
+	height: 0.5mm;
+	z-index: 1;
+	position: relative;
+}

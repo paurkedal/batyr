@@ -14,6 +14,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+let (>>=) = Lwt.(>>=)
+let (>|=) = Lwt.(>|=)
+
 type 'a fallible =
   | Ok of 'a
   | Failed of string
