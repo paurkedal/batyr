@@ -13,6 +13,8 @@ a:link, .pager .tabs span { color: #07c; text-decoration: none; }
 a:hover, .pager .tabs span:hover { text-decoration: underline; }
 .pager .tabs span.selected { color: #000; text-decoration: none; }
 
+p.warning { color: #900; font-weight: bold; }
+
 th { text-align: left; }
 table.edit th, table.edit td { padding: 0 2mm; }
 table.edit th:first-child, table.edit td:first-child { padding: 0; }

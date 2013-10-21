@@ -22,12 +22,14 @@
   open Unprime_option
 
   type chatroom = string
-  let query_limit = 100
+  let query_limit = 10000
 }}
 {server{
   open Batyr_data
   open Batyr_prereq
   open Batyrweb_server
+
+  let section = Lwt_log.Section.make "batyrweb.main"
 }}
 {client{
   open Batyrweb_client
@@ -72,7 +74,8 @@ let client_transcript_service =
       (string "room" ** float "tI" ** opt (float "tF") ** opt (string "pat"))
     begin fun (room_jid, (tI, (tF_opt, pat_opt))) () -> Lwt.catch
       begin fun () ->
-	Lwt_log.debug_f "Requesting transcript for %s from %g." room_jid tI >>
+	Lwt_log.debug_f ~section "Sending transcript for %s from %g."
+				 room_jid tI >>
 	lwt room = Lwt.wrap1 Node.of_string room_jid in
 	lwt room_id = Node.id room in
 	let cond =
@@ -134,6 +137,7 @@ let client_transcript_service =
     let current_day = ref (0, 0, 0) in
     let transcript_div = Html5.D.div [] in
     let transcript_dom = Html5.To_dom.of_div transcript_div in
+    let message_count = List.length messages in
     List.iter
       (fun msg ->
 	let open Html5.F in
@@ -177,6 +181,12 @@ let client_transcript_service =
 	     msg_frag)) in
 	Dom.appendChild transcript_dom (Html5.To_dom.of_p message_p))
       messages;
+    if message_count = query_limit then begin
+      let limit_s =
+	sprintf "This result has been limited to %d messages." query_limit in
+      let limit_p = Html5.D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
+      Dom.appendChild transcript_dom (Html5.To_dom.of_p limit_p)
+    end;
     [transcript_div]
 
   let day_interval y m d =
@@ -230,7 +240,7 @@ let client_transcript_service =
 	Batyrweb_tools.D.pager ~default_index:(y - y_min) years
 			       (fun dy _ -> render_months (y_min + dy) m_d_) in
     transcript_dom##innerHTML <- Js.string "";
-    render_years [y_now; 1; 1] >|=
+    render_years [y_now; jt_now##getMonth() + 1; jt_now##getDate()] >|=
     List.iter
       (fun el -> Dom.appendChild transcript_dom (Html5.To_dom.of_element el))
 }}
@@ -239,7 +249,8 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   let transcript_div = Html5.D.(div ~a:[a_class ["transcript"]] []) in
   let room_node = Node.of_string room_jid in
   lwt room = Muc_room.of_node room_node in
-  let min_time = Option.get_else Sys.time (Muc_room.min_message_time room) in
+  let min_time = Option.get_else Unix.time (Muc_room.min_message_time room) in
+  Lwt_log.info_f ~section "Room %s, starting at %f\n" room_jid min_time;
   ignore {unit{
     let transcript_dom = Html5.To_dom.of_div %transcript_div in
     let tI = ref %tI in

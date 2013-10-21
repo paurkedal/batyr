@@ -17,6 +17,7 @@
 {shared{
   open Batyrweb_prereq
   open Eliom_content
+  open Unprime_option
 }}
 
 {server{
@@ -43,12 +44,12 @@
   open Html5.D
 
   module D' = struct
-    let pager ?(default_index = 0) labels draw_inner =
+    let pager ?default_index labels draw_inner =
       let shown_index = ref (-1) in
       let sheet_div = div ~a:[a_class ["sheet"]] [] in
       let sheet_dom = Html5.To_dom.of_div sheet_div in
       let tabs_dom = ref [||] in
-      let onclick i l ev =
+      let onclick i l =
 	if i <> !shown_index then begin
 	  if !shown_index >= 0 then
 	    !tabs_dom.(!shown_index)##className <- Js.string "";
@@ -62,10 +63,10 @@
 	end in
       let make_page i l =
 	let cls = if i = !shown_index then ["selected"] else [] in
-	span ~a:[a_onclick (onclick i l); a_class cls] [pcdata l] in
+	span ~a:[a_onclick (fun _ -> onclick i l); a_class cls] [pcdata l] in
       let tabs = List.mapi make_page (Array.to_list labels) in
       tabs_dom := Array.map Html5.To_dom.of_span (Array.of_list tabs);
-      (*onclick default_index labels.(default_index) >|= fun () ->*)
+      Option.iter (fun i -> onclick i labels.(i)) default_index;
       Lwt.return
 	[div ~a:[a_class ["pager"]]
 	  [div ~a:[a_class ["tabs"]] tabs;
