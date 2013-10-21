@@ -87,19 +87,19 @@ let chat_handler account_id chat =
     Lwt_list.iter_s
       (fun (peer_id, since) ->
 	lwt peer = Peer.of_id peer_id in
-	lwt since =
+	lwt seconds =
 	  begin match since with
 	  | None ->
 	    Lwt_log.info_f ~section "Entering %s, no previous logs."
 			   (Peer.to_string peer) >>
 	    Lwt.return_none
 	  | Some t ->
-	    let t = t +. 1.0 in (* FIXME: Need <delay/> *)
-	    Lwt_log.info_f ~section "Entering %s, since = %g"
+	    let t = Unix.time () -. t -. 1.0 in (* FIXME: Need <delay/> *)
+	    Lwt_log.info_f ~section "Entering %s, seconds = %f"
 			   (Peer.to_string peer) t >>
 	    Lwt.return (Some (int_of_float t))
 	  end in
-	Chat_muc.enter_room ?since chat (Peer.jid peer))
+	Chat_muc.enter_room ?seconds chat (Peer.jid peer))
 
 let start_chat_sessions () =
   Batyr_db.use begin fun dbh ->
