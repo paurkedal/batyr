@@ -26,6 +26,9 @@ XCustomInstall:
   echo "Installed static web content under $datadir/$pkg_name/static"
   install _build/$pkg_name.conf $datadir/$pkg_name/$pkg_name.conf.sample
   echo "Installed sample config $datadir/$pkg_name/$pkg_name.conf.sample"
+  install -d $datadir/$pkg_name/schemas
+  install schemas/*.sql $datadir/$pkg_name/schemas/
+  echo "Installed DB schemas under $datadir/$pkg_name/schemas"
 XCustomUninstall:
   ocamlfind remove $pkg_name
   rm -rf $datadir/$pkg_name

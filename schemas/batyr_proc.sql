@@ -13,6 +13,13 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+CREATE OR REPLACE VIEW batyr.peer_jids AS
+  SELECT peer_id,
+       node_name || CASE node_name WHEN '' THEN '' ELSE '@' END
+    || domain_name || CASE resource WHEN '' THEN '' ELSE '/' END
+    || resource AS jid
+  FROM batyr.peers NATURAL JOIN batyr.nodes NATURAL JOIN batyr.domains;
+
 CREATE OR REPLACE FUNCTION batyr.make_domain(dom text) RETURNS integer AS $$
 DECLARE r integer;
 BEGIN
