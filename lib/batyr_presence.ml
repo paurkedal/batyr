@@ -21,6 +21,8 @@ open Printf
 open Unprime
 open Unprime_option
 
+let section = Lwt_log.Section.make "batyr.presence"
+
 let chat_sessions = Hashtbl.create 11
 
 let on_version ev jid_from jid_to lang () =
@@ -73,14 +75,31 @@ let chat_handler account_id chat =
   Chat.register_stanza_handler chat (Chat.ns_client, "message")
     (Chat.parse_message ~callback:on_message ~callback_error:on_message_error);
   Batyr_db.(use (fun dbh ->
-    dbh#query_list Decode.int
+    dbh#query_list Decode.(int ** option epoch)
       ~params:[|string_of_int account_id|]
-      "SELECT peer_id FROM batyr.muc_presence NATURAL JOIN batyr.peers \
+      "SELECT peer_id, \
+	      (SELECT max(seen_time) \
+	       FROM batyr.messages JOIN batyr.peers AS sender \
+		 ON sender_id = sender.peer_id \
+	       WHERE sender.node_id = node_id) \
+       FROM batyr.muc_presence NATURAL JOIN batyr.peers \
        WHERE account_id = $1 AND is_present = true")) >>=
     Lwt_list.iter_s
-      (fun peer_id ->
+      (fun (peer_id, since) ->
 	lwt peer = Peer.of_id peer_id in
-	Chat_muc.enter_room chat (Peer.jid peer))
+	lwt since =
+	  begin match since with
+	  | None ->
+	    Lwt_log.info_f ~section "Entering %s, no previous logs."
+			   (Peer.to_string peer) >>
+	    Lwt.return_none
+	  | Some t ->
+	    let t = t +. 1.0 in (* FIXME: Need <delay/> *)
+	    Lwt_log.info_f ~section "Entering %s, since = %g"
+			   (Peer.to_string peer) t >>
+	    Lwt.return (Some (int_of_float t))
+	  end in
+	Chat_muc.enter_room ?since chat (Peer.jid peer))
 
 let start_chat_sessions () =
   Batyr_db.use begin fun dbh ->
