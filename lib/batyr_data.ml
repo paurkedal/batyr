@@ -19,17 +19,17 @@ open Batyr_prereq
 module Node = struct
   type t = {
     mutable id : int;
-    domain : string;
-    node : string;
+    domain_name : string;
+    node_name : string;
     beacon : Batyr_cache.beacon;
   }
 
   module Data_bijection = struct
     type domain = t
     type codomain = string * string
-    let f {domain; node} = (domain, node)
-    let f_inv (domain, node) =
-      {id = -1; domain; node; beacon = Batyr_cache.dummy_beacon}
+    let f {domain_name; node_name} = (domain_name, node_name)
+    let f_inv (domain_name, node_name) =
+      {id = -1; domain_name; node_name; beacon = Batyr_cache.dummy_beacon}
     let beacon {beacon} = beacon
   end
 
@@ -38,7 +38,7 @@ module Node = struct
     type codomain = int
     let f {id} = assert (id >= 0); id
     let f_inv id =
-      {id; domain = ""; node = ""; beacon = Batyr_cache.dummy_beacon}
+      {id; domain_name = ""; node_name = ""; beacon = Batyr_cache.dummy_beacon}
     let beacon {beacon} = beacon
   end
 
@@ -48,24 +48,24 @@ module Node = struct
   let id_cache = Id_cache.create 23
 
   let dummy =
-    {id = -1; domain = ""; node = ""; beacon = Batyr_cache.dummy_beacon}
+    {id = -1; domain_name = ""; node_name = ""; beacon = Batyr_cache.dummy_beacon}
 
-  let create ~domain ?(node = "") () =
+  let create ~domain_name ?(node_name = "") () =
     Data_cache.merge data_cache
       (Batyr_cache.cache Batyr_cache.Grade.basic
-	(fun beacon -> {id = -1; domain; node; beacon}))
+	(fun beacon -> {id = -1; domain_name; node_name; beacon}))
 
-  let domain {domain} = domain
-  let node {node} = node
+  let domain_name {domain_name} = domain_name
+  let node_name {node_name} = node_name
 
   let of_jid {JID.ldomain; JID.lnode; JID.lresource} =
     if lresource <> "" then
       invalid_arg "Batyr_data.Node.of_jid: Non-empty resource.";
-    create ~domain:ldomain ~node:lnode ()
+    create ~domain_name:ldomain ~node_name:lnode ()
 
-  let jid {domain; node} = JID.make_jid node domain ""
+  let jid {domain_name; node_name} = JID.make_jid node_name domain_name ""
 
-  let to_string node = JID.string_of_jid (jid node)
+  let to_string node_name = JID.string_of_jid (jid node_name)
   let of_string s = of_jid (JID.of_string s)
 
   let of_id id =
@@ -78,9 +78,10 @@ module Node = struct
 	    ~params:[|string_of_int id|]
 	    "SELECT domain_name, node_name \
 	     FROM batyr.nodes NATURAL JOIN batyr.domains \
-	     WHERE node_id = $1" >|= fun (domain, node) ->
+	     WHERE node_id = $1" >|= fun (domain_name, node_name) ->
 	  let grade = dbh#stop_accounting in
-	  Batyr_cache.cache grade (fun beacon -> {id; domain; node; beacon}))
+	  Batyr_cache.cache grade
+	    (fun beacon -> {id; domain_name; node_name; beacon}))
 	>|= fun node ->
       try Id_cache.find id_cache node
       with Not_found ->
@@ -94,7 +95,7 @@ module Node = struct
       (fun dbh ->
 	dbh#start_accounting;
 	dbh#query_single Batyr_db.Decode.int
-	  ~params:[|node.domain; node.node|]
+	  ~params:[|node.domain_name; node.node_name|]
 	  "SELECT batyr.make_node($1, $2)" >|= fun id ->
 	node.id <- id;
 	Id_cache.add id_cache node;
@@ -104,8 +105,8 @@ end
 module Peer = struct
   type t = {
     mutable id : int;
-    domain : string;
-    node : string;
+    domain_name : string;
+    node_name : string;
     resource : string;
     beacon : Batyr_cache.beacon;
   }
@@ -113,9 +114,10 @@ module Peer = struct
   module Data_bijection = struct
     type domain = t
     type codomain = string * string * string
-    let f {domain; node; resource} = (domain, node, resource)
-    let f_inv (domain, node, resource) = {
-      id = -1; domain; node; resource;
+    let f {domain_name; node_name; resource} =
+      (domain_name, node_name, resource)
+    let f_inv (domain_name, node_name, resource) = {
+      id = -1; domain_name; node_name; resource;
       beacon = Batyr_cache.dummy_beacon;
     }
     let beacon {beacon} = beacon
@@ -126,7 +128,7 @@ module Peer = struct
     type codomain = int
     let f {id} = assert (id >= 0); id
     let f_inv id = {
-      id; domain = ""; node = ""; resource = "";
+      id; domain_name = ""; node_name = ""; resource = "";
       beacon = Batyr_cache.dummy_beacon;
     }
     let beacon {beacon} = beacon
@@ -137,19 +139,21 @@ module Peer = struct
   let data_cache = Data_cache.create 23
   let id_cache = Id_cache.create 23
 
-  let create ~domain ?(node = "") ?(resource = "") () =
+  let create ~domain_name ?(node_name = "") ?(resource = "") () =
     Data_cache.merge data_cache
       (Batyr_cache.cache Batyr_cache.Grade.basic
-	(fun beacon -> {id = -1; domain; node; resource; beacon}))
+	(fun beacon -> {id = -1; domain_name; node_name; resource; beacon}))
 
-  let domain {domain} = domain
-  let node {node} = node
+  let domain_name {domain_name} = domain_name
+  let node_name {node_name} = node_name
+  let node {domain_name; node_name} = Node.create ~domain_name ~node_name ()
   let resource {resource} = resource
 
   let of_jid {JID.ldomain; JID.lnode; JID.lresource} =
-    create ~domain:ldomain ~node:lnode ~resource:lresource ()
+    create ~domain_name:ldomain ~node_name:lnode ~resource:lresource ()
 
-  let jid {domain; node; resource} = JID.make_jid node domain resource
+  let jid {domain_name; node_name; resource} =
+    JID.make_jid node_name domain_name resource
 
   let to_string p = JID.string_of_jid (jid p)
   let of_string s = of_jid (JID.of_string s)
@@ -165,10 +169,10 @@ module Peer = struct
 	    "SELECT domain_name, node_name, resource \
 	     FROM batyr.peers NATURAL JOIN batyr.nodes \
 			      NATURAL JOIN batyr.domains \
-	     WHERE peer_id = $1" >|= fun (domain, (node, resource)) ->
+	     WHERE peer_id = $1" >|= fun (domain_name, (node_name, resource)) ->
 	  let grade = dbh#stop_accounting in
 	  Batyr_cache.cache grade
-	    (fun beacon -> {id; domain; node; resource; beacon}))
+	    (fun beacon -> {id; domain_name; node_name; resource; beacon}))
 	>|= fun peer ->
       try Id_cache.find id_cache peer
       with Not_found ->
@@ -182,7 +186,7 @@ module Peer = struct
       (fun dbh ->
 	dbh#start_accounting;
 	dbh#query_single Batyr_db.Decode.int
-	  ~params:[|peer.domain; peer.node; peer.resource|]
+	  ~params:[|peer.domain_name; peer.node_name; peer.resource|]
 	  "SELECT batyr.make_peer($1, $2, $3)" >|= fun id ->
 	peer.id <- id;
 	Id_cache.add id_cache peer;

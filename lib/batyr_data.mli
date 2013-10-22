@@ -16,9 +16,9 @@
 
 module Node : sig
   type t
-  val create : domain: string -> ?node: string -> unit -> t
-  val domain : t -> string
-  val node : t -> string
+  val create : domain_name: string -> ?node_name: string -> unit -> t
+  val domain_name : t -> string
+  val node_name : t -> string
   val of_jid : JID.t -> t
   val jid : t -> JID.t
   val to_string : t -> string
@@ -29,9 +29,11 @@ end
 
 module Peer : sig
   type t
-  val create : domain: string -> ?node: string -> ?resource: string -> unit -> t
-  val domain : t -> string
-  val node : t -> string
+  val create : domain_name: string -> ?node_name: string ->
+	       ?resource: string -> unit -> t
+  val domain_name : t -> string
+  val node_name : t -> string
+  val node : t -> Node.t
   val resource : t -> string
   val of_jid : JID.t -> t
   val jid : t -> JID.t
