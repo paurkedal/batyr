@@ -23,6 +23,29 @@ open Unprime_option
 
 let section = Lwt_log.Section.make "batyr.presence"
 
+module Message = struct
+  type t = {
+    seen_time : float;
+    sender : Peer.t;
+    recipient : Peer.t;
+    message_type : Chat.message_type;
+    subject : string option;
+    thread : string option;
+    body : string option;
+  }
+
+  let seen_time {seen_time} = seen_time
+  let make ~seen_time ~sender ~recipient
+	   ~message_type ?subject ?thread ?body () =
+    {seen_time; sender; recipient; message_type; subject; thread; body}
+  let sender {sender} = sender
+  let recipient {recipient} = recipient
+  let message_type {message_type} = message_type
+  let subject {subject} = subject
+  let thread {thread} = thread
+  let body {body} = body
+end
+
 let chat_sessions = Hashtbl.create 11
 
 let on_version ev jid_from jid_to lang () =
@@ -41,24 +64,35 @@ let string_of_message_type = function
 
 let is_transcribed jid = true (* FIXME *)
 
+let message_events, emit_message = Lwt_react.E.create ()
+
 let on_message chat stanza =
   match Chat.(stanza.jid_from, stanza.jid_to, stanza.content.message_type) with
-  | Some sender, Some recipient, Some message_type
-      when is_transcribed recipient ->
-    lwt sender_id = Peer.id (Peer.of_jid sender) in
-    lwt recipient_id = Peer.id (Peer.of_jid (JID.of_string recipient)) in
-    Batyr_db.(use begin fun dbh ->
-      dbh#command
-	~params:[|or_null stanza.Chat.id;
-		  string_of_int sender_id; string_of_int recipient_id;
-		  string_of_message_type message_type;
-		  or_null stanza.Chat.content.Chat.subject;
-		  or_null stanza.Chat.content.Chat.thread;
-		  or_null stanza.Chat.content.Chat.body|]
-	"INSERT INTO batyr.messages (auxid, sender_id, recipient_id, \
-				     message_type, subject, thread, body) \
-	 VALUES ($1, $2, $3, $4, $5, $6, $7)"
-    end)
+  | Some sender, Some recipient, Some message_type ->
+    let seen_time = Unix.time () in
+    let sender = Peer.of_jid sender in
+    let recipient = Peer.of_jid (JID.of_string recipient) in
+    let subject = stanza.Chat.content.Chat.subject in
+    let thread = stanza.Chat.content.Chat.thread in
+    let body = stanza.Chat.content.Chat.body in
+    let msg = Message.make ~seen_time ~sender ~recipient ~message_type
+			   ?subject ?thread ?body () in
+    emit_message msg;
+    if is_transcribed recipient then
+      lwt sender_id = Peer.id sender in
+      lwt recipient_id = Peer.id recipient in
+      Batyr_db.(use begin fun dbh ->
+	dbh#command
+	  ~params:[|or_null stanza.Chat.id;
+		    string_of_int sender_id; string_of_int recipient_id;
+		    string_of_message_type message_type;
+		    or_null subject; or_null thread; or_null body|]
+	  "INSERT INTO batyr.messages (auxid, sender_id, recipient_id, \
+				       message_type, subject, thread, body) \
+	   VALUES ($1, $2, $3, $4, $5, $6, $7)"
+      end)
+    else
+      Lwt.return_unit
   | _ -> Lwt.return_unit
 
 let on_message_error chat ?id ?jid_from ?jid_to ?lang error =

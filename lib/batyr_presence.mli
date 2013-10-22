@@ -14,4 +14,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Batyr_data
+open Batyr_xmpp
+
+module Message : sig
+  type t
+
+  val seen_time : t -> float
+  val sender : t -> Peer.t
+  val recipient : t -> Peer.t
+  val message_type : t -> Chat.message_type
+  val subject : t -> string option
+  val thread : t -> string option
+  val body : t -> string option
+end
+
+val message_events : Message.t Lwt_react.E.t
+
 val start_chat_sessions : unit -> unit Lwt.t

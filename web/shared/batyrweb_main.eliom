@@ -133,69 +133,97 @@ let client_transcript_service =
 
 {client{
 
-  let render_messages ~room ?tI ?tF ?pat () =
-    Eliom_client.call_caml_service ~service:%client_transcript_service
-				   (room, (tI, (tF, pat))) ()
-      >|= fun messages ->
-    let current_day = ref (0, 0, 0) in
-    let transcript_div = Html5.D.div [] in
-    let transcript_dom = Html5.To_dom.of_div transcript_div in
-    let message_count = List.length messages in
-    List.iter
-      (fun msg ->
-	let open Html5.F in
-	let msg_frag =
-	  match msg.msg_body with
-	  | None -> []
-	  | Some body -> [span ~a:[a_class ["body"]] [pcdata body]] in
-	let msg_frag =
-	  match
-	    match msg.msg_subject, msg.msg_thread with
-	    | None, None -> None
-	    | None, Some thread ->
-	      Some [pcdata (sprintf "[- %s] " thread)]
-	    | Some subject, None ->
-	      Some [pcdata (sprintf "[%s] " subject)]
-	    | Some subject, Some thread ->
-	      Some [pcdata (sprintf "[%s - %s] " subject thread)]
-	  with
-	  | None -> msg_frag
-	  | Some st_frag ->
-	    span ~a:[a_class ["subject"]] st_frag :: msg_frag in
-	let jstime = jsnew Js.date_fromTimeValue(msg.msg_time *. 1000.0) in
-	let day = jstime##getFullYear(), jstime##getMonth() + 1,
-		  jstime##getDate() in
-	if day <> !current_day then begin
-	  let (y, m, d), wd = day, Caltime.day_names.(jstime##getDay()) in
-	  let day_str = sprintf "%s %04d-%02d-%02d" wd y m d in
-	  let header_h2 = h2 [pcdata day_str] in
-	  Dom.appendChild transcript_dom (Html5.To_dom.of_h2 header_h2);
-	  current_day := day
-	end;
-	let hour =
-	  sprintf "%02d:%02d:%02d"
-	    jstime##getHours() jstime##getMinutes() jstime##getSeconds() in
-	let message_p =
-	  (p ~a:[a_class ["message"]]
-	    (span ~a:[a_class ["hour"]] [pcdata hour] :: pcdata " " ::
-	     span ~a:[a_class ["sender"; msg.msg_sender_cls]]
-		  [pcdata msg.msg_sender] ::
-	     pcdata ": " ::
-	     msg_frag)) in
-	Dom.appendChild transcript_dom (Html5.To_dom.of_p message_p))
-      messages;
-    if message_count = query_limit then begin
-      let limit_s =
-	sprintf "This result has been limited to %d messages." query_limit in
-      let limit_p = Html5.D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
-      Dom.appendChild transcript_dom (Html5.To_dom.of_p limit_p)
+  type transcript_state = {
+    mutable ts_day : int * int * int;
+    ts_dom : Dom_html.divElement Js.t;
+  }
+
+  let append_message ts msg =
+    let open Html5.F in
+    let msg_frag =
+      match msg.msg_body with
+      | None -> []
+      | Some body -> [span ~a:[a_class ["body"]] [pcdata body]] in
+    let msg_frag =
+      match
+	match msg.msg_subject, msg.msg_thread with
+	| None, None -> None
+	| None, Some thread ->
+	  Some [pcdata (sprintf "[- %s] " thread)]
+	| Some subject, None ->
+	  Some [pcdata (sprintf "[%s] " subject)]
+	| Some subject, Some thread ->
+	  Some [pcdata (sprintf "[%s - %s] " subject thread)]
+      with
+      | None -> msg_frag
+      | Some st_frag ->
+	span ~a:[a_class ["subject"]] st_frag :: msg_frag in
+    let jstime = jsnew Js.date_fromTimeValue(msg.msg_time *. 1000.0) in
+    let day = jstime##getFullYear(), jstime##getMonth() + 1,
+	      jstime##getDate() in
+    if day <> ts.ts_day then begin
+      let (y, m, d), wd = day, Caltime.day_names.(jstime##getDay()) in
+      let day_str = sprintf "%s %04d-%02d-%02d" wd y m d in
+      let header_h2 = h2 [pcdata day_str] in
+      Dom.appendChild ts.ts_dom (Html5.To_dom.of_h2 header_h2);
+      ts.ts_day <- day
     end;
-    [transcript_div]
+    let hour =
+      sprintf "%02d:%02d:%02d"
+	jstime##getHours() jstime##getMinutes() jstime##getSeconds() in
+    let message_p =
+      (p ~a:[a_class ["message"]]
+	(span ~a:[a_class ["hour"]] [pcdata hour] :: pcdata " " ::
+	 span ~a:[a_class ["sender"; msg.msg_sender_cls]]
+	      [pcdata msg.msg_sender] ::
+	 pcdata ": " ::
+	 msg_frag)) in
+    Dom.appendChild ts.ts_dom (Html5.To_dom.of_p message_p)
+
+  let update_thread = ref None
+
+  let enable_updates ts update_comet =
+    if !update_thread = None then begin
+      Eliom_lib.debug "Enabling updates.";
+      update_thread := Some (Lwt_stream.iter (append_message ts) update_comet)
+    end
+
+  let disable_updates () =
+    Option.iter
+      begin fun thread ->
+	Eliom_lib.debug "Disabling updates.";
+	update_thread := None;
+	Lwt.cancel thread
+      end
+      !update_thread
 
   let shown_prec = ref 3
   let shown_date = jsnew Js.date_now()
 
-  let update_transcript_view ~room ~min_time ?pat transcript_dom =
+  let render_messages ~room ?tI ?tF ?pat update_comet =
+    disable_updates ();
+    Eliom_client.call_caml_service ~service:%client_transcript_service
+				   (room, (tI, (tF, pat))) ()
+      >|= fun messages ->
+    let transcript_div = Html5.D.div [] in
+    let ts = {
+      ts_day = (0, 0, 0);
+      ts_dom = Html5.To_dom.of_div transcript_div;
+    } in
+    let message_count = List.length messages in
+    List.iter (append_message ts) messages;
+    if message_count = query_limit then begin
+      let limit_s =
+	sprintf "This result has been limited to %d messages." query_limit in
+      let limit_p = Html5.D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
+      Dom.appendChild ts.ts_dom (Html5.To_dom.of_p limit_p)
+    end;
+    let jt_now = jsnew Js.date_now() in
+    if Caltime.day_start shown_date = Caltime.day_start jt_now then
+      enable_updates ts update_comet;
+    [transcript_div]
+
+  let update_transcript_view ~room ~min_time ?pat transcript_dom update_comet =
     let jt_min = jsnew Js.date_fromTimeValue(min_time *. 1000.0) in
     let jt_now = jsnew Js.date_now() in
     let y_min = jt_min##getFullYear() in
@@ -205,14 +233,14 @@ let client_transcript_service =
       ignore shown_date##setDate(d);
       let tI = Caltime.to_epoch (Caltime.day_start shown_date) in
       let tF = Caltime.to_epoch (Caltime.day_end shown_date) in
-      render_messages ~room ~tI ~tF ?pat () in
+      render_messages ~room ~tI ~tF ?pat update_comet in
 
     let render_mdays m =
       ignore shown_date##setMonth(m - 1);
       if !shown_prec = 2 then
 	let tI = Caltime.to_epoch (Caltime.month_start shown_date) in
 	let tF = Caltime.to_epoch (Caltime.month_end shown_date) in
-	render_messages ~room ~tI ~tF ?pat ()
+	render_messages ~room ~tI ~tF ?pat update_comet
       else
 	let d_dfl = shown_date##getDate() in
 	let last_day_of_m =
@@ -226,14 +254,14 @@ let client_transcript_service =
       if !shown_prec = 1 then
 	let tI = Caltime.to_epoch (Caltime.year_start shown_date) in
 	let tF = Caltime.to_epoch (Caltime.year_end shown_date) in
-	render_messages ~room ~tI ~tF ?pat ()
+	render_messages ~room ~tI ~tF ?pat update_comet
       else
 	let m_dfl = shown_date##getMonth() + 1 in
 	Batyrweb_tools.D.pager ~default_index:(m_dfl - 1) Caltime.month_names
 			       (fun i _ -> render_mdays (i + 1)) in
     let render_years () =
       if !shown_prec = 0 then
-	render_messages ~room ?pat ()
+	render_messages ~room ?pat update_comet
       else
 	let y_dfl = shown_date##getFullYear() in
 	let years = Array.init (y_now - y_min + 1)
@@ -243,8 +271,7 @@ let client_transcript_service =
 
     transcript_dom##innerHTML <- Js.string "";
     render_years () >|=
-    List.iter
-      (fun el -> Dom.appendChild transcript_dom (Html5.To_dom.of_element el))
+      List.iter (Dom.appendChild transcript_dom *< Html5.To_dom.of_element)
 }}
 
 let transcript_handler (room_jid, (tI, (tF, pat))) () =
@@ -254,6 +281,23 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   lwt room = Muc_room.of_node room_node in
   let min_time = Option.get_else Unix.time (Muc_room.min_message_time room) in
   let search_input = input ~input_type:`Text () in
+  let relevant_message msg =
+    let open Batyr_presence in
+    Lwt.return begin
+      if Peer.node (Message.sender msg) != room_node then None else
+      Some {
+	msg_time = Message.seen_time msg;
+	msg_sender_cls = "jid";
+	msg_sender = Peer.resource (Message.sender msg);
+	msg_subject = Message.subject msg;
+	msg_thread = Message.thread msg;
+	msg_body = Message.body msg;
+      }
+    end in
+  let update_events =
+    Lwt_react.E.fmap_s relevant_message Batyr_presence.message_events in
+  let update_comet =
+    Eliom_comet.Channel.create (Lwt_react.E.to_stream update_events) in
   let search_handler =
     {{fun ev ->
       let search_dom = Html5.To_dom.of_input %search_input in
@@ -263,6 +307,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
       Lwt.ignore_result begin
 	update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat
 			       (Html5.To_dom.of_div %transcript_div)
+			       %update_comet
       end
     }} in
   let search_button = button ~a:[a_onclick search_handler] ~button_type:`Button
@@ -274,7 +319,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     let pat = ref %pat in
     Lwt.ignore_result begin
       update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat:!pat
-			     transcript_dom
+			     transcript_dom %update_comet
     end
   }};
   Lwt.return (Batyrweb_tools.D.page
