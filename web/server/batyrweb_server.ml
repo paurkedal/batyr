@@ -22,7 +22,7 @@ let main_service =
 let transcript_service =
   Eliom_service.service ~path:["rooms"]
     ~get_params:Eliom_parameter.
-      (suffix_prod (string "chatroom") ((float "tI") ** opt (float "tF") **
+      (suffix_prod (string "chatroom") (opt (float "tI") ** opt (float "tF") **
 					opt (string "pat")))
     ()
 

@@ -52,7 +52,7 @@ let main_handler () () =
     lwt node = Node.of_id node_id in
     let node_jid = Node.to_string node in
     Lwt.return Html5.D.(li [a ~service:transcript_service [pcdata node_jid]
-			      (node_jid, (0.0, (None, None)))]) in
+			      (node_jid, (None, (None, None)))]) in
   lwt room_lis = Lwt_list.map_p render_room_link rooms in
   let rooms_ul = Html5.D.ul room_lis in
   Lwt.return (Batyrweb_tools.D.page "Chatrooms" [rooms_ul])
@@ -68,20 +68,26 @@ let main_handler () () =
   }
 }}
 
+let phrase_query pat_opt tI_opt tF_opt =
+    (match pat_opt with None -> "" | Some pat -> " matching " ^ pat)
+  ^ (match tI_opt with None -> "" | Some tI -> sprintf " from %f" tI)
+  ^ (match tF_opt with None -> "" | Some tF -> sprintf " to %f" tF)
+
 let client_transcript_service =
   Eliom_registration.Ocaml.register_coservice'
     ~get_params:Eliom_parameter.
-      (string "room" ** float "tI" ** opt (float "tF") ** opt (string "pat"))
-    begin fun (room_jid, (tI, (tF_opt, pat_opt))) () -> Lwt.catch
+      (string "room" ** opt (float "tI") ** opt (float "tF") **
+       opt (string "pat"))
+    begin fun (room_jid, (tI_opt, (tF_opt, pat_opt))) () -> Lwt.catch
       begin fun () ->
-	Lwt_log.debug_f ~section "Sending transcript for %s from %g."
-				 room_jid tI >>
+	Lwt_log.debug_f ~section "Sending %s transcript%s."
+			room_jid (phrase_query pat_opt tI_opt tF_opt) >>
 	lwt room = Lwt.wrap1 Node.of_string room_jid in
 	lwt room_id = Node.id room in
 	let cond =
 	  Batyr_db.Expr.(
-	    (var "sender.node_id" = int room_id
-	      && epoch tI <= var "seen_time")
+	    (var "sender.node_id" = int room_id)
+	    |> Option.fold (fun tI -> (&&) (var "seen_time" >= epoch tI)) tI_opt
 	    |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
 	    |> Option.fold (fun pat -> (&&) (var "subject" =~ pat ||
 					     var "thread" =~ pat ||
@@ -126,11 +132,8 @@ let client_transcript_service =
     end
 
 {client{
-  let month_names = [|"Jan"; "Feb"; "Mar"; "Apr"; "May"; "Jun";
-		      "Jul"; "Aug"; "Sep"; "Oct"; "Nov"; "Dec"|]
-  let day_names = [|"Sun"; "Mon"; "Tue"; "Wed"; "Thu"; "Fri"; "Sat"|]
 
-  let render_messages ~room ~tI ?tF ?pat () =
+  let render_messages ~room ?tI ?tF ?pat () =
     Eliom_client.call_caml_service ~service:%client_transcript_service
 				   (room, (tI, (tF, pat))) ()
       >|= fun messages ->
@@ -163,7 +166,7 @@ let client_transcript_service =
 	let day = jstime##getFullYear(), jstime##getMonth() + 1,
 		  jstime##getDate() in
 	if day <> !current_day then begin
-	  let (y, m, d), wd = day, day_names.(jstime##getDay()) in
+	  let (y, m, d), wd = day, Caltime.day_names.(jstime##getDay()) in
 	  let day_str = sprintf "%s %04d-%02d-%02d" wd y m d in
 	  let header_h2 = h2 [pcdata day_str] in
 	  Dom.appendChild transcript_dom (Html5.To_dom.of_h2 header_h2);
@@ -189,18 +192,8 @@ let client_transcript_service =
     end;
     [transcript_div]
 
-  let day_interval y m d =
-    let dI = jsnew Js.date_day(y, m - 1, d) in
-    let dF = jsnew Js.date_day(y, m - 1, d + 1) in
-    (0.001 *. Js.to_float dI##valueOf(), 0.001 *. Js.to_float dF##valueOf())
-
-  let month_interval y m =
-    let dI, dF = jsnew Js.date_month(y, m - 1), jsnew Js.date_month(y, m + 1) in
-    (0.001 *. Js.to_float dI##valueOf(), 0.001 *. Js.to_float dF##valueOf())
-
-  let year_interval y =
-    let dI, dF = jsnew Js.date_month(y, 0), jsnew Js.date_month(y + 1, 0) in
-    (0.001 *. Js.to_float dI##valueOf(), 0.001 *. Js.to_float dF##valueOf())
+  let shown_prec = ref 3
+  let shown_date = jsnew Js.date_now()
 
   let update_transcript_view ~room ~min_time ?pat transcript_dom =
     let jt_min = jsnew Js.date_fromTimeValue(min_time *. 1000.0) in
@@ -208,49 +201,72 @@ let client_transcript_service =
     let y_min = jt_min##getFullYear() in
     let y_now = jt_now##getFullYear() in
 
-    let render_content y m d _ =
-      let tI, tF = day_interval y m d in
-      Eliom_lib.debug "Selected %04d-%02d-%02d = [%f, %f)." y m d tI tF;
+    let render_content d =
+      ignore shown_date##setDate(d);
+      let tI = Caltime.to_epoch (Caltime.day_start shown_date) in
+      let tF = Caltime.to_epoch (Caltime.day_end shown_date) in
       render_messages ~room ~tI ~tF ?pat () in
 
-    let render_mdays y m = function
-      | [] ->
-	let tI, tF = month_interval y m in
+    let render_mdays m =
+      ignore shown_date##setMonth(m - 1);
+      if !shown_prec = 2 then
+	let tI = Caltime.to_epoch (Caltime.month_start shown_date) in
+	let tF = Caltime.to_epoch (Caltime.month_end shown_date) in
 	render_messages ~room ~tI ~tF ?pat ()
-      | [d] ->
-	let last_day_of_m = jsnew Js.date_day(y, m + 1, -1) in
+      else
+	let d_dfl = shown_date##getDate() in
+	let last_day_of_m =
+	  jsnew Js.date_day(shown_date##getFullYear(), m + 1, -1) in
 	let days_in_m = last_day_of_m##getDate() + 1 in
 	let mdays = Array.init days_in_m (fun i -> sprintf "%d" (i + 1)) in
-	Batyrweb_tools.D.pager ~default_index:(d - 1) mdays
-			       (fun i -> render_content y m (i + 1))
-      | _ -> assert false in
-    let render_months y = function
-      | [] ->
-	let tI, tF = year_interval y in
+	Batyrweb_tools.D.pager ~default_index:(d_dfl - 1) mdays
+			       (fun i _ -> render_content (i + 1)) in
+    let render_months y =
+      ignore shown_date##setFullYear(y);
+      if !shown_prec = 1 then
+	let tI = Caltime.to_epoch (Caltime.year_start shown_date) in
+	let tF = Caltime.to_epoch (Caltime.year_end shown_date) in
 	render_messages ~room ~tI ~tF ?pat ()
-      | m :: d_ ->
-	Batyrweb_tools.D.pager ~default_index:(m - 1) month_names
-			       (fun i _ -> render_mdays y (i + 1) d_) in
-    let render_years = function
-      (* | [] -> render_messages ~room ~tI ?pat () *)
-      | [] -> assert false
-      | y :: m_d_ ->
+      else
+	let m_dfl = shown_date##getMonth() + 1 in
+	Batyrweb_tools.D.pager ~default_index:(m_dfl - 1) Caltime.month_names
+			       (fun i _ -> render_mdays (i + 1)) in
+    let render_years () =
+      if !shown_prec = 0 then
+	render_messages ~room ?pat ()
+      else
+	let y_dfl = shown_date##getFullYear() in
 	let years = Array.init (y_now - y_min + 1)
 			       (fun dy -> sprintf "%04d" (y_min + dy)) in
-	Batyrweb_tools.D.pager ~default_index:(y - y_min) years
-			       (fun dy _ -> render_months (y_min + dy) m_d_) in
+	Batyrweb_tools.D.pager ~default_index:(y_dfl - y_min) years
+			       (fun dy _ -> render_months (y_min + dy)) in
+
     transcript_dom##innerHTML <- Js.string "";
-    render_years [y_now; jt_now##getMonth() + 1; jt_now##getDate()] >|=
+    render_years () >|=
     List.iter
       (fun el -> Dom.appendChild transcript_dom (Html5.To_dom.of_element el))
 }}
 
 let transcript_handler (room_jid, (tI, (tF, pat))) () =
-  let transcript_div = Html5.D.(div ~a:[a_class ["transcript"]] []) in
+  let open Html5.D in
+  let transcript_div = div ~a:[a_class ["transcript"]] [] in
   let room_node = Node.of_string room_jid in
   lwt room = Muc_room.of_node room_node in
   let min_time = Option.get_else Unix.time (Muc_room.min_message_time room) in
-  Lwt_log.info_f ~section "Room %s, starting at %f\n" room_jid min_time;
+  let search_input = input ~input_type:`Text () in
+  let search_handler =
+    {{fun ev ->
+      let search_dom = Html5.To_dom.of_input %search_input in
+      let pat = match Js.to_string search_dom##value
+		with "" -> None | s -> Some s in
+      search_dom##value <- Js.string "";
+      Lwt.ignore_result begin
+	update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat
+			       (Html5.To_dom.of_div %transcript_div)
+      end
+    }} in
+  let search_button = button ~a:[a_onclick search_handler] ~button_type:`Button
+			     [pcdata "Search"] in
   ignore {unit{
     let transcript_dom = Html5.To_dom.of_div %transcript_div in
     let tI = ref %tI in
@@ -263,7 +279,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   }};
   Lwt.return (Batyrweb_tools.D.page
     (sprintf "Transcript of %s" room_jid)
-    [transcript_div]
+    [div [search_input; search_button]; transcript_div]
   )
 
 module Main_app =

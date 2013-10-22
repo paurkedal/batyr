@@ -19,6 +19,23 @@ open Unprime_option
 
 let (>|=) = Lwt.(>|=)
 
+module Caltime = struct
+  let to_epoch jd = 0.001 *. Js.to_float jd##valueOf()
+
+  let day_start d =
+    jsnew Js.date_day(d##getFullYear(), d##getMonth(), d##getDate())
+  let day_end d =
+    jsnew Js.date_day(d##getFullYear(), d##getMonth(), d##getDate() + 1)
+  let month_start d = jsnew Js.date_month(d##getFullYear(), d##getMonth())
+  let month_end d = jsnew Js.date_month(d##getFullYear(), d##getMonth() + 1)
+  let year_start d = jsnew Js.date_month(d##getFullYear(), 0)
+  let year_end d = jsnew Js.date_month(d##getFullYear() + 1, 0)
+
+  let month_names = [|"Jan"; "Feb"; "Mar"; "Apr"; "May"; "Jun";
+		      "Jul"; "Aug"; "Sep"; "Oct"; "Nov"; "Dec"|]
+  let day_names = [|"Sun"; "Mon"; "Tue"; "Wed"; "Thu"; "Fri"; "Sat"|]
+end
+
 module type LIVE_TABLE_ELEMENT = sig
   include Prime_enumset.OrderedType
   val render_row : t -> [`Td] Html5.elt list
