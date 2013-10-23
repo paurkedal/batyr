@@ -31,6 +31,9 @@ module Caltime = struct
   let year_start d = jsnew Js.date_month(d##getFullYear(), 0)
   let year_end d = jsnew Js.date_month(d##getFullYear() + 1, 0)
 
+  let days_in_month d =
+    jsnew Js.date_day(d##getFullYear(), d##getMonth() + 1, -1)##getDate() + 1
+
   let month_names = [|"Jan"; "Feb"; "Mar"; "Apr"; "May"; "Jun";
 		      "Jul"; "Aug"; "Sep"; "Oct"; "Nov"; "Dec"|]
   let day_names = [|"Sun"; "Mon"; "Tue"; "Wed"; "Thu"; "Fri"; "Sat"|]

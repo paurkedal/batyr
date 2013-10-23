@@ -243,10 +243,8 @@ let client_transcript_service =
 	render_messages ~room ~tI ~tF ?pat update_comet
       else
 	let d_dfl = shown_date##getDate() in
-	let last_day_of_m =
-	  jsnew Js.date_day(shown_date##getFullYear(), m + 1, -1) in
-	let days_in_m = last_day_of_m##getDate() + 1 in
-	let mdays = Array.init days_in_m (fun i -> sprintf "%d" (i + 1)) in
+	let mdays = Array.init (Caltime.days_in_month shown_date)
+			       (fun i -> sprintf "%d" (i + 1)) in
 	Batyrweb_tools.D.pager ~default_index:(d_dfl - 1) mdays
 			       (fun i _ -> render_content (i + 1)) in
     let render_months y =
