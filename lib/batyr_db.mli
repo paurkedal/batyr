@@ -18,6 +18,8 @@ exception Response_error of string
 
 val or_null : string option -> string
 
+val escape_like : string -> string
+
 module Decode : sig
   type 'a t
 
@@ -57,6 +59,8 @@ module Expr : sig
   val (>) : 'a t -> 'a t -> bool t
   val (=~) : 'a t -> string -> bool t
   val (=~*) : 'a t -> string -> bool t
+  val like : 'a t -> string -> bool t
+  val ilike : 'a t -> string -> bool t
 
   val (~-) : int t -> int t
   val (+) : int t -> int t -> int t

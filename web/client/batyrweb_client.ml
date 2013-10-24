@@ -19,6 +19,14 @@ open Unprime_option
 
 let (>|=) = Lwt.(>|=)
 
+module Domx_html = struct
+  let element_by_id : (#Dom_html.element Js.t -> 'a Js.opt) -> string -> 'a
+		    = fun coercion id ->
+    Js.coerce_opt
+      (Dom_html.document##getElementById(Js.string id))
+      coercion (fun _ -> assert false)
+end
+
 module Caltime = struct
   let to_epoch jd = 0.001 *. Js.to_float jd##valueOf()
 

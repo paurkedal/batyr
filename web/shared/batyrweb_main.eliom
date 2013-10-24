@@ -18,8 +18,10 @@
   open Eliom_content
   open Printf
   open Unprime
+  open Unprime_char
   open Unprime_list
   open Unprime_option
+  open Unprime_string
 
   type chatroom = string
   let query_limit = 10000
@@ -89,9 +91,7 @@ let client_transcript_service =
 	    (var "sender.node_id" = int room_id)
 	    |> Option.fold (fun tI -> (&&) (var "seen_time" >= epoch tI)) tI_opt
 	    |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
-	    |> Option.fold (fun pat -> (&&) (var "subject" =~ pat ||
-					     var "thread" =~ pat ||
-					     var "body" =~ pat)) pat_opt
+	    |> Option.fold (fun pat -> (&&) (var "body" =~ pat)) pat_opt
 	  ) in
 	let cond_str, params = Batyr_db.Expr.to_sql cond in
 	Batyr_db.use
@@ -278,7 +278,6 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   let room_node = Node.of_string room_jid in
   lwt room = Muc_room.of_node room_node in
   let min_time = Option.get_else Unix.time (Muc_room.min_message_time room) in
-  let search_input = input ~input_type:`Text () in
   let relevant_message msg =
     let open Batyr_presence in
     Lwt.return begin
@@ -296,20 +295,43 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     Lwt_react.E.fmap_s relevant_message Batyr_presence.message_events in
   let update_comet =
     Eliom_comet.Channel.create (Lwt_react.E.to_stream update_events) in
+  let clear_handler =
+    {{fun ev ->
+      let search_dom =
+	Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
+      search_dom##value <- Js.string "";
+      let clear_dom =
+	Domx_html.element_by_id Dom_html.CoerceTo.button "clear_search" in
+      clear_dom##disabled <- Js._true;
+      Lwt.ignore_result begin
+	update_transcript_view ~room:%room_jid ~min_time:%min_time
+			       (Html5.To_dom.of_div %transcript_div)
+			       %update_comet
+      end
+    }} in
+  let clear_button =
+    button ~a:[a_onclick clear_handler; a_id "clear_search";
+	       a_disabled `Disabled]
+	   ~button_type:`Button [pcdata "all"] in
   let search_handler =
     {{fun ev ->
-      let search_dom = Html5.To_dom.of_input %search_input in
+      let search_dom =
+	Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
       let pat = match Js.to_string search_dom##value
 		with "" -> None | s -> Some s in
-      search_dom##value <- Js.string "";
+      (Html5.To_dom.of_button %clear_button)##disabled <- Js.bool (pat = None);
       Lwt.ignore_result begin
 	update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat
 			       (Html5.To_dom.of_div %transcript_div)
 			       %update_comet
       end
     }} in
-  let search_button = button ~a:[a_onclick search_handler] ~button_type:`Button
-			     [pcdata "Search"] in
+  let search_handler_mouse =
+    {{fun ev -> %search_handler (ev :> Dom_html.event Js.t)}} in
+  let search_button = button ~a:[a_onclick search_handler_mouse]
+			     ~button_type:`Button [pcdata "matching"] in
+  let search_input = input ~a:[a_id "search_text"; a_onchange search_handler]
+			   ~input_type:`Text () in
   ignore {unit{
     let transcript_dom = Html5.To_dom.of_div %transcript_div in
     let tI = ref %tI in
@@ -322,7 +344,10 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   }};
   Lwt.return (Batyrweb_tools.D.page
     (sprintf "Transcript of %s" room_jid)
-    [div [search_input; search_button]; transcript_div]
+    [ div
+      [ pcdata "Show "; clear_button;
+	pcdata " or "; search_button; search_input; ];
+      transcript_div ]
   )
 
 module Main_app =

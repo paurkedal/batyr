@@ -30,6 +30,15 @@ let fail_resperr fmt = ksprintf (fun s -> Lwt.fail (Response_error s)) fmt
 
 let or_null = function None -> Postgresql.null | Some s -> s
 
+let escape_like s =
+  let buf = Buffer.create (String.length s) in
+  String.iter
+    (fun c ->
+      if c = '\\' || c = '%' || c = '_' then Buffer.add_char buf '\\';
+      Buffer.add_char buf c)
+    s;
+  Buffer.contents buf
+
 module Decode = struct
   type 'a t = string array -> int -> 'a * int
 
@@ -217,6 +226,8 @@ module Expr = struct
   let (>)	= let op = infixB 15 ">" in call2 op
   let (=~)	= let op = infixB 15 "~" in fun x re -> call2 op x (string re)
   let ( =~* )	= let op = infixB 15 "~*" in fun x re -> call2 op x (string re)
+  let like	= let op = infixB 15 "like" in fun x p -> call2 op x (string p)
+  let ilike	= let op = infixB 15 "ilike" in fun x p -> call2 op x (string p)
 
   let (~-)	= let op = prefix 25 "-" in call1 op
   let (+)	= let op = infixL 20 "+" in call2 op
