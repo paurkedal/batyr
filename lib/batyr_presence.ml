@@ -17,6 +17,7 @@
 open Batyr_data
 open Batyr_prereq
 open Batyr_xmpp
+open CalendarLib
 open Printf
 open Unprime
 open Unprime_option
@@ -67,9 +68,33 @@ let is_transcribed jid = true (* FIXME *)
 let message_events, emit_message = Lwt_react.E.create ()
 
 let on_message chat stanza =
+  let open Xml in
+  List.iter
+    (function
+      | Xmlelement ((None, tag), attrs, els) ->
+	Lwt_log.ign_debug_f ~section "Unprocessed tag %s" tag
+      | Xmlelement ((Some ns, tag), attrs, els) ->
+	Lwt_log.ign_debug_f ~section "Unprocessed tag [%s]:%s" ns tag
+      | Xmlcdata s ->
+	Lwt_log.ign_debug_f ~section "Unprocessed cdata \"%s\""
+			    (String.escaped s))
+    Chat.(stanza.x);
   match Chat.(stanza.jid_from, stanza.jid_to, stanza.content.message_type) with
   | Some sender, Some recipient, Some message_type ->
-    let seen_time = Unix.time () in
+    let seen_time =
+      match Chat.(stanza.content.message_delay) with
+      | None -> Unix.time ()
+      | Some {Chat.delay_stamp; Chat.delay_legacy} ->
+	Lwt_log.ign_debug_f "Got delay stamp %s." delay_stamp;
+	try
+	  let fmt = if delay_legacy then "%Y%m%dT%T%z" else "%FT%TZ%z" in
+	  let t =
+	  Calendar.to_unixfloat
+		(Printer.Calendar.from_fstring fmt (delay_stamp ^ "+0000")) in
+	  Lwt_log.ign_debug_f "Converted to %f" t; t
+	with Invalid_argument msg ->
+	  Lwt_log.ign_error_f "Received invalid <delay/> stamp: %s" msg;
+	  Unix.time () in
     let sender = Peer.of_jid sender in
     let recipient = Peer.of_jid (JID.of_string recipient) in
     let subject = stanza.Chat.content.Chat.subject in
@@ -83,13 +108,14 @@ let on_message chat stanza =
       lwt recipient_id = Peer.id recipient in
       Batyr_db.(use begin fun dbh ->
 	dbh#command
-	  ~params:[|or_null stanza.Chat.id;
+	  ~params:[|timestamp_of_epoch seen_time; or_null stanza.Chat.id;
 		    string_of_int sender_id; string_of_int recipient_id;
 		    string_of_message_type message_type;
 		    or_null subject; or_null thread; or_null body|]
-	  "INSERT INTO batyr.messages (auxid, sender_id, recipient_id, \
+	  "INSERT INTO batyr.messages (seen_time, auxid, \
+				       sender_id, recipient_id, \
 				       message_type, subject, thread, body) \
-	   VALUES ($1, $2, $3, $4, $5, $6, $7)"
+	   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
       end)
     else
       Lwt.return_unit

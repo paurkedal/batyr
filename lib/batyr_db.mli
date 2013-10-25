@@ -20,6 +20,9 @@ val or_null : string option -> string
 
 val escape_like : string -> string
 
+val epoch_of_timestamp : string -> float
+val timestamp_of_epoch : float -> string
+
 module Decode : sig
   type 'a t
 
