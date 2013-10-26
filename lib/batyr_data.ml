@@ -15,6 +15,7 @@
  *)
 
 open Batyr_prereq
+open Batyr_xmpp
 
 module Node = struct
   type t = {
@@ -67,6 +68,8 @@ module Node = struct
 
   let to_string node_name = JID.string_of_jid (jid node_name)
   let of_string s = of_jid (JID.of_string s)
+
+  let cached_id {id} = if id = -1 then raise Not_found else id
 
   let of_id id =
     try Lwt.return (Id_cache.find_key id_cache id)
@@ -196,6 +199,23 @@ module Resource = struct
 	id)
 end
 
+module Muc_user = struct
+  type t = {
+    nick : string;
+    jid : JID.t option;
+    role : Chat_muc.role;
+    affiliation : Chat_muc.affiliation
+  }
+  let make ~nick ?jid ~role ~affiliation () = {nick; jid; role; affiliation}
+  let nick {nick} = nick
+  let jid {jid} = jid
+  let role {role} = role
+  let affiliation {affiliation} = affiliation
+  let to_string = function
+    | {nick; jid = None} -> nick
+    | {nick; jid = Some jid} -> nick ^ " <" ^ JID.string_of_jid jid ^ ">"
+end
+
 module Muc_room = struct
   type t = {
     node : Node.t;
@@ -203,6 +223,7 @@ module Muc_room = struct
     description : string option;
     transcribe : bool;
     min_message_time : float option;
+    users_by_nick : (string, Muc_user.t) Hashtbl.t;
     beacon : Batyr_cache.beacon;
   }
 
@@ -212,7 +233,8 @@ module Muc_room = struct
     let f {node} = node
     let f_inv node = {
       node; alias = None; description = None; transcribe = false;
-      min_message_time = None; beacon = Batyr_cache.dummy_beacon;
+      min_message_time = None; users_by_nick = Hashtbl.create 2;
+      beacon = Batyr_cache.dummy_beacon;
     }
     let beacon {beacon} = beacon
   end
@@ -224,6 +246,7 @@ module Muc_room = struct
   let alias {alias} = alias
   let description {description} = description
   let min_message_time {min_message_time} = min_message_time
+  let users_by_nick {users_by_nick} = users_by_nick
 
   let of_node node =
     try Lwt.return (Node_cache.find_key node_cache node)
@@ -246,5 +269,6 @@ module Muc_room = struct
 	    >|= fun (alias, (description, (transcribe, min_message_time))) ->
 	  let grade = dbh#stop_accounting in
 	  Batyr_cache.cache grade (fun beacon ->
-	    {node; alias; description; transcribe; min_message_time; beacon}))
+	    {node; alias; description; transcribe; min_message_time;
+	     users_by_nick = Hashtbl.create 27; beacon}))
 end

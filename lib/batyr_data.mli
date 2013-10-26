@@ -14,6 +14,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Batyr_xmpp
+
 module Node : sig
   type t
   val create : domain_name: string -> ?node_name: string -> unit -> t
@@ -23,6 +25,7 @@ module Node : sig
   val jid : t -> JID.t
   val to_string : t -> string
   val of_string : string -> t
+  val cached_id : t -> int
   val of_id : int -> t Lwt.t
   val id : t -> int Lwt.t
 end
@@ -43,6 +46,17 @@ module Resource : sig
   val id : t -> int Lwt.t
 end
 
+module Muc_user : sig
+  type t
+  val make : nick: string -> ?jid: JID.t -> role: Chat_muc.role ->
+	     affiliation: Chat_muc.affiliation -> unit -> t
+  val nick : t -> string
+  val jid : t -> JID.t option
+  val role : t -> Chat_muc.role
+  val affiliation : t -> Chat_muc.affiliation
+  val to_string : t -> string
+end
+
 module Muc_room : sig
   type t
   val of_node : Node.t -> t Lwt.t
@@ -50,4 +64,5 @@ module Muc_room : sig
   val alias : t -> string option
   val description : t -> string option
   val min_message_time : t -> float option
+  val users_by_nick : t -> (string, Muc_user.t) Hashtbl.t
 end

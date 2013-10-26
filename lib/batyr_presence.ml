@@ -20,6 +20,7 @@ open Batyr_xmpp
 open CalendarLib
 open Printf
 open Unprime
+open Unprime_list
 open Unprime_option
 
 let section = Lwt_log.Section.make "batyr.presence"
@@ -121,19 +122,66 @@ let on_message chat stanza =
       Lwt.return_unit
   | _ -> Lwt.return_unit
 
-let on_message_error chat ?id ?jid_from ?jid_to ?lang error =
+let extract_muc_user nick =
+  List.search
+    begin function
+    | Xml.Xmlelement ((ns_muc_user, "x"), _, _) as el ->
+      let user = Chat_muc.User.decode el in
+      begin match user.Chat_muc.User.item with
+      | None -> None
+      | Some item ->
+	let open Chat_muc in
+	let jid = item.User.jid in
+	let role = Option.get_or RoleNone item.Chat_muc.User.role in
+	let affiliation = Option.get_or AffiliationNone item.User.affiliation in
+	Some (Muc_user.make ~nick ?jid ~role ~affiliation ())
+      end
+    | _ -> None
+    end
+
+let entered_rooms_by_id = Hashtbl.create 23
+let entered_room_by_node node =
+  try Some (Hashtbl.find entered_rooms_by_id (Node.cached_id node))
+  with Not_found -> None
+
+let on_presence chat stanza =
+  match stanza.Chat.jid_from with
+  | None -> Lwt_log.warning "Ignoring presence stanza lacking \"form\"."
+  | Some sender_jid ->
+    let entered_room_node = Node.of_jid (JID.bare_jid sender_jid) in
+    begin match entered_room_by_node entered_room_node with
+    | None -> Lwt.return_unit
+    | Some entered_room ->
+      let nick = sender_jid.JID.lresource in
+      let user_opt = extract_muc_user nick stanza.Chat.x in
+      begin match Chat.(stanza.content.presence_type), user_opt with
+      | None, Some user ->
+	Hashtbl.replace (Muc_room.users_by_nick entered_room) nick user;
+	Lwt_log.debug_f "User %s is available." (Muc_user.to_string user)
+      | Some Chat.Unavailable, Some user ->
+	Hashtbl.remove (Muc_room.users_by_nick entered_room) nick;
+	Lwt_log.debug_f "User %s is unavailable." (Muc_user.to_string user)
+      | _ -> Lwt.return_unit
+      end
+    end
+
+let on_error ~kind chat ?id ?jid_from ?jid_to ?lang error =
   let jid_from = Option.map JID.string_of_jid jid_from in
   let props = []
     |> Option.fold (fun s acc -> sprintf "recipient = %s" s :: acc) jid_to
     |> Option.fold (fun s acc -> sprintf "sender = %s" s :: acc) jid_from
     |> Option.fold (fun s acc -> sprintf "id = %s" s :: acc) id in
-  Lwt_log.error_f "Message error; %s; %s"
+  Lwt_log.error_f ~section "%s error; %s; %s" kind
 		  (String.concat ", " props) error.StanzaError.err_text
 
 let chat_handler account_id chat =
   Chat.register_iq_request_handler chat Chat_version.ns_version on_version;
   Chat.register_stanza_handler chat (Chat.ns_client, "message")
-    (Chat.parse_message ~callback:on_message ~callback_error:on_message_error);
+    (Chat.parse_message ~callback:on_message
+			~callback_error:(on_error ~kind:"message"));
+  Chat.register_stanza_handler chat (Chat.ns_client, "presence")
+    (Chat.parse_presence ~callback:on_presence
+			 ~callback_error:(on_error ~kind:"presence"));
   Batyr_db.(use (fun dbh ->
     dbh#query_list Decode.(int ** option epoch)
       ~params:[|string_of_int account_id|]
@@ -159,6 +207,10 @@ let chat_handler account_id chat =
 			   (Resource.to_string resource) t >>
 	    Lwt.return (Some (int_of_float t))
 	  end in
+	let room_node = Resource.node resource in
+	lwt room = Muc_room.of_node room_node in
+	lwt room_id = Node.id room_node in
+	Hashtbl.replace entered_rooms_by_id room_id room;
 	Chat_muc.enter_room ?seconds chat (Resource.jid resource))
 
 let start_chat_sessions () =

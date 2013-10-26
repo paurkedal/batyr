@@ -22,7 +22,7 @@ module JID : module type of JID with type t = JID.t
 
 module Chat : sig
 
-  include XMPP.S
+  include XMPP.S with type 'a t = 'a Lwt.t
 
   type chat = unit session_data
 
@@ -104,6 +104,12 @@ module Chat_version : sig
 end
 
 module Chat_muc : sig
+
+  val ns_muc : string option
+  val ns_muc_user : string option
+  val ns_muc_admin : string option
+  val ns_muc_owner : string option
+  val ns_muc_unique : string option
 
   type role =
     | RoleModerator
