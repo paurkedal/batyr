@@ -108,14 +108,14 @@ let on_message chat stanza =
       lwt recipient_id = Resource.id recipient in
       Batyr_db.(use begin fun dbh ->
 	dbh#command
-	  ~params:[|timestamp_of_epoch seen_time; or_null stanza.Chat.id;
+	  ~params:[|timestamp_of_epoch seen_time;
 		    string_of_int sender_id; string_of_int recipient_id;
 		    string_of_message_type message_type;
 		    or_null subject; or_null thread; or_null body|]
-	  "INSERT INTO batyr.messages (seen_time, auxid, \
+	  "INSERT INTO batyr.messages (seen_time, \
 				       sender_id, recipient_id, \
 				       message_type, subject, thread, body) \
-	   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+	   VALUES ($1, $2, $3, $4, $5, $6, $7)"
       end)
     else
       Lwt.return_unit

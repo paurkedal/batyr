@@ -34,3 +34,6 @@ ALTER TABLE batyr.resources RENAME COLUMN resource TO resource_name;
 -- batyr_prec.sql.
 DROP VIEW batyr.peer_jids;
 DROP FUNCTION IF EXISTS batyr.make_peer(text, text, text);
+
+-- Drop the auxid column from messages.
+ALTER TABLE batyr.messages DROP COLUMN auxid;
