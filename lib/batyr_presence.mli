@@ -21,8 +21,8 @@ module Message : sig
   type t
 
   val seen_time : t -> float
-  val sender : t -> Peer.t
-  val recipient : t -> Peer.t
+  val sender : t -> Resource.t
+  val recipient : t -> Resource.t
   val message_type : t -> Chat.message_type
   val subject : t -> string option
   val thread : t -> string option

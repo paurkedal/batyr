@@ -27,14 +27,14 @@ module Node : sig
   val id : t -> int Lwt.t
 end
 
-module Peer : sig
+module Resource : sig
   type t
   val create : domain_name: string -> ?node_name: string ->
-	       ?resource: string -> unit -> t
+	       ?resource_name: string -> unit -> t
   val domain_name : t -> string
   val node_name : t -> string
+  val resource_name : t -> string
   val node : t -> Node.t
-  val resource : t -> string
   val of_jid : JID.t -> t
   val jid : t -> JID.t
   val to_string : t -> string

@@ -102,22 +102,22 @@ module Node = struct
 	id)
 end
 
-module Peer = struct
+module Resource = struct
   type t = {
     mutable id : int;
     domain_name : string;
     node_name : string;
-    resource : string;
+    resource_name : string;
     beacon : Batyr_cache.beacon;
   }
 
   module Data_bijection = struct
     type domain = t
     type codomain = string * string * string
-    let f {domain_name; node_name; resource} =
-      (domain_name, node_name, resource)
-    let f_inv (domain_name, node_name, resource) = {
-      id = -1; domain_name; node_name; resource;
+    let f {domain_name; node_name; resource_name} =
+      (domain_name, node_name, resource_name)
+    let f_inv (domain_name, node_name, resource_name) = {
+      id = -1; domain_name; node_name; resource_name;
       beacon = Batyr_cache.dummy_beacon;
     }
     let beacon {beacon} = beacon
@@ -128,7 +128,7 @@ module Peer = struct
     type codomain = int
     let f {id} = assert (id >= 0); id
     let f_inv id = {
-      id; domain_name = ""; node_name = ""; resource = "";
+      id; domain_name = ""; node_name = ""; resource_name = "";
       beacon = Batyr_cache.dummy_beacon;
     }
     let beacon {beacon} = beacon
@@ -139,21 +139,22 @@ module Peer = struct
   let data_cache = Data_cache.create 23
   let id_cache = Id_cache.create 23
 
-  let create ~domain_name ?(node_name = "") ?(resource = "") () =
+  let create ~domain_name ?(node_name = "") ?(resource_name = "") () =
     Data_cache.merge data_cache
       (Batyr_cache.cache Batyr_cache.Grade.basic
-	(fun beacon -> {id = -1; domain_name; node_name; resource; beacon}))
+	(fun beacon ->
+	 {id = -1; domain_name; node_name; resource_name; beacon}))
 
   let domain_name {domain_name} = domain_name
   let node_name {node_name} = node_name
+  let resource_name {resource_name} = resource_name
   let node {domain_name; node_name} = Node.create ~domain_name ~node_name ()
-  let resource {resource} = resource
 
   let of_jid {JID.ldomain; JID.lnode; JID.lresource} =
-    create ~domain_name:ldomain ~node_name:lnode ~resource:lresource ()
+    create ~domain_name:ldomain ~node_name:lnode ~resource_name:lresource ()
 
-  let jid {domain_name; node_name; resource} =
-    JID.make_jid node_name domain_name resource
+  let jid {domain_name; node_name; resource_name} =
+    JID.make_jid node_name domain_name resource_name
 
   let to_string p = JID.string_of_jid (jid p)
   let of_string s = of_jid (JID.of_string s)
@@ -166,30 +167,32 @@ module Peer = struct
 	  dbh#start_accounting;
 	  dbh#query_single Batyr_db.Decode.(string ** string ** string)
 	    ~params:[|string_of_int id|]
-	    "SELECT domain_name, node_name, resource \
-	     FROM batyr.peers NATURAL JOIN batyr.nodes \
+	    "SELECT domain_name, node_name, resource_name \
+	     FROM batyr.resources NATURAL JOIN batyr.nodes \
 			      NATURAL JOIN batyr.domains \
-	     WHERE peer_id = $1" >|= fun (domain_name, (node_name, resource)) ->
+	     WHERE resource_id = $1"
+	     >|= fun (domain_name, (node_name, resource_name)) ->
 	  let grade = dbh#stop_accounting in
 	  Batyr_cache.cache grade
-	    (fun beacon -> {id; domain_name; node_name; resource; beacon}))
-	>|= fun peer ->
-      try Id_cache.find id_cache peer
+	    (fun beacon -> {id; domain_name; node_name; resource_name; beacon}))
+	>|= fun resource ->
+      try Id_cache.find id_cache resource
       with Not_found ->
-	Data_cache.add data_cache peer;
-	Id_cache.add id_cache peer;
-	peer
+	Data_cache.add data_cache resource;
+	Id_cache.add id_cache resource;
+	resource
 
-  let id peer =
-    if peer.id >= 0 then Lwt.return peer.id else
+  let id resource =
+    if resource.id >= 0 then Lwt.return resource.id else
     Batyr_db.use
       (fun dbh ->
 	dbh#start_accounting;
 	dbh#query_single Batyr_db.Decode.int
-	  ~params:[|peer.domain_name; peer.node_name; peer.resource|]
-	  "SELECT batyr.make_peer($1, $2, $3)" >|= fun id ->
-	peer.id <- id;
-	Id_cache.add id_cache peer;
+	  ~params:[|resource.domain_name; resource.node_name;
+		    resource.resource_name|]
+	  "SELECT batyr.make_resource($1, $2, $3)" >|= fun id ->
+	resource.id <- id;
+	Id_cache.add id_cache resource;
 	id)
 end
 
@@ -236,8 +239,8 @@ module Muc_room = struct
 	    "SELECT room_alias, room_description, transcribe, \
 		    (SELECT min(seen_time) \
 		       FROM batyr.messages \
-		       JOIN (batyr.peers NATURAL JOIN batyr.nodes) AS sender \
-			 ON sender_id = sender.peer_id \
+		       JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
+			 ON sender_id = sender.resource_id \
 		      WHERE node_id = $1) \
 	       FROM batyr.muc_rooms WHERE node_id = $1"
 	    >|= fun (alias, (description, (transcribe, min_message_time))) ->

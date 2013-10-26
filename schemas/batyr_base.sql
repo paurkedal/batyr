@@ -27,15 +27,15 @@ CREATE TABLE batyr.nodes (
     UNIQUE (domain_id, node_name)
 );
 
-CREATE TABLE batyr.peers (
-    peer_id SERIAL PRIMARY KEY,
+CREATE TABLE batyr.resources (
+    resource_id SERIAL PRIMARY KEY,
     node_id integer NOT NULL REFERENCES batyr.nodes,
-    resource text NOT NULL,
-    UNIQUE (node_id, resource)
+    resource_name text NOT NULL,
+    UNIQUE (node_id, resource_name)
 );
 
 CREATE TABLE batyr.accounts (
-    peer_id integer PRIMARY KEY REFERENCES batyr.peers,
+    resource_id integer PRIMARY KEY REFERENCES batyr.resources,
     server_port integer NOT NULL DEFAULT 5222,
     client_password text NOT NULL,
     is_active boolean NOT NULL
@@ -49,7 +49,7 @@ CREATE TABLE batyr.muc_rooms (
 );
 
 CREATE TABLE batyr.muc_presence (
-    peer_id integer PRIMARY KEY REFERENCES batyr.peers,
+    resource_id integer PRIMARY KEY REFERENCES batyr.resources,
     account_id integer NOT NULL REFERENCES batyr.accounts,
     is_present boolean NOT NULL
 );
@@ -61,8 +61,8 @@ CREATE TABLE batyr.messages (
     message_id SERIAL PRIMARY KEY,
     auxid text,
     seen_time timestamp NOT NULL DEFAULT (current_timestamp AT TIME ZONE 'UTC'),
-    sender_id integer NOT NULL REFERENCES batyr.peers,
-    recipient_id integer REFERENCES batyr.peers,
+    sender_id integer NOT NULL REFERENCES batyr.resources,
+    recipient_id integer REFERENCES batyr.resources,
     message_type batyr.message_type,
     subject text,
     thread text,

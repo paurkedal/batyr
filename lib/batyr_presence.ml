@@ -27,8 +27,8 @@ let section = Lwt_log.Section.make "batyr.presence"
 module Message = struct
   type t = {
     seen_time : float;
-    sender : Peer.t;
-    recipient : Peer.t;
+    sender : Resource.t;
+    recipient : Resource.t;
     message_type : Chat.message_type;
     subject : string option;
     thread : string option;
@@ -95,8 +95,8 @@ let on_message chat stanza =
 	with Invalid_argument msg ->
 	  Lwt_log.ign_error_f "Received invalid <delay/> stamp: %s" msg;
 	  Unix.time () in
-    let sender = Peer.of_jid sender in
-    let recipient = Peer.of_jid (JID.of_string recipient) in
+    let sender = Resource.of_jid sender in
+    let recipient = Resource.of_jid (JID.of_string recipient) in
     let subject = stanza.Chat.content.Chat.subject in
     let thread = stanza.Chat.content.Chat.thread in
     let body = stanza.Chat.content.Chat.body in
@@ -104,8 +104,8 @@ let on_message chat stanza =
 			   ?subject ?thread ?body () in
     emit_message msg;
     if is_transcribed recipient then
-      lwt sender_id = Peer.id sender in
-      lwt recipient_id = Peer.id recipient in
+      lwt sender_id = Resource.id sender in
+      lwt recipient_id = Resource.id recipient in
       Batyr_db.(use begin fun dbh ->
 	dbh#command
 	  ~params:[|timestamp_of_epoch seen_time; or_null stanza.Chat.id;
@@ -137,44 +137,44 @@ let chat_handler account_id chat =
   Batyr_db.(use (fun dbh ->
     dbh#query_list Decode.(int ** option epoch)
       ~params:[|string_of_int account_id|]
-      "SELECT peer_id, \
+      "SELECT resource_id, \
 	      (SELECT max(seen_time) \
-	       FROM batyr.messages JOIN batyr.peers AS sender \
-		 ON sender_id = sender.peer_id \
+	       FROM batyr.messages JOIN batyr.resources AS sender \
+		 ON sender_id = sender.resource_id \
 	       WHERE sender.node_id = node_id) \
-       FROM batyr.muc_presence NATURAL JOIN batyr.peers \
+       FROM batyr.muc_presence NATURAL JOIN batyr.resources \
        WHERE account_id = $1 AND is_present = true")) >>=
     Lwt_list.iter_s
-      (fun (peer_id, since) ->
-	lwt peer = Peer.of_id peer_id in
+      (fun (resource_id, since) ->
+	lwt resource = Resource.of_id resource_id in
 	lwt seconds =
 	  begin match since with
 	  | None ->
 	    Lwt_log.info_f ~section "Entering %s, no previous logs."
-			   (Peer.to_string peer) >>
+			   (Resource.to_string resource) >>
 	    Lwt.return_none
 	  | Some t ->
 	    let t = Unix.time () -. t -. 1.0 in (* FIXME: Need <delay/> *)
 	    Lwt_log.info_f ~section "Entering %s, seconds = %f"
-			   (Peer.to_string peer) t >>
+			   (Resource.to_string resource) t >>
 	    Lwt.return (Some (int_of_float t))
 	  end in
-	Chat_muc.enter_room ?seconds chat (Peer.jid peer))
+	Chat_muc.enter_room ?seconds chat (Resource.jid resource))
 
 let start_chat_sessions () =
   Batyr_db.use begin fun dbh ->
     dbh#query_list Batyr_db.Decode.(int ** int ** string)
-      "SELECT peer_id, server_port, client_password \
-       FROM batyr.accounts NATURAL JOIN batyr.peers \
+      "SELECT resource_id, server_port, client_password \
+       FROM batyr.accounts NATURAL JOIN batyr.resources \
        WHERE is_active = true" >>=
-    Lwt_list.iter_s (fun (peer_id, (port, password)) ->
-      Peer.of_id peer_id >|= fun peer ->
-      let {JID.lnode; JID.ldomain; JID.lresource} = Peer.jid peer in
+    Lwt_list.iter_s (fun (resource_id, (port, password)) ->
+      Resource.of_id resource_id >|= fun resource ->
+      let {JID.lnode; JID.ldomain; JID.lresource} = Resource.jid resource in
       let params = Chat_params.make ~server:ldomain ~port ~username:lnode
 				    ~password ~resource:lresource () in
       let session_key = ldomain, port, lnode, lresource in
       if not (Hashtbl.mem chat_sessions session_key) then begin
 	Hashtbl.add chat_sessions session_key true;
-	Lwt.async (fun () -> with_chat (chat_handler peer_id) params)
+	Lwt.async (fun () -> with_chat (chat_handler resource_id) params)
       end)
   end

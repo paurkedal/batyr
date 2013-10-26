@@ -101,18 +101,18 @@ let client_transcript_service =
 			       option string ** option string)
 	      (sprintf "SELECT seen_time, sender_id, subject, thread, body \
 			FROM batyr.messages \
-			JOIN (batyr.peers NATURAL JOIN batyr.nodes) \
+			JOIN (batyr.resources NATURAL JOIN batyr.nodes) \
 			  AS sender \
-			  ON sender_id = sender.peer_id \
+			  ON sender_id = sender.resource_id \
 			WHERE %s \
 			ORDER BY seen_time, message_id LIMIT %d"
 		       cond_str query_limit)) >>=
 	Lwt_list.map_p
 	  (fun (time, (sender_id, (subject_opt, (thread_opt, body_opt)))) ->
-	    Peer.of_id sender_id >|= fun sender_peer ->
+	    Resource.of_id sender_id >|= fun sender_resource ->
 	    { msg_time = time;
 	      msg_sender_cls = "jid";
-	      msg_sender = Peer.resource sender_peer;
+	      msg_sender = Resource.resource_name sender_resource;
 	      msg_subject = subject_opt;
 	      msg_thread = thread_opt;
 	      msg_body = body_opt })
@@ -281,11 +281,11 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   let relevant_message msg =
     let open Batyr_presence in
     Lwt.return begin
-      if Peer.node (Message.sender msg) != room_node then None else
+      if Resource.node (Message.sender msg) != room_node then None else
       Some {
 	msg_time = Message.seen_time msg;
 	msg_sender_cls = "jid";
-	msg_sender = Peer.resource (Message.sender msg);
+	msg_sender = Resource.resource_name (Message.sender msg);
 	msg_subject = Message.subject msg;
 	msg_thread = Message.thread msg;
 	msg_body = Message.body msg;

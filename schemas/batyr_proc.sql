@@ -13,12 +13,12 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-CREATE OR REPLACE VIEW batyr.peer_jids AS
-  SELECT peer_id,
+CREATE OR REPLACE VIEW batyr.resource_jids AS
+  SELECT resource_id,
        node_name || CASE node_name WHEN '' THEN '' ELSE '@' END
-    || domain_name || CASE resource WHEN '' THEN '' ELSE '/' END
-    || resource AS jid
-  FROM batyr.peers NATURAL JOIN batyr.nodes NATURAL JOIN batyr.domains;
+    || domain_name || CASE resource_name WHEN '' THEN '' ELSE '/' END
+    || resource_name AS jid
+  FROM batyr.resources NATURAL JOIN batyr.nodes NATURAL JOIN batyr.domains;
 
 CREATE OR REPLACE FUNCTION batyr.make_domain(dom text) RETURNS integer AS $$
 DECLARE r integer;
@@ -53,18 +53,18 @@ BEGIN
 END
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION batyr.make_peer(dn text, nn text, rn text)
+CREATE OR REPLACE FUNCTION batyr.make_resource(dn text, nn text, rn text)
 		   RETURNS integer AS $$
 DECLARE ni integer; r integer;
 BEGIN
     ni := batyr.make_node(dn, nn);
-    FOR r IN SELECT peer_id FROM batyr.peers
-	      WHERE node_id = ni AND resource = rn
+    FOR r IN SELECT resource_id FROM batyr.resources
+	      WHERE node_id = ni AND resource_name = rn
     LOOP
 	RETURN r;
     END LOOP;
-    FOR r IN INSERT INTO batyr.peers (node_id, resource) VALUES (ni, rn)
-	     RETURNING peer_id
+    FOR r IN INSERT INTO batyr.resources (node_id, resource_name)
+	     VALUES (ni, rn) RETURNING resource_id
     LOOP
 	RETURN r;
     END LOOP;
