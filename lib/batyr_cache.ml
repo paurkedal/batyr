@@ -88,7 +88,7 @@ let charge b =
   end else
     b.cur_access_count <- b.cur_access_count + 1
 
-let charge_id b = charge b; b
+let charged b = charge b; b
 
 module Grade = struct
   let basic = 50
@@ -96,7 +96,37 @@ module Grade = struct
   let by_size_cost size cost = basic + cost / (size + beacon_size)
 end
 
-module type CACHE_BIJECTION = sig
+module type HASHABLE_WITH_BEACON = sig
+  type t
+  val equal : t -> t -> bool
+  val hash : t -> int
+  val beacon : t -> beacon
+end
+
+module type HASHED_CACHE = sig
+  type data
+  type t
+  val create : int -> t
+  val add : t -> data -> unit
+  val merge : t -> data -> data
+  val find : t -> data -> data
+  val mem : t -> data -> bool
+  val card : t -> int
+  val iter : (data -> unit) -> t -> unit
+  val fold : (data -> 'a -> 'a) -> t -> 'a -> 'a
+end
+
+module Cache_of_hashable (X : HASHABLE_WITH_BEACON) = struct
+  include Weak.Make (X)
+  let charge x = charge (X.beacon x)
+  let charged x = charge x; x
+  let add ws x = if not (mem ws x) then (charge x; add ws x)
+  let merge ws x = charged (merge ws x)
+  let find ws x = charged (find ws x)
+  let card = count
+end
+
+module type BIJECTION_WITH_BEACON = sig
   type domain
   type codomain
   val f : domain -> codomain
@@ -104,21 +134,15 @@ module type CACHE_BIJECTION = sig
   val beacon : domain -> beacon
 end
 
-module type CACHE = sig
-  type data
+module type BIJECTION_CACHE = sig
+  include HASHED_CACHE
   type key
-  type t
-  val create : int -> t
-  val add : t -> data -> unit
-  val merge : t -> data -> data
   val merge_key : t -> key -> data
-  val find : t -> data -> data
   val find_key : t -> key -> data
-  val mem : t -> data -> bool
   val mem_key : t -> key -> bool
 end
 
-module Cache_of_bijection (X : CACHE_BIJECTION) = struct
+module Cache_of_bijection (X : BIJECTION_WITH_BEACON) = struct
   include Weak.Make
     (struct
       type t = X.domain
@@ -127,16 +151,17 @@ module Cache_of_bijection (X : CACHE_BIJECTION) = struct
     end)
   type key = X.codomain
   let charge x = charge (X.beacon x)
-  let charge_id x = charge x; x
+  let charged x = charge x; x
   let add ws x = if not (mem ws x) then (charge x; add ws x)
-  let merge ws x = charge_id (merge ws x)
+  let merge ws x = charged (merge ws x)
   let merge_key ws y = merge ws (X.f_inv y)
-  let find ws x = charge_id (find ws x)
+  let find ws x = charged (find ws x)
   let find_key ws y = find ws (X.f_inv y)
   let mem_key ws y = mem ws (X.f_inv y)
+  let card = count
 end
 
-module Cache_of_physical_bijection (X : CACHE_BIJECTION) = struct
+module Cache_of_physical_bijection (X : BIJECTION_WITH_BEACON) = struct
   include Weak.Make
     (struct
       type t = X.domain
@@ -145,11 +170,12 @@ module Cache_of_physical_bijection (X : CACHE_BIJECTION) = struct
     end)
   type key = X.codomain
   let charge x = charge (X.beacon x)
-  let charge_id x = charge x; x
+  let charged x = charge x; x
   let add ws x = if not (mem ws x) then (charge x; add ws x)
-  let merge ws x = charge_id (merge ws x)
+  let merge ws x = charged (merge ws x)
   let merge_key ws y = merge ws (X.f_inv y)
-  let find ws x = charge_id (find ws x)
+  let find ws x = charged (find ws x)
   let find_key ws y = find ws (X.f_inv y)
   let mem_key ws y = mem ws (X.f_inv y)
+  let card = count
 end
