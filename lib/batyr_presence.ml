@@ -97,6 +97,14 @@ let on_message chat stanza =
 	  Lwt_log.ign_error_f "Received invalid <delay/> stamp: %s" msg;
 	  Unix.time () in
     let sender = Resource.of_jid sender in
+    let muc_author =
+      Option.search
+	(fun room->
+	  let nick = Resource.resource_name sender in
+	  try
+	    Muc_user.resource (Hashtbl.find (Muc_room.users_by_nick room) nick)
+	  with Not_found -> None)
+	(Muc_room.cached_of_node (Resource.node sender)) in
     let recipient = Resource.of_jid (JID.of_string recipient) in
     let subject = stanza.Chat.content.Chat.subject in
     let thread = stanza.Chat.content.Chat.thread in
@@ -105,18 +113,24 @@ let on_message chat stanza =
 			   ?subject ?thread ?body () in
     emit_message msg;
     if is_transcribed recipient then
+      lwt author_id =
+	match muc_author with
+	| None -> Lwt.return_none
+	| Some author -> Resource.id author >|= fun id -> Some id in
       lwt sender_id = Resource.id sender in
       lwt recipient_id = Resource.id recipient in
       Batyr_db.(use begin fun dbh ->
 	dbh#command
 	  ~params:[|timestamp_of_epoch seen_time;
-		    string_of_int sender_id; string_of_int recipient_id;
+		    string_of_int sender_id;
+		    or_null (Option.map string_of_int author_id);
+		    string_of_int recipient_id;
 		    string_of_message_type message_type;
 		    or_null subject; or_null thread; or_null body|]
 	  "INSERT INTO batyr.messages (seen_time, \
-				       sender_id, recipient_id, \
+				       sender_id, author_id, recipient_id, \
 				       message_type, subject, thread, body) \
-	   VALUES ($1, $2, $3, $4, $5, $6, $7)"
+	   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
       end)
     else
       Lwt.return_unit

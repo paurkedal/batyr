@@ -37,3 +37,7 @@ DROP FUNCTION IF EXISTS batyr.make_peer(text, text, text);
 
 -- Drop the auxid column from messages.
 ALTER TABLE batyr.messages DROP COLUMN auxid;
+
+-- Add author_id column to batyr.messages.
+ALTER TABLE batyr.messages
+  ADD COLUMN author_id integer REFERENCES batyr.resources;
