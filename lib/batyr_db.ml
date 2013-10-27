@@ -377,3 +377,6 @@ end
 let pool = Lwt_pool.create 5 (fun () -> Lwt.return (new connection ()))
 let quick_pool = Lwt_pool.create 3 (fun () -> Lwt.return (new connection ()))
 let use ?(quick = false) = Lwt_pool.use (if quick then quick_pool else pool)
+let use_accounted ?quick f =
+  use ?quick (fun dbh -> dbh#start_accounting;
+			 f dbh >|= fun qr -> dbh#stop_accounting, qr)

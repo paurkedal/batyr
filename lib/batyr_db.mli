@@ -120,3 +120,4 @@ object
 end
 
 val use : ?quick: bool -> (connection -> 'a Lwt.t) -> 'a Lwt.t
+val use_accounted : ?quick: bool -> (connection -> 'a Lwt.t) -> (int * 'a) Lwt.t

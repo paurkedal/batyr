@@ -74,18 +74,16 @@ module Node = struct
   let of_id id =
     try Lwt.return (Id_cache.find_key id_cache id)
     with Not_found ->
-      Batyr_db.use
+      Batyr_db.use_accounted
 	(fun dbh ->
-	  dbh#start_accounting;
 	  dbh#query_single Batyr_db.Decode.(string ** string)
 	    ~params:[|string_of_int id|]
 	    "SELECT domain_name, node_name \
 	     FROM batyr.nodes NATURAL JOIN batyr.domains \
-	     WHERE node_id = $1" >|= fun (domain_name, node_name) ->
-	  let grade = dbh#stop_accounting in
-	  Batyr_cache.cache grade
-	    (fun beacon -> {id; domain_name; node_name; beacon}))
-	>|= fun node ->
+	     WHERE node_id = $1") >|= fun (grade, (domain_name, node_name)) ->
+      let node =
+	Batyr_cache.cache grade
+	  (fun beacon -> {id; domain_name; node_name; beacon}) in
       try Id_cache.find id_cache node
       with Not_found ->
 	Data_cache.add data_cache node;
@@ -96,13 +94,12 @@ module Node = struct
     if node.id >= 0 then Lwt.return node.id else
     Batyr_db.use
       (fun dbh ->
-	dbh#start_accounting;
 	dbh#query_single Batyr_db.Decode.int
 	  ~params:[|node.domain_name; node.node_name|]
-	  "SELECT batyr.make_node($1, $2)" >|= fun id ->
-	node.id <- id;
-	Id_cache.add id_cache node;
-	id)
+	  "SELECT batyr.make_node($1, $2)") >|= fun id ->
+      node.id <- id;
+      Id_cache.add id_cache node;
+      id
 end
 
 module Resource = struct
@@ -165,20 +162,18 @@ module Resource = struct
   let of_id id =
     try Lwt.return (Id_cache.find_key id_cache id)
     with Not_found ->
-      Batyr_db.use
+      Batyr_db.use_accounted
 	(fun dbh ->
-	  dbh#start_accounting;
 	  dbh#query_single Batyr_db.Decode.(string ** string ** string)
 	    ~params:[|string_of_int id|]
 	    "SELECT domain_name, node_name, resource_name \
 	     FROM batyr.resources NATURAL JOIN batyr.nodes \
 			      NATURAL JOIN batyr.domains \
-	     WHERE resource_id = $1"
-	     >|= fun (domain_name, (node_name, resource_name)) ->
-	  let grade = dbh#stop_accounting in
-	  Batyr_cache.cache grade
-	    (fun beacon -> {id; domain_name; node_name; resource_name; beacon}))
-	>|= fun resource ->
+	     WHERE resource_id = $1")
+	>|= fun (grade, (domain_name, (node_name, resource_name))) ->
+      let resource =
+	Batyr_cache.cache grade
+	  (fun beacon -> {id; domain_name; node_name; resource_name; beacon}) in
       try Id_cache.find id_cache resource
       with Not_found ->
 	Data_cache.add data_cache resource;
@@ -189,14 +184,13 @@ module Resource = struct
     if resource.id >= 0 then Lwt.return resource.id else
     Batyr_db.use
       (fun dbh ->
-	dbh#start_accounting;
 	dbh#query_single Batyr_db.Decode.int
 	  ~params:[|resource.domain_name; resource.node_name;
 		    resource.resource_name|]
-	  "SELECT batyr.make_resource($1, $2, $3)" >|= fun id ->
-	resource.id <- id;
-	Id_cache.add id_cache resource;
-	id)
+	  "SELECT batyr.make_resource($1, $2, $3)") >|= fun id ->
+    resource.id <- id;
+    Id_cache.add id_cache resource;
+    id
 end
 
 module Muc_user = struct
@@ -252,9 +246,8 @@ module Muc_room = struct
     try Lwt.return (Node_cache.find_key node_cache node)
     with Not_found ->
       lwt node_id = Node.id node in
-      Batyr_db.use
+      Batyr_db.use_accounted
 	(fun dbh ->
-	  dbh#start_accounting;
 	  dbh#query_single
 	    Batyr_db.Decode.(option string ** option string ** bool **
 			     option epoch)
@@ -265,10 +258,11 @@ module Muc_room = struct
 		       JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
 			 ON sender_id = sender.resource_id \
 		      WHERE node_id = $1) \
-	       FROM batyr.muc_rooms WHERE node_id = $1"
-	    >|= fun (alias, (description, (transcribe, min_message_time))) ->
-	  let grade = dbh#stop_accounting in
-	  Batyr_cache.cache grade (fun beacon ->
-	    {node; alias; description; transcribe; min_message_time;
-	     users_by_nick = Hashtbl.create 27; beacon}))
+	       FROM batyr.muc_rooms WHERE node_id = $1") >|=
+	(fun (grade, (alias, (description, (transcribe, min_message_time)))) ->
+      let room =
+	Batyr_cache.cache grade (fun beacon ->
+	  {node; alias; description; transcribe; min_message_time;
+	   users_by_nick = Hashtbl.create 27; beacon}) in
+      Node_cache.merge node_cache room)
 end
