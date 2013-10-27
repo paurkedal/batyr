@@ -105,12 +105,9 @@ let on_message chat stanza =
 			   ?subject ?thread ?body () in
     emit_message msg;
     if is_transcribed recipient then
-      lwt author_id =
-	match muc_author with
-	| None -> Lwt.return_none
-	| Some author -> Resource.id author >|= fun id -> Some id in
-      lwt sender_id = Resource.id sender in
-      lwt recipient_id = Resource.id recipient in
+      let author_id = Option.search Resource.cached_id muc_author in
+      lwt sender_id = Resource.store sender in
+      lwt recipient_id = Resource.store recipient in
       Batyr_db.(use begin fun dbh ->
 	dbh#command
 	  ~params:[|timestamp_of_epoch seen_time;
@@ -208,7 +205,7 @@ let chat_handler account_id chat =
        WHERE account_id = $1 AND is_present = true")) >>=
   Lwt_list.iter_s
     (fun (resource_id, since) ->
-      lwt resource = Resource.of_id resource_id in
+      lwt resource = Resource.stored_of_id resource_id in
       lwt seconds =
 	begin match since with
 	| None ->
@@ -222,12 +219,12 @@ let chat_handler account_id chat =
 	  Lwt.return (Some (int_of_float t))
 	end in
       let room_node = Resource.node resource in
-      match_lwt Muc_room.of_node room_node with
+      match_lwt Muc_room.stored_of_node room_node with
       | None ->
 	Lwt_log.error_f ~section "Presence in non-room %s."
 			(Node.to_string room_node)
       | Some room ->
-	lwt room_id = Node.id room_node in
+	lwt room_id = Node.stored_id room_node >|= Option.get in
 	Hashtbl.replace entered_rooms_by_id room_id room;
 	Chat_muc.enter_room ?seconds chat (Resource.jid resource))
 
@@ -238,7 +235,7 @@ let start_chat_sessions () =
        FROM batyr.accounts NATURAL JOIN batyr.resources \
        WHERE is_active = true") >>=
   Lwt_list.iter_s (fun (resource_id, (port, password)) ->
-    Resource.of_id resource_id >|= fun resource ->
+    Resource.stored_of_id resource_id >|= fun resource ->
     let {JID.lnode; JID.ldomain; JID.lresource} = Resource.jid resource in
     let params = Chat_params.make ~server:ldomain ~port ~username:lnode
 				  ~password ~resource:lresource () in

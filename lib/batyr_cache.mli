@@ -22,6 +22,8 @@ val beacon_size : int
 
 val cache : int -> (beacon -> 'a) -> 'a
 
+val enrich : int -> beacon -> unit
+
 val charge : beacon -> unit
 
 module Grade : sig

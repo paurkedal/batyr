@@ -66,7 +66,7 @@
 	      end in
 	  let chatroom_of_entry
 		(node_id, (room_alias, (room_description, transcribe))) =
-	    lwt node = Node.of_id node_id in
+	    lwt node = Node.stored_of_id node_id in
 	    let room_jid = Node.to_string node in
 	    Lwt.return {room_jid; room_alias; room_description; transcribe} in
 	  Lwt_list.map_p chatroom_of_entry entries)
@@ -79,7 +79,7 @@
       Lwt.catch
 	(fun () ->
 	  lwt node = Lwt.wrap1 Node.of_string room.room_jid in
-	  lwt node_id = Node.id node in
+	  lwt node_id = Node.store node in
 	  let room = {room with room_jid = Node.to_string node} in
 	  Batyr_db.use begin fun dbh ->
 	    dbh#query_single Batyr_db.Decode.bool
@@ -101,7 +101,10 @@
       Lwt.catch
 	(fun () ->
 	  lwt node = Lwt.wrap1 Node.of_string room.room_jid in
-	  lwt node_id = Node.id node in
+	  lwt node_id =
+	    match_lwt Node.stored_id node with
+	    | None -> Lwt.fail Eliom_common.Eliom_404
+	    | Some id -> Lwt.return id in
 	  Batyr_db.use begin fun dbh ->
 	    dbh#command
 	      ~params:[|string_of_int node_id|]

@@ -51,7 +51,7 @@ let main_handler () () =
 	 FROM batyr.muc_rooms NATURAL JOIN batyr.nodes \
 			      NATURAL JOIN batyr.domains") in
   let render_room_link node_id =
-    lwt node = Node.of_id node_id in
+    lwt node = Node.stored_of_id node_id in
     let node_jid = Node.to_string node in
     Lwt.return Html5.D.(li [a ~service:transcript_service [pcdata node_jid]
 			      (node_jid, (None, (None, None)))]) in
@@ -85,7 +85,10 @@ let client_transcript_service =
 	Lwt_log.debug_f ~section "Sending %s transcript%s."
 			room_jid (phrase_query pat_opt tI_opt tF_opt) >>
 	lwt room = Lwt.wrap1 Node.of_string room_jid in
-	lwt room_id = Node.id room in
+	lwt room_id =
+	  match_lwt Node.stored_id room with
+	  | None -> Lwt.fail Eliom_common.Eliom_404
+	  | Some id -> Lwt.return id in
 	let cond =
 	  Batyr_db.Expr.(
 	    (var "sender.node_id" = int room_id)
@@ -109,7 +112,7 @@ let client_transcript_service =
 		       cond_str query_limit)) >>=
 	Lwt_list.map_p
 	  (fun (time, (sender_id, (subject_opt, (thread_opt, body_opt)))) ->
-	    Resource.of_id sender_id >|= fun sender_resource ->
+	    Resource.stored_of_id sender_id >|= fun sender_resource ->
 	    { msg_time = time;
 	      msg_sender_cls = "jid";
 	      msg_sender = Resource.resource_name sender_resource;
@@ -277,7 +280,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   let transcript_div = div ~a:[a_class ["transcript"]] [] in
   let room_node = Node.of_string room_jid in
   lwt room =
-    match_lwt Muc_room.of_node room_node with
+    match_lwt Muc_room.stored_of_node room_node with
     | None -> Lwt.fail Eliom_common.Eliom_404
     | Some room -> Lwt.return room in
   let min_time = Option.get_else Unix.time (Muc_room.min_message_time room) in

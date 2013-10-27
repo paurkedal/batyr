@@ -18,6 +18,9 @@ open Batyr_prereq
 open Batyr_xmpp
 open Unprime_option
 
+let id_unknown = -1
+let id_missing = -2
+
 module Node = struct
   type t = {
     mutable id : int;
@@ -31,7 +34,8 @@ module Node = struct
     type codomain = string * string
     let f {domain_name; node_name} = (domain_name, node_name)
     let f_inv (domain_name, node_name) =
-      {id = -1; domain_name; node_name; beacon = Batyr_cache.dummy_beacon}
+      {id = id_unknown; domain_name; node_name;
+       beacon = Batyr_cache.dummy_beacon}
     let beacon {beacon} = beacon
   end
 
@@ -50,12 +54,13 @@ module Node = struct
   let id_cache = Id_cache.create 23
 
   let dummy =
-    {id = -1; domain_name = ""; node_name = ""; beacon = Batyr_cache.dummy_beacon}
+    {id = id_unknown; domain_name = ""; node_name = "";
+     beacon = Batyr_cache.dummy_beacon}
 
   let create ~domain_name ?(node_name = "") () =
     Data_cache.merge data_cache
       (Batyr_cache.cache Batyr_cache.Grade.basic
-	(fun beacon -> {id = -1; domain_name; node_name; beacon}))
+	(fun beacon -> {id = id_unknown; domain_name; node_name; beacon}))
 
   let domain_name {domain_name} = domain_name
   let node_name {node_name} = node_name
@@ -70,9 +75,14 @@ module Node = struct
   let to_string node_name = JID.string_of_jid (jid node_name)
   let of_string s = of_jid (JID.of_string s)
 
-  let cached_id {id} = if id = -1 then None else Some id
+  let equal = (==)
+  let hash {domain_name; node_name} = Hashtbl.hash (domain_name, node_name)
 
-  let of_id id =
+  let cached_of_id id =
+    try Some (Id_cache.find_key id_cache id) with Not_found -> None
+  let cached_id {id} = if id >= 0 then Some id else None
+
+  let stored_of_id id =
     try Lwt.return (Id_cache.find_key id_cache id)
     with Not_found ->
       Batyr_db.use_accounted
@@ -81,9 +91,9 @@ module Node = struct
 	    ~params:[|string_of_int id|]
 	    "SELECT domain_name, node_name \
 	     FROM batyr.nodes NATURAL JOIN batyr.domains \
-	     WHERE node_id = $1") >|= fun (grade, (domain_name, node_name)) ->
+	     WHERE node_id = $1") >|= fun (cost, (domain_name, node_name)) ->
       let node =
-	Batyr_cache.cache grade
+	Batyr_cache.cache cost
 	  (fun beacon -> {id; domain_name; node_name; beacon}) in
       try Id_cache.find id_cache node
       with Not_found ->
@@ -91,20 +101,31 @@ module Node = struct
 	Id_cache.add id_cache node;
 	node
 
-  let id node =
+  let stored_id node =
+    if node.id >= 0 then Lwt.return (Some node.id) else
+    if node.id = id_missing then Lwt.return_none else
+    Batyr_db.use_accounted
+      (fun dbh ->
+	dbh#query_option Batyr_db.Decode.int
+	  ~params:[|node.domain_name; node.node_name|]
+	  "SELECT node_id FROM batyr.nodes NATURAL JOIN batyr.domains \
+	   WHERE domain_name = $1 AND node_name = $2") >|= fun (cost, id_opt) ->
+    Batyr_cache.enrich cost node.beacon;
+    match id_opt with
+    | None -> node.id <- id_missing; None
+    | Some id -> node.id <- id; Id_cache.add id_cache node; Some id
+
+  let store node =
     if node.id >= 0 then Lwt.return node.id else
-    Batyr_db.use
+    Batyr_db.use_accounted
       (fun dbh ->
 	dbh#query_single Batyr_db.Decode.int
 	  ~params:[|node.domain_name; node.node_name|]
-	  "SELECT batyr.make_node($1, $2)") >|= fun id ->
+	  "SELECT batyr.make_node($1, $2)") >|= fun (cost, id) ->
+      Batyr_cache.enrich cost node.beacon;
       node.id <- id;
       Id_cache.add id_cache node;
       id
-
-  let equal = (==)
-
-  let hash {domain_name; node_name} = Hashtbl.hash (domain_name, node_name)
 end
 
 module Resource = struct
@@ -122,7 +143,7 @@ module Resource = struct
     let f {domain_name; node_name; resource_name} =
       (domain_name, node_name, resource_name)
     let f_inv (domain_name, node_name, resource_name) = {
-      id = -1; domain_name; node_name; resource_name;
+      id = id_unknown; domain_name; node_name; resource_name;
       beacon = Batyr_cache.dummy_beacon;
     }
     let beacon {beacon} = beacon
@@ -148,7 +169,7 @@ module Resource = struct
     Data_cache.merge data_cache
       (Batyr_cache.cache Batyr_cache.Grade.basic
 	(fun beacon ->
-	 {id = -1; domain_name; node_name; resource_name; beacon}))
+	 {id = id_unknown; domain_name; node_name; resource_name; beacon}))
 
   let domain_name {domain_name} = domain_name
   let node_name {node_name} = node_name
@@ -164,7 +185,15 @@ module Resource = struct
   let to_string p = JID.string_of_jid (jid p)
   let of_string s = of_jid (JID.of_string s)
 
-  let of_id id =
+  let equal = (==)
+  let hash {domain_name; node_name; resource_name} =
+    Hashtbl.hash (domain_name, node_name, resource_name)
+
+  let cached_of_id id =
+    try Some (Id_cache.find_key id_cache id) with Not_found -> None
+  let cached_id {id} = if id >= 0 then Some id else None
+
+  let stored_of_id id =
     try Lwt.return (Id_cache.find_key id_cache id)
     with Not_found ->
       Batyr_db.use_accounted
@@ -175,9 +204,9 @@ module Resource = struct
 	     FROM batyr.resources NATURAL JOIN batyr.nodes \
 			      NATURAL JOIN batyr.domains \
 	     WHERE resource_id = $1")
-	>|= fun (grade, (domain_name, (node_name, resource_name))) ->
+	>|= fun (cost, (domain_name, (node_name, resource_name))) ->
       let resource =
-	Batyr_cache.cache grade
+	Batyr_cache.cache cost
 	  (fun beacon -> {id; domain_name; node_name; resource_name; beacon}) in
       try Id_cache.find id_cache resource
       with Not_found ->
@@ -185,14 +214,32 @@ module Resource = struct
 	Id_cache.add id_cache resource;
 	resource
 
-  let id resource =
+  let stored_id resource =
+    if resource.id >= 0 then Lwt.return (Some resource.id) else
+    if resource.id = id_missing then Lwt.return_none else
+    Batyr_db.use_accounted
+      (fun dbh ->
+	dbh#query_option Batyr_db.Decode.int
+	  ~params:[|resource.domain_name; resource.node_name;
+		    resource.resource_name|]
+	  "SELECT resource_id FROM batyr.resources NATURAL JOIN batyr.nodes \
+						   NATURAL JOINT batyr.domains \
+	   WHERE domain_name = $1 AND node_name = $2 AND resource_name = $3")
+      >|= fun (cost, id_opt) ->
+    Batyr_cache.enrich cost resource.beacon;
+    match id_opt with
+    | None -> resource.id <- id_missing; None
+    | Some id -> resource.id <- id; Id_cache.add id_cache resource; Some id
+
+  let store resource =
     if resource.id >= 0 then Lwt.return resource.id else
-    Batyr_db.use
+    Batyr_db.use_accounted
       (fun dbh ->
 	dbh#query_single Batyr_db.Decode.int
 	  ~params:[|resource.domain_name; resource.node_name;
 		    resource.resource_name|]
-	  "SELECT batyr.make_resource($1, $2, $3)") >|= fun id ->
+	  "SELECT batyr.make_resource($1, $2, $3)") >|= fun (cost, id) ->
+    Batyr_cache.enrich cost resource.beacon;
     resource.id <- id;
     Id_cache.add id_cache resource;
     id
@@ -258,12 +305,13 @@ module Muc_room = struct
     try Some (Node_cache.find node_cache (make_dummy node))
     with Not_found -> None
 
-  let of_node node =
+  let stored_of_node node =
     try Lwt.return (Some (Node_cache.find node_cache (make_dummy node)))
     with Not_found ->
-      lwt node_id = Node.id node in
-      Batyr_db.use_accounted
-	(fun dbh ->
+      begin match_lwt Node.stored_id node with
+      | None -> Lwt.return_none
+      | Some node_id ->
+	Batyr_db.use_accounted (fun dbh ->
 	  dbh#query_option
 	    Batyr_db.Decode.(option string ** option string ** bool **
 			     option epoch)
@@ -274,13 +322,14 @@ module Muc_room = struct
 		       JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
 			 ON sender_id = sender.resource_id \
 		      WHERE node_id = $1) \
-	       FROM batyr.muc_rooms WHERE node_id = $1") >|= fun (grade, qr) ->
-      Option.map
-	(fun (alias, (description, (transcribe, min_message_time))) ->
-	  let room =
-	    Batyr_cache.cache grade (fun beacon ->
-	      {node; alias; description; transcribe; min_message_time;
-	       users_by_nick = Hashtbl.create 27; beacon}) in
-	  Node_cache.merge node_cache room)
-	qr
+	       FROM batyr.muc_rooms WHERE node_id = $1") >|= fun (cost, qr) ->
+	Option.map
+	  (fun (alias, (description, (transcribe, min_message_time))) ->
+	    let room =
+	      Batyr_cache.cache cost (fun beacon ->
+		{node; alias; description; transcribe; min_message_time;
+		 users_by_nick = Hashtbl.create 27; beacon}) in
+	    Node_cache.merge node_cache room)
+	  qr
+      end
 end

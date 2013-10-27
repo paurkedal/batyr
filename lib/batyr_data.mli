@@ -25,11 +25,15 @@ module Node : sig
   val jid : t -> JID.t
   val to_string : t -> string
   val of_string : string -> t
-  val cached_id : t -> int option
-  val of_id : int -> t Lwt.t
-  val id : t -> int Lwt.t
+
   val equal : t -> t -> bool
   val hash : t -> int
+
+  val cached_of_id : int -> t option
+  val cached_id : t -> int option
+  val stored_of_id : int -> t Lwt.t
+  val stored_id : t -> int option Lwt.t
+  val store : t -> int Lwt.t
 end
 
 module Resource : sig
@@ -44,8 +48,15 @@ module Resource : sig
   val jid : t -> JID.t
   val to_string : t -> string
   val of_string : string -> t
-  val of_id : int -> t Lwt.t
-  val id : t -> int Lwt.t
+
+  val equal : t -> t -> bool
+  val hash : t -> int
+
+  val cached_id : t -> int option
+  val cached_of_id : int -> t option
+  val stored_id : t -> int option Lwt.t
+  val stored_of_id : int -> t Lwt.t
+  val store : t -> int Lwt.t
 end
 
 module Muc_user : sig
@@ -63,7 +74,7 @@ end
 module Muc_room : sig
   type t
   val cached_of_node : Node.t -> t option
-  val of_node : Node.t -> t option Lwt.t
+  val stored_of_node : Node.t -> t option Lwt.t
   val node : t -> Node.t
   val alias : t -> string option
   val description : t -> string option

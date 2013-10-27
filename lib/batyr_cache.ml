@@ -21,7 +21,7 @@ type beacon = {
   mutable next_beacon : beacon;
   mutable cur_access_count : int; (* -1 if not linked *)
   mutable avg_access_count : int; (* -1 until first GC *)
-  grade : int;
+  mutable grade : int;
 }
 
 let rec head_beacon = {
@@ -78,6 +78,8 @@ let cache g f =
   } in
   let obj = f b in
   b.owner <- Obj.repr obj; obj
+
+let enrich cost b = b.grade <- b.grade + cost
 
 let charge b =
   assert (b != dummy_beacon);
