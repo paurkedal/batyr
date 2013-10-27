@@ -28,6 +28,10 @@ XCustomInstall:
   echo "Installed sample config $datadir/$pkg_name/$pkg_name.conf.sample"
   install -d $datadir/$pkg_name/schemas
   install schemas/*.sql $datadir/$pkg_name/schemas/
+  for dir in schemas/updates/*; do
+    install -d $datadir/$pkg_name/\$dir
+    install \$dir/*.sql $datadir/$pkg_name/\$dir/
+  done
   echo "Installed DB schemas under $datadir/$pkg_name/schemas"
 XCustomUninstall:
   ocamlfind remove $pkg_name
