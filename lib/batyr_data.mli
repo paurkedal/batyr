@@ -25,7 +25,7 @@ module Node : sig
   val jid : t -> JID.t
   val to_string : t -> string
   val of_string : string -> t
-  val cached_id : t -> int
+  val cached_id : t -> int option
   val of_id : int -> t Lwt.t
   val id : t -> int Lwt.t
 end
@@ -59,10 +59,11 @@ end
 
 module Muc_room : sig
   type t
-  val of_node : Node.t -> t Lwt.t
+  val of_node : Node.t -> t option Lwt.t
   val node : t -> Node.t
   val alias : t -> string option
   val description : t -> string option
+  val to_string : t -> string
   val min_message_time : t -> float option
   val users_by_nick : t -> (string, Muc_user.t) Hashtbl.t
 end

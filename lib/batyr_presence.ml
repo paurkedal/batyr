@@ -141,8 +141,11 @@ let extract_muc_user nick =
 
 let entered_rooms_by_id = Hashtbl.create 23
 let entered_room_by_node node =
-  try Some (Hashtbl.find entered_rooms_by_id (Node.cached_id node))
-  with Not_found -> None
+  Option.search
+    (fun id ->
+      try Some (Hashtbl.find entered_rooms_by_id id)
+      with Not_found -> None)
+    (Node.cached_id node)
 
 let on_presence chat stanza =
   match stanza.Chat.jid_from with
@@ -157,10 +160,14 @@ let on_presence chat stanza =
       begin match Chat.(stanza.content.presence_type), user_opt with
       | None, Some user ->
 	Hashtbl.replace (Muc_room.users_by_nick entered_room) nick user;
-	Lwt_log.debug_f "User %s is available." (Muc_user.to_string user)
+	Lwt_log.debug_f "User %s is available in %s."
+			(Muc_user.to_string user)
+			(Muc_room.to_string entered_room)
       | Some Chat.Unavailable, Some user ->
 	Hashtbl.remove (Muc_room.users_by_nick entered_room) nick;
-	Lwt_log.debug_f "User %s is unavailable." (Muc_user.to_string user)
+	Lwt_log.debug_f "User %s is unavailable in %s."
+			(Muc_user.to_string user)
+			(Muc_room.to_string entered_room)
       | _ -> Lwt.return_unit
       end
     end
@@ -192,41 +199,44 @@ let chat_handler account_id chat =
 	       WHERE sender.node_id = node_id) \
        FROM batyr.muc_presence NATURAL JOIN batyr.resources \
        WHERE account_id = $1 AND is_present = true")) >>=
-    Lwt_list.iter_s
-      (fun (resource_id, since) ->
-	lwt resource = Resource.of_id resource_id in
-	lwt seconds =
-	  begin match since with
-	  | None ->
-	    Lwt_log.info_f ~section "Entering %s, no previous logs."
-			   (Resource.to_string resource) >>
-	    Lwt.return_none
-	  | Some t ->
-	    let t = Unix.time () -. t -. 1.0 in (* FIXME: Need <delay/> *)
-	    Lwt_log.info_f ~section "Entering %s, seconds = %f"
-			   (Resource.to_string resource) t >>
-	    Lwt.return (Some (int_of_float t))
-	  end in
-	let room_node = Resource.node resource in
-	lwt room = Muc_room.of_node room_node in
+  Lwt_list.iter_s
+    (fun (resource_id, since) ->
+      lwt resource = Resource.of_id resource_id in
+      lwt seconds =
+	begin match since with
+	| None ->
+	  Lwt_log.info_f ~section "Entering %s, no previous logs."
+			 (Resource.to_string resource) >>
+	  Lwt.return_none
+	| Some t ->
+	  let t = Unix.time () -. t -. 1.0 in (* FIXME: Need <delay/> *)
+	  Lwt_log.info_f ~section "Entering %s, seconds = %f"
+			 (Resource.to_string resource) t >>
+	  Lwt.return (Some (int_of_float t))
+	end in
+      let room_node = Resource.node resource in
+      match_lwt Muc_room.of_node room_node with
+      | None ->
+	Lwt_log.error_f ~section "Presence in non-room %s."
+			(Node.to_string room_node)
+      | Some room ->
 	lwt room_id = Node.id room_node in
 	Hashtbl.replace entered_rooms_by_id room_id room;
 	Chat_muc.enter_room ?seconds chat (Resource.jid resource))
 
 let start_chat_sessions () =
-  Batyr_db.use begin fun dbh ->
+  Batyr_db.use (fun dbh ->
     dbh#query_list Batyr_db.Decode.(int ** int ** string)
       "SELECT resource_id, server_port, client_password \
        FROM batyr.accounts NATURAL JOIN batyr.resources \
-       WHERE is_active = true" >>=
-    Lwt_list.iter_s (fun (resource_id, (port, password)) ->
-      Resource.of_id resource_id >|= fun resource ->
-      let {JID.lnode; JID.ldomain; JID.lresource} = Resource.jid resource in
-      let params = Chat_params.make ~server:ldomain ~port ~username:lnode
-				    ~password ~resource:lresource () in
-      let session_key = ldomain, port, lnode, lresource in
-      if not (Hashtbl.mem chat_sessions session_key) then begin
-	Hashtbl.add chat_sessions session_key true;
-	Lwt.async (fun () -> with_chat (chat_handler resource_id) params)
-      end)
-  end
+       WHERE is_active = true") >>=
+  Lwt_list.iter_s (fun (resource_id, (port, password)) ->
+    Resource.of_id resource_id >|= fun resource ->
+    let {JID.lnode; JID.ldomain; JID.lresource} = Resource.jid resource in
+    let params = Chat_params.make ~server:ldomain ~port ~username:lnode
+				  ~password ~resource:lresource () in
+    let session_key = ldomain, port, lnode, lresource in
+    if not (Hashtbl.mem chat_sessions session_key) then begin
+      Hashtbl.add chat_sessions session_key true;
+      Lwt.async (fun () -> with_chat (chat_handler resource_id) params)
+    end)

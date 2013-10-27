@@ -16,6 +16,7 @@
 
 open Batyr_prereq
 open Batyr_xmpp
+open Unprime_option
 
 module Node = struct
   type t = {
@@ -69,7 +70,7 @@ module Node = struct
   let to_string node_name = JID.string_of_jid (jid node_name)
   let of_string s = of_jid (JID.of_string s)
 
-  let cached_id {id} = if id = -1 then raise Not_found else id
+  let cached_id {id} = if id = -1 then None else Some id
 
   let of_id id =
     try Lwt.return (Id_cache.find_key id_cache id)
@@ -240,15 +241,16 @@ module Muc_room = struct
   let alias {alias} = alias
   let description {description} = description
   let min_message_time {min_message_time} = min_message_time
+  let to_string {node} = Node.to_string node
   let users_by_nick {users_by_nick} = users_by_nick
 
   let of_node node =
-    try Lwt.return (Node_cache.find_key node_cache node)
+    try Lwt.return (Some (Node_cache.find_key node_cache node))
     with Not_found ->
       lwt node_id = Node.id node in
       Batyr_db.use_accounted
 	(fun dbh ->
-	  dbh#query_single
+	  dbh#query_option
 	    Batyr_db.Decode.(option string ** option string ** bool **
 			     option epoch)
 	    ~params:[|string_of_int node_id|]
@@ -258,11 +260,13 @@ module Muc_room = struct
 		       JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
 			 ON sender_id = sender.resource_id \
 		      WHERE node_id = $1) \
-	       FROM batyr.muc_rooms WHERE node_id = $1") >|=
-	(fun (grade, (alias, (description, (transcribe, min_message_time)))) ->
-      let room =
-	Batyr_cache.cache grade (fun beacon ->
-	  {node; alias; description; transcribe; min_message_time;
-	   users_by_nick = Hashtbl.create 27; beacon}) in
-      Node_cache.merge node_cache room)
+	       FROM batyr.muc_rooms WHERE node_id = $1") >|= fun (grade, qr) ->
+      Option.map
+	(fun (alias, (description, (transcribe, min_message_time))) ->
+	  let room =
+	    Batyr_cache.cache grade (fun beacon ->
+	      {node; alias; description; transcribe; min_message_time;
+	       users_by_nick = Hashtbl.create 27; beacon}) in
+	  Node_cache.merge node_cache room)
+	qr
 end

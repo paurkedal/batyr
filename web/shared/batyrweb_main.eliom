@@ -276,7 +276,10 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   let open Html5.D in
   let transcript_div = div ~a:[a_class ["transcript"]] [] in
   let room_node = Node.of_string room_jid in
-  lwt room = Muc_room.of_node room_node in
+  lwt room =
+    match_lwt Muc_room.of_node room_node with
+    | None -> Lwt.fail Eliom_common.Eliom_404
+    | Some room -> Lwt.return room in
   let min_time = Option.get_else Unix.time (Muc_room.min_message_time room) in
   let relevant_message msg =
     let open Batyr_presence in
