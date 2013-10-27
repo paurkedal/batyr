@@ -101,6 +101,10 @@ module Node = struct
       node.id <- id;
       Id_cache.add id_cache node;
       id
+
+  let equal = (==)
+
+  let hash {domain_name; node_name} = Hashtbl.hash (domain_name, node_name)
 end
 
 module Resource = struct
@@ -225,20 +229,16 @@ module Muc_room = struct
     users_by_nick : (string, Muc_user.t) Hashtbl.t;
     beacon : Batyr_cache.beacon;
   }
+  type t' = t
 
-  module Node_bijection = struct
-    type domain = t
-    type codomain = Node.t
-    let f {node} = node
-    let f_inv node = {
-      node; alias = None; description = None; transcribe = false;
-      min_message_time = None; users_by_nick = Hashtbl.create 2;
-      beacon = Batyr_cache.dummy_beacon;
-    }
+  module Node_hashable = struct
+    type t = t'
+    let equal roomA roomB = Node.equal roomA.node roomB.node
+    let hash {node} = Node.hash node
     let beacon {beacon} = beacon
   end
 
-  module Node_cache = Batyr_cache.Cache_of_physical_bijection (Node_bijection)
+  module Node_cache = Batyr_cache.Cache_of_hashable (Node_hashable)
   let node_cache = Node_cache.create 23
 
   let node {node} = node
@@ -248,12 +248,18 @@ module Muc_room = struct
   let to_string {node} = Node.to_string node
   let users_by_nick {users_by_nick} = users_by_nick
 
+  let make_dummy node = {
+    node; alias = None; description = None; transcribe = false;
+    min_message_time = None; users_by_nick = Hashtbl.create 1;
+    beacon = Batyr_cache.dummy_beacon;
+  }
+
   let cached_of_node node =
-    try Some (Node_cache.find_key node_cache node)
+    try Some (Node_cache.find node_cache (make_dummy node))
     with Not_found -> None
 
   let of_node node =
-    try Lwt.return (Some (Node_cache.find_key node_cache node))
+    try Lwt.return (Some (Node_cache.find node_cache (make_dummy node)))
     with Not_found ->
       lwt node_id = Node.id node in
       Batyr_db.use_accounted

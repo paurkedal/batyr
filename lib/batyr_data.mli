@@ -28,6 +28,8 @@ module Node : sig
   val cached_id : t -> int option
   val of_id : int -> t Lwt.t
   val id : t -> int Lwt.t
+  val equal : t -> t -> bool
+  val hash : t -> int
 end
 
 module Resource : sig
