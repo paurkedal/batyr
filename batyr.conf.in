@@ -20,7 +20,7 @@
     %%PACKAGES%%
     <host hostfilter="*">
       %%STATICDIRS%%
-      <eliommodule module="%%LIBDIR%%/batyrweb.cma" />
+      %%ELIOMMODULES%%
       <eliom/>
     </host>
   </server>

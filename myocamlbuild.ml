@@ -5,8 +5,9 @@ open Ocamlbuild_plugin
 open Ocamlbuild_eliom
 open Ocamlbuild_ocsigen
 
-let local_server_packages = ["lib/batyr"]
 let server_packages = ["erm_xmpp"; "postgresql"; "prime"; "prime.testing"]
+let local_server_packages = ["lib/batyr"]
+let local_eliom_packages = ["web/server/batyrweb"]
 
 let () = dispatch begin function
   | Before_options ->
@@ -16,7 +17,7 @@ let () = dispatch begin function
   | After_rules ->
     enable_eliom_rules ();
     enable_ocsigen_conf_rules ~server_subdir:"web/server"
-			      ~local_server_packages ~server_packages ();
+	~local_server_packages ~server_packages ~local_eliom_packages ();
     Pathname.define_context "web/server" ["web"];
     Pathname.define_context "web/client" ["web"];
     flag ["ocaml"; "link"; "library"; "thread"] & A"-thread";
