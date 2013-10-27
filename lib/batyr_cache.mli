@@ -38,9 +38,9 @@ module type CACHE_BIJECTION = sig
   val beacon : domain -> beacon
 end
 
-module Cache_of_bijection (X : CACHE_BIJECTION) : sig
-  type data = X.domain
-  type key = X.codomain
+module type CACHE = sig
+  type data
+  type key
   type t
   val create : int -> t
   val add : t -> data -> unit
@@ -51,3 +51,9 @@ module Cache_of_bijection (X : CACHE_BIJECTION) : sig
   val mem : t -> data -> bool
   val mem_key : t -> key -> bool
 end
+
+module Cache_of_bijection (X : CACHE_BIJECTION) :
+  CACHE with type data = X.domain and type key = X.codomain
+
+module Cache_of_physical_bijection (X : CACHE_BIJECTION) :
+  CACHE with type data = X.domain and type key = X.codomain

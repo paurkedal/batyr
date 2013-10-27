@@ -234,7 +234,7 @@ module Muc_room = struct
     let beacon {beacon} = beacon
   end
 
-  module Node_cache = Batyr_cache.Cache_of_bijection (Node_bijection)
+  module Node_cache = Batyr_cache.Cache_of_physical_bijection (Node_bijection)
   let node_cache = Node_cache.create 23
 
   let node {node} = node
