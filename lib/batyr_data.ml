@@ -197,18 +197,22 @@ end
 module Muc_user = struct
   type t = {
     nick : string;
-    jid : JID.t option;
+    resource : Resource.t option;
     role : Chat_muc.role;
     affiliation : Chat_muc.affiliation
   }
-  let make ~nick ?jid ~role ~affiliation () = {nick; jid; role; affiliation}
+  let make ~nick ?jid ~role ~affiliation () =
+    let resource = Option.map Resource.of_jid jid in
+    {nick; resource; role; affiliation}
   let nick {nick} = nick
-  let jid {jid} = jid
+  let jid {resource} = Option.map Resource.jid resource
+  let resource {resource} = resource
   let role {role} = role
   let affiliation {affiliation} = affiliation
   let to_string = function
-    | {nick; jid = None} -> nick
-    | {nick; jid = Some jid} -> nick ^ " <" ^ JID.string_of_jid jid ^ ">"
+    | {nick; resource = None} -> nick
+    | {nick; resource = Some resource} ->
+      nick ^ " <" ^ Resource.to_string resource ^ ">"
 end
 
 module Muc_room = struct
@@ -243,6 +247,10 @@ module Muc_room = struct
   let min_message_time {min_message_time} = min_message_time
   let to_string {node} = Node.to_string node
   let users_by_nick {users_by_nick} = users_by_nick
+
+  let cached_of_node node =
+    try Some (Node_cache.find_key node_cache node)
+    with Not_found -> None
 
   let of_node node =
     try Lwt.return (Some (Node_cache.find_key node_cache node))

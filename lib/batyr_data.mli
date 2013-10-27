@@ -52,6 +52,7 @@ module Muc_user : sig
 	     affiliation: Chat_muc.affiliation -> unit -> t
   val nick : t -> string
   val jid : t -> JID.t option
+  val resource : t -> Resource.t option
   val role : t -> Chat_muc.role
   val affiliation : t -> Chat_muc.affiliation
   val to_string : t -> string
@@ -59,6 +60,7 @@ end
 
 module Muc_room : sig
   type t
+  val cached_of_node : Node.t -> t option
   val of_node : Node.t -> t option Lwt.t
   val node : t -> Node.t
   val alias : t -> string option
