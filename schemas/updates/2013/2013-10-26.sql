@@ -1,7 +1,12 @@
 -- Rename the peers table to resources and correlated names.
 ALTER TABLE batyr.peers RENAME TO resources;
 ALTER INDEX batyr.peers_pkey RENAME TO resources_pkey;
-ALTER INDEX batyr.peers_node_id_resource_key RENAME TO resources_node_id_resource_key;
+-- On of the following two will fail depending on the PostgreSQL version.
+-- That's okay.
+ALTER INDEX batyr.peers_node_id_resource_key
+  RENAME TO resources_node_id_resource_name_key;
+ALTER INDEX batyr.peers_node_id_key
+  RENAME TO resources_node_id_key;
 BEGIN;
   ALTER TABLE batyr.resources
     ADD CONSTRAINT resources_node_id_fkey
