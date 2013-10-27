@@ -6,7 +6,7 @@ Authors: Petter A. Urkedal
 License: GPL-3
 Plugins: DevFiles (0.3)
 
-FilesAB: META.ab
+FilesAB: META.ab, lib/batyr_version.ml.ab
 
 BuildType: custom (0.3)
 BuildDepends: eliom, erm_xmpp, calendar, lwt, lwt.ssl,

@@ -50,14 +50,6 @@ end
 
 let chat_sessions = Hashtbl.create 11
 
-let on_version ev jid_from jid_to lang () =
-  match ev with
-  | Chat.IQGet _ ->
-    let el = Chat_version.(encode {name = "batyr"; version = "0.1";
-                                   os = Sys.os_type}) in
-    Lwt.return (Chat.IQResult (Some el))
-  | Chat.IQSet _ -> Lwt.fail Chat.BadRequest
-
 let string_of_message_type = function
   | Chat.Normal -> "normal"
   | Chat.Chat -> "chat"
@@ -196,7 +188,8 @@ let on_error ~kind chat ?id ?jid_from ?jid_to ?lang error =
 		  (String.concat ", " props) error.StanzaError.err_text
 
 let chat_handler account_id chat =
-  Chat.register_iq_request_handler chat Chat_version.ns_version on_version;
+  Chat_version.register chat;
+  Chat_ping.register chat;
   Chat.register_stanza_handler chat (Chat.ns_client, "message")
     (Chat.parse_message ~callback:on_message
 			~callback_error:(on_error ~kind:"message"));

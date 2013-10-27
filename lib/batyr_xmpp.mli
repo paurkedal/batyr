@@ -101,6 +101,9 @@ module Chat_version : sig
 	      unit -> t) ->
 	Chat.iq_request -> JID.t option -> JID.t option -> string option ->
 	unit -> Chat.iq_response
+
+  val register : ?name: string -> ?version: string -> ?os: string ->
+		 Chat.chat -> unit
 end
 
 module Chat_muc : sig
@@ -197,4 +200,9 @@ module Chat_muc : sig
 	?reason: string ->
 	nick: string ->
 	JID.t -> unit Lwt.t
+end
+
+module Chat_ping : sig
+  val ns_ping : string option
+  val register : Chat.chat -> unit
 end

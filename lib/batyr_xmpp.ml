@@ -88,4 +88,40 @@ let with_chat session {server; username; password; resource; port} =
   Socket.close Socket.socket
 
 module Chat_muc = XEP_muc.Make (Chat)
-module Chat_version = XEP_version.Make (Chat)
+
+module Chat_version = struct
+  include XEP_version.Make (Chat)
+
+  let on_version result req jid_from jid_to lang () =
+    match req with
+    | Chat.IQGet _ -> result
+    | Chat.IQSet _ -> Lwt.fail Chat.BadRequest
+
+  let register ?(name = "Batyr (bot)") ?(version = Batyr_version.version_string)
+	       ?(os = Sys.os_type) chat =
+    let el = encode {name; version; os} in
+    let result = Lwt.return (Chat.IQResult (Some el)) in
+    Chat.register_iq_request_handler chat ns_version (on_version result)
+end
+
+module Chat_ping = struct
+  let ns_ping = Some "urn:xmpp:ping"
+
+  let on_ping req jid_from jid_to lang () =
+    match jid_from with
+    | Some jid_from ->
+      begin match req with
+      | Chat.IQGet _ ->
+	Lwt_log.info_f "Received ping from %s." jid_from >>
+	Lwt.return (Chat.IQResult None)
+      | Chat.IQSet _ ->
+	Lwt_log.warning_f "Failing ping set request from %s." jid_from >>
+	Lwt.fail Chat.BadRequest
+      end
+    | None ->
+      Lwt_log.warning "Failing ping request without from field." >>
+      Lwt.fail Chat.BadRequest
+
+  let register chat =
+    Chat.register_iq_request_handler chat ns_ping on_ping
+end

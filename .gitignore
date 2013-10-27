@@ -3,6 +3,7 @@
 /_build
 /_var
 /configure
+/lib/batyr_version.ml
 /setup.data
 /setup.log
 /setup.ml
