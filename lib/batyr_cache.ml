@@ -42,7 +42,8 @@ let dummy_beacon = {
 
 let beacon_size = Obj.size (Obj.repr head_beacon)
 
-let cache_threshold = ref 10000
+let access_count_unit = 256
+let cache_threshold = ref (10000 * access_count_unit)
 
 let check_beacon b =
   if b.avg_access_count = -1 then (* first GC survival *)
@@ -86,9 +87,9 @@ let charge b =
   if b.cur_access_count = -1 then begin
     b.next_beacon <- head_beacon.next_beacon;
     head_beacon.next_beacon <- b;
-    b.cur_access_count <- 1
+    b.cur_access_count <- access_count_unit
   end else
-    b.cur_access_count <- b.cur_access_count + 1
+    b.cur_access_count <- b.cur_access_count + access_count_unit
 
 let charged b = charge b; b
 
