@@ -96,7 +96,7 @@ let charged b = charge b; b
 module Grade = struct
   let basic = 50
   let basic_reduce n = 50 * (n + 1)
-  let by_size_cost size cost = basic + cost / (size + beacon_size)
+  let from_size_and_cost size cost = basic + cost / (size + beacon_size)
 end
 
 module type HASHABLE_WITH_BEACON = sig
