@@ -44,12 +44,19 @@ module Expr : sig
 
   val to_sql : ?first_index: int -> 'a t -> string * string array
 
+  val of_sql : string -> 'a t
+  val of_sql_f : ('b, unit, string, 'a t) format4 -> 'b
+
   val bool : bool -> bool t
   val int : int -> int t
   val float : float -> float t
   val string : string -> string t
+  val string_f : ('a, unit, string, string t) format4 -> 'a
   val epoch : float -> [`timestamp] t
+  val calendar : ?tz: string -> CalendarLib.Calendar.t -> [`timestamp] t
   val var : string -> 'a t
+  val func1 : string -> 'a0 t -> 'r t
+  val func2 : string -> 'a0 t -> 'a1 t -> 'r t
 
   val not : bool t -> bool t
   val (&&) : bool t -> bool t -> bool t
@@ -77,6 +84,9 @@ module Expr : sig
   val (-.) : float t -> float t -> float t
   val ( *. ) : float t -> float t -> float t
   val (/.) : float t -> float t -> float t
+
+  val date_part : string -> [`timestamp] t -> int t
+  val at_tz : string -> [`timestamp] t -> [`timestamp] t
 end
 
 class connection :

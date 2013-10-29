@@ -201,8 +201,11 @@ module Expr = struct
   let infixR prec name = Infix (name, prec, [prec + 1; prec])
   let call1 op e0 = Call (op, [e0])
   let call2 op e0 e1 = Call (op, [e0; e1])
+  let func1 name e0 = Call (Func name, [e0])
+  let func2 name e0 e1 = Call (Func name, [e0; e1])
 
-  let literal x = Literal x
+  let of_sql x = Literal x
+  let of_sql_f fmt = ksprintf (fun s -> Literal s) fmt
 (*
   let bool x = Bool x
   let int x = Int x
@@ -212,7 +215,11 @@ module Expr = struct
   let int x = Literal (string_of_int x)
   let float x = Literal (string_of_float x)
   let string x = String x
+  let string_f fmt = ksprintf (fun s -> String s) fmt
   let epoch x = String (timestamp_of_epoch x)
+  let calendar ?(tz = "+00") cal =
+    let cts = CalendarLib.Printer.Calendar.sprint "%F %T" cal in
+    String (if tz.[0] = '+' then cts ^ tz else cts ^ " " ^ tz)
   let var v = Var v
 
   let not	= let op = prefix 12 "not" in call1 op
@@ -242,6 +249,10 @@ module Expr = struct
   let (-.)	= let op = infixL 20 "-" in call2 op
   let ( *. )	= let op = infixL 21 "*" in call2 op
   let (/.)	= let op = infixL 21 "/" in call2 op
+
+  let date_part	= let f = Func "date_part" in fun p x -> call2 f (string p) x
+  let at_tz	= let op = infixB 18 " at time zone " in
+		  fun tz x -> call2 op (string tz) x
 end
 
 let check_command_ok r =
