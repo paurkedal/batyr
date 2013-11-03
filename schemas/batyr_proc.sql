@@ -89,3 +89,11 @@ BEGIN
     RETURN true;
 END
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION batyr.intenc_date(t timestamp with time zone)
+    RETURNS integer AS $$
+BEGIN
+    RETURN 256 * (256 * date_part('year', t) + date_part('month', t))
+	       + date_part('day', t);
+END
+$$ LANGUAGE plpgsql;

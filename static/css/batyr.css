@@ -9,9 +9,9 @@ body {
 .sender.meta { font-family: monospace; }
 p.message { margin: 1mm 0; padding-left: 5mm; text-indent: -5mm; }
 
-a:link, .pager .tabs span { color: #07c; text-decoration: none; }
-a:hover, .pager .tabs span:hover { text-decoration: underline; }
-.pager .tabs span.selected { color: #000; text-decoration: none; }
+a:link, .b-link { color: #07c; text-decoration: none; cursor: pointer; }
+a:hover, .b-link:hover { text-decoration: underline; }
+.b-link.empty { font-weight: normal; }
 
 p.warning { color: #900; font-weight: bold; }
 
@@ -19,31 +19,48 @@ th { text-align: left; }
 table.edit th, table.edit td { padding: 0 2mm; }
 table.edit th:first-child, table.edit td:first-child { padding: 0; }
 
-.pager .tabs {
+.b-tabbar {
 	margin: 0;
 	margin-top: 0.3mm;
 	padding-top: 1.5mm;
 	border-bottom: solid thin #aaa;
 	font-weight: bold;
 }
-.pager .tabs span {
-	margin: 0;
-	padding: 0.5mm 1mm;
-	cursor: pointer;
-	border-left: solid thin transparent;
-	border-right: solid thin transparent;
-}
-.pager .tabs span.selected {
+.b-tabbar-clear {
 	background-color: #fff;
-	text-decoration: none;
-	cursor: auto;
-	color: #000;
-	border: solid thin #aaa;
-	border-bottom: none;
-}
-.pager .clear {
-	background-color: #fff;
-	height: 0.5mm;
+	height: 1.5mm;
 	z-index: 1;
 	position: relative;
 }
+.b-tab {
+	padding-top: 0.5mm;
+	padding-bottom: 1.5mm;
+	padding-left: 0.2em;
+	padding-right: 0.2em;
+	border-left: solid thin transparent;
+	border-right: solid thin transparent;
+}
+.b-tab.selected {
+	background-color: #fff;
+	border: solid thin #aaa;
+	border-bottom: none;
+}
+.b-tab-count {
+	font-weight: normal;
+}
+.b-tab-count .b-x0 { color: #877777; }
+.b-tab-count .b-x1 { color: #8f7070; }
+.b-tab-count .b-x2 { color: #976767; }
+.b-tab-count .b-x3 { color: #9f6060; }
+.b-tab-count .b-x4 { color: #a75757; }
+.b-tab-count .b-x5 { color: #af5050; }
+.b-tab-count .b-x6 { color: #b74747; }
+.b-tab-count .b-x7 { color: #bf4040; }
+.b-tab-count .b-x8 { color: #c73737; }
+.b-tab-count .b-x9 { color: #cf3030; }
+.b-tab-count .b-xa { color: #d72727; }
+.b-tab-count .b-xb { color: #df2020; }
+.b-tab-count .b-xc { color: #e71717; }
+.b-tab-count .b-xd { color: #ef1010; }
+.b-tab-count .b-xe { color: #f70707; }
+.b-tab-count .b-xf { color: #ff0000; }

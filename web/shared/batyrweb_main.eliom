@@ -75,6 +75,33 @@ let phrase_query pat_opt tI_opt tF_opt =
   ^ (match tI_opt with None -> "" | Some tI -> sprintf " from %f" tI)
   ^ (match tF_opt with None -> "" | Some tF -> sprintf " to %f" tF)
 
+let client_message_counts_service =
+  Eliom_registration.Ocaml.register_coservice'
+    ~get_params:Eliom_parameter.(string "room" ** opt (string "pat") **
+				 string "tz")
+    begin fun (room_jid, (pat_opt, tz)) () ->
+      lwt room = Lwt.wrap1 Node.of_string room_jid in
+      lwt room_id =
+	match_lwt Node.stored_id room with
+	| None -> Lwt.fail Eliom_common.Eliom_404
+	| Some id -> Lwt.return id in
+      let cond =
+	let open Batyr_db.Expr in
+	var "sender.node_id" = int room_id
+	|> Option.fold (fun pat -> (&&) (var "body" =~ pat)) pat_opt in
+      let cond_str, params = Batyr_db.Expr.to_sql ~first_index:2 cond in
+      Batyr_db.(use (fun dbh ->
+	dbh#query_array Decode.(int ** int) ~params:(Array.append [|tz|] params)
+	  (sprintf
+	    "SELECT batyr.intenc_date(seen_time AT TIME ZONE $1) AS t, \
+		    count(0) \
+	     FROM batyr.messages \
+	     JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
+	       ON sender_id = sender.resource_id \
+	     WHERE %s GROUP BY t"
+	     cond_str)))
+    end
+
 let client_transcript_service =
   Eliom_registration.Ocaml.register_coservice'
     ~get_params:Eliom_parameter.
@@ -200,8 +227,51 @@ let client_transcript_service =
       end
       !update_thread
 
+  type card_tree = {
+    mutable ct_card : int;
+    mutable ct_branches : card_tree array;
+  }
+
   let shown_prec = ref 3
   let shown_date = jsnew Js.date_now()
+  let shown_room = ref ""
+  let shown_pat = ref None
+  let shown_counts = {ct_card = 0; ct_branches = [||]}
+
+  let update_message_counts room pat y_min y_now =
+    if !shown_room = room && !shown_pat = pat
+	  && Array.length shown_counts.ct_branches >= (y_now - y_min + 1)
+    then
+      Lwt.return_unit
+    else begin
+      (* FIXME: Need the real timezone for this to work across DST. *)
+      let tz = sprintf "%d" (shown_date##getTimezoneOffset() / 60) in
+      lwt counts =
+	Eliom_client.call_caml_service ~service:%client_message_counts_service
+	  (room, (pat, tz)) () in
+      let init_mday d =
+	{ct_card = 0; ct_branches = [||]} in
+      let init_month m =
+	{ct_card = 0; ct_branches = Array.init 31 init_mday} in
+      let init_year _ =
+	{ct_card = 0; ct_branches = Array.init 12 init_month} in
+      shown_counts.ct_branches <- Array.init (y_now - y_min + 1) init_year;
+      Array.iter
+	(fun (encdate, count) ->
+	  let y = encdate lsr 16 in
+	  let m = encdate lsr 8 land 0xff in
+	  let d = encdate land 0xff in
+	  let ct_year = shown_counts.ct_branches.(y - y_min) in
+	  let ct_month = ct_year.ct_branches.(m - 1) in
+	  let ct_day = ct_month.ct_branches.(d - 1) in
+	  ct_day.ct_card   <- count;
+	  ct_month.ct_card <- ct_month.ct_card + count;
+	  ct_year.ct_card  <- ct_year.ct_card + count)
+	counts;
+      shown_room := room;
+      shown_pat := pat;
+      Lwt.return_unit
+    end
 
   let render_messages ~room ?tI ?tF ?pat update_comet =
     disable_updates ();
@@ -232,13 +302,18 @@ let client_transcript_service =
     let y_min = jt_min##getFullYear() in
     let y_now = jt_now##getFullYear() in
 
-    let render_content d =
+    lwt () = update_message_counts room pat y_min y_now in
+
+    let render_content dd =
+      let d = 1 + dd in
       ignore shown_date##setDate(d);
       let tI = Caltime.to_epoch (Caltime.day_start shown_date) in
       let tF = Caltime.to_epoch (Caltime.day_end shown_date) in
       render_messages ~room ~tI ~tF ?pat update_comet in
 
-    let render_mdays m =
+    let render_mdays ct_year dm =
+      let ct_month = ct_year.ct_branches.(dm) in
+      let m = 1 + dm in
       ignore shown_date##setMonth(m - 1);
       if !shown_prec = 2 then
 	let tI = Caltime.to_epoch (Caltime.month_start shown_date) in
@@ -248,9 +323,13 @@ let client_transcript_service =
 	let d_dfl = shown_date##getDate() in
 	let mdays = Array.init (Caltime.days_in_month shown_date)
 			       (fun i -> sprintf "%d" (i + 1)) in
-	Batyrweb_tools.D.pager ~default_index:(d_dfl - 1) mdays
-			       (fun i _ -> render_content (i + 1)) in
-    let render_months y =
+	Batyrweb_tools.D.pager
+	  ~default_index:(d_dfl - 1)
+	  ~count:(fun dd -> ct_month.ct_branches.(dd).ct_card)
+	  mdays render_content in
+    let render_months dy =
+      let ct_year = shown_counts.ct_branches.(dy) in
+      let y = y_min + dy in
       ignore shown_date##setFullYear(y);
       if !shown_prec = 1 then
 	let tI = Caltime.to_epoch (Caltime.year_start shown_date) in
@@ -258,8 +337,10 @@ let client_transcript_service =
 	render_messages ~room ~tI ~tF ?pat update_comet
       else
 	let m_dfl = shown_date##getMonth() + 1 in
-	Batyrweb_tools.D.pager ~default_index:(m_dfl - 1) Caltime.month_names
-			       (fun i _ -> render_mdays (i + 1)) in
+	Batyrweb_tools.D.pager
+	  ~default_index:(m_dfl - 1)
+	  ~count:(fun dm -> ct_year.ct_branches.(dm).ct_card)
+	  Caltime.month_names (render_mdays ct_year) in
     let render_years () =
       if !shown_prec = 0 then
 	render_messages ~room ?pat update_comet
@@ -267,8 +348,10 @@ let client_transcript_service =
 	let y_dfl = shown_date##getFullYear() in
 	let years = Array.init (y_now - y_min + 1)
 			       (fun dy -> sprintf "%04d" (y_min + dy)) in
-	Batyrweb_tools.D.pager ~default_index:(y_dfl - y_min) years
-			       (fun dy _ -> render_months (y_min + dy)) in
+	Batyrweb_tools.D.pager
+	  ~default_index:(y_dfl - y_min)
+	  ~count:(fun dy -> shown_counts.ct_branches.(dy).ct_card)
+	  years render_months in
 
     transcript_dom##innerHTML <- Js.string "";
     render_years () >|=
