@@ -14,6 +14,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Unprime
+open Unprime_option
+
 module JID = JID
 
 module String_map = Map.Make (String)
@@ -87,8 +90,6 @@ let with_chat session {server; username; password; resource; port} =
   let module Socket = (val session_data.Chat.socket : Chat.Socket) in
   Socket.close Socket.socket
 
-module Chat_muc = XEP_muc.Make (Chat)
-
 module Chat_version = struct
   include XEP_version.Make (Chat)
 
@@ -102,6 +103,34 @@ module Chat_version = struct
     let el = encode {name; version; os} in
     let result = Lwt.return (Chat.IQResult (Some el)) in
     Chat.register_iq_request_handler chat ns_version (on_version result)
+end
+
+module Chat_disco = struct
+  include XEP_disco.Make (Chat)
+
+  let extract_features chat =
+    let open Chat in
+    [] |> IQRequestCallback.fold (fun ns v acc -> Option.get ns :: acc)
+				 chat.iq_request
+       |> StanzaHandler.fold (fun (ns, _) v acc -> Option.get ns :: acc)
+			     chat.stanza_handlers
+
+  let register_info
+      ?(category = "client") ?(type_ = "bot")
+      ?(name = "Batyr") ?features chat =
+    let on_disco req jid_from jid_to lang () =
+      let features =
+	Option.get_else (fun () -> extract_features chat) features in
+      match jid_from with
+      | Some jid_from ->
+	Lwt_log.info_f "Received disco request from %s." jid_from >>
+	let els = make_disco_info ~category ~type_ ~name ~features () in
+	let el = Xml.Xmlelement ((ns_disco_info, "query"), [], els) in
+	Lwt.return (Chat.IQResult (Some el))
+      | None ->
+	Lwt_log.warning "Failing disco request lacking from-field." >>
+	Lwt.fail Chat.BadRequest in
+    Chat.register_iq_request_handler chat ns_disco_info on_disco
 end
 
 module Chat_ping = struct
@@ -119,9 +148,11 @@ module Chat_ping = struct
 	Lwt.fail Chat.BadRequest
       end
     | None ->
-      Lwt_log.warning "Failing ping request without from field." >>
+      Lwt_log.warning "Failing ping request lacking from-field." >>
       Lwt.fail Chat.BadRequest
 
   let register chat =
     Chat.register_iq_request_handler chat ns_ping on_ping
 end
+
+module Chat_muc = XEP_muc.Make (Chat)

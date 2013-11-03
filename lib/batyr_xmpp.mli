@@ -106,6 +106,18 @@ module Chat_version : sig
 		 Chat.chat -> unit
 end
 
+module Chat_disco : sig
+  val ns_disco_info : string option
+  val ns_disco_items : string option
+  val register_info : ?category: string -> ?type_: string -> ?name: string ->
+		      ?features: string list -> Chat.chat -> unit
+end
+
+module Chat_ping : sig
+  val ns_ping : string option
+  val register : Chat.chat -> unit
+end
+
 module Chat_muc : sig
 
   val ns_muc : string option
@@ -200,9 +212,4 @@ module Chat_muc : sig
 	?reason: string ->
 	nick: string ->
 	JID.t -> unit Lwt.t
-end
-
-module Chat_ping : sig
-  val ns_ping : string option
-  val register : Chat.chat -> unit
 end

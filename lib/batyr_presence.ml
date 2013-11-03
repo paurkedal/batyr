@@ -193,6 +193,7 @@ let chat_handler account_id chat =
   Chat.register_stanza_handler chat (Chat.ns_client, "presence")
     (Chat.parse_presence ~callback:on_presence
 			 ~callback_error:(on_error ~kind:"presence"));
+  Chat_disco.register_info chat;
   Batyr_db.(use (fun dbh ->
     dbh#query_list Decode.(int ** option epoch)
       ~params:[|string_of_int account_id|]
