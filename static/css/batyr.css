@@ -48,19 +48,19 @@ table.edit th:first-child, table.edit td:first-child { padding: 0; }
 .b-tab-count {
 	font-weight: normal;
 }
-.b-tab-count .b-x0 { color: #877777; }
-.b-tab-count .b-x1 { color: #8f7070; }
-.b-tab-count .b-x2 { color: #976767; }
-.b-tab-count .b-x3 { color: #9f6060; }
-.b-tab-count .b-x4 { color: #a75757; }
-.b-tab-count .b-x5 { color: #af5050; }
-.b-tab-count .b-x6 { color: #b74747; }
-.b-tab-count .b-x7 { color: #bf4040; }
-.b-tab-count .b-x8 { color: #c73737; }
-.b-tab-count .b-x9 { color: #cf3030; }
-.b-tab-count .b-xa { color: #d72727; }
-.b-tab-count .b-xb { color: #df2020; }
-.b-tab-count .b-xc { color: #e71717; }
-.b-tab-count .b-xd { color: #ef1010; }
-.b-tab-count .b-xe { color: #f70707; }
-.b-tab-count .b-xf { color: #ff0000; }
+.b-x0 .b-tab-count { color: #877777; }
+.b-x1 .b-tab-count { color: #8f7070; }
+.b-x2 .b-tab-count { color: #976767; }
+.b-x3 .b-tab-count { color: #9f6060; }
+.b-x4 .b-tab-count { color: #a75757; }
+.b-x5 .b-tab-count { color: #af5050; }
+.b-x6 .b-tab-count { color: #b74747; }
+.b-x7 .b-tab-count { color: #bf4040; }
+.b-x8 .b-tab-count { color: #c73737; }
+.b-x9 .b-tab-count { color: #cf3030; }
+.b-xa .b-tab-count { color: #d72727; }
+.b-xb .b-tab-count { color: #df2020; }
+.b-xc .b-tab-count { color: #e71717; }
+.b-xd .b-tab-count { color: #ef1010; }
+.b-xe .b-tab-count { color: #f70707; }
+.b-xf .b-tab-count { color: #ff0000; }
