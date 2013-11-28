@@ -291,6 +291,7 @@ module Muc_room = struct
   let node {node} = node
   let alias {alias} = alias
   let description {description} = description
+  let transcribe {transcribe} = transcribe
   let min_message_time {min_message_time} = min_message_time
   let to_string {node} = Node.to_string node
   let users_by_nick {users_by_nick} = users_by_nick

@@ -78,6 +78,7 @@ module Muc_room : sig
   val node : t -> Node.t
   val alias : t -> string option
   val description : t -> string option
+  val transcribe : t -> bool
   val to_string : t -> string
   val min_message_time : t -> float option
   val users_by_nick : t -> (string, Muc_user.t) Hashtbl.t

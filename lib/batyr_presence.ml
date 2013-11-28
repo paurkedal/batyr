@@ -56,8 +56,6 @@ let string_of_message_type = function
   | Chat.Groupchat -> "groupchat"
   | Chat.Headline -> "headline"
 
-let is_transcribed jid = true (* FIXME *)
-
 let message_events, emit_message = Lwt_react.E.create ()
 
 let on_message chat stanza =
@@ -90,6 +88,7 @@ let on_message chat stanza =
 			      msg;
 	  Unix.time () in
     let sender = Resource.of_jid sender in
+    let muc_room = Muc_room.cached_of_node (Resource.node sender) in
     let muc_author =
       Option.search
 	(fun room->
@@ -97,33 +96,36 @@ let on_message chat stanza =
 	  try
 	    Muc_user.resource (Hashtbl.find (Muc_room.users_by_nick room) nick)
 	  with Not_found -> None)
-	(Muc_room.cached_of_node (Resource.node sender)) in
+	muc_room in
     let recipient = Resource.of_jid (JID.of_string recipient) in
     let subject = stanza.Chat.content.Chat.subject in
     let thread = stanza.Chat.content.Chat.thread in
     let body = stanza.Chat.content.Chat.body in
-    let msg = Message.make ~seen_time ~sender ~recipient ~message_type
-			   ?subject ?thread ?body () in
-    emit_message msg;
-    if is_transcribed recipient then
-      let author_id = Option.search Resource.cached_id muc_author in
-      lwt sender_id = Resource.store sender in
-      lwt recipient_id = Resource.store recipient in
-      Batyr_db.(use begin fun dbh ->
-	dbh#command
-	  ~params:[|timestamp_of_epoch seen_time;
-		    string_of_int sender_id;
-		    or_null (Option.map string_of_int author_id);
-		    string_of_int recipient_id;
-		    string_of_message_type message_type;
-		    or_null subject; or_null thread; or_null body|]
-	  "INSERT INTO batyr.messages (seen_time, \
-				       sender_id, author_id, recipient_id, \
-				       message_type, subject, thread, body) \
-	   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
-      end)
-    else
-      Lwt.return_unit
+    if subject = None && thread = None && body = None then Lwt.return_unit else
+    begin
+      let msg = Message.make ~seen_time ~sender ~recipient ~message_type
+			     ?subject ?thread ?body () in
+      emit_message msg;
+      if Option.exists Muc_room.transcribe muc_room then
+	let author_id = Option.search Resource.cached_id muc_author in
+	lwt sender_id = Resource.store sender in
+	lwt recipient_id = Resource.store recipient in
+	Batyr_db.(use begin fun dbh ->
+	  dbh#command
+	    ~params:[|timestamp_of_epoch seen_time;
+		      string_of_int sender_id;
+		      or_null (Option.map string_of_int author_id);
+		      string_of_int recipient_id;
+		      string_of_message_type message_type;
+		      or_null subject; or_null thread; or_null body|]
+	    "INSERT INTO batyr.messages (seen_time, \
+					 sender_id, author_id, recipient_id, \
+					 message_type, subject, thread, body) \
+	     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+	end)
+      else
+	Lwt.return_unit
+    end
   | _ -> Lwt.return_unit
 
 let extract_muc_user nick =
@@ -156,6 +158,16 @@ let on_presence chat stanza =
   | None ->
     Lwt_log.warning ~section "Ignoring presence stanza lacking \"from\"."
   | Some sender_jid ->
+    Lwt_log.debug_f ~section "Received %s from %s."
+      (match Chat.(stanza.content.presence_type) with
+       | Some pt -> Chat.string_of_presence_type pt
+       | None -> "presence")
+      (JID.string_of_jid sender_jid) >>
+    begin match Chat.(stanza.content.presence_type) with
+    | Some Chat.Subscribe ->
+      Chat.send_presence chat ~jid_to:sender_jid ~kind:Chat.Subscribed ()
+    | _ -> Lwt.return_unit
+    end >>
     let entered_room_node = Node.of_jid (JID.bare_jid sender_jid) in
     begin match entered_room_by_node entered_room_node with
     | None -> Lwt.return_unit
@@ -186,7 +198,7 @@ let on_error ~kind chat ?id ?jid_from ?jid_to ?lang error =
   Lwt_log.error_f ~section "%s error; %s; %s" kind
 		  (String.concat ", " props) error.StanzaError.err_text
 
-let chat_handler account_id chat =
+let chat_handler account_resource account_id chat =
   Chat_version.register chat;
   Chat_ping.register chat;
   Chat.register_stanza_handler chat (Chat.ns_client, "message")
@@ -196,6 +208,8 @@ let chat_handler account_id chat =
     (Chat.parse_presence ~callback:on_presence
 			 ~callback_error:(on_error ~kind:"presence"));
   Chat_disco.register_info chat;
+  Chat.send_presence chat ~jid_from:(Resource.jid account_resource)
+		     ~show:Chat.ShowDND ~status:"logging" () >>
   Batyr_db.(use (fun dbh ->
     dbh#query_list Decode.(int ** option string ** option epoch)
       ~params:[|string_of_int account_id|]
@@ -245,5 +259,5 @@ let start_chat_sessions () =
     let session_key = ldomain, port, lnode, lresource in
     if not (Hashtbl.mem chat_sessions session_key) then begin
       Hashtbl.add chat_sessions session_key true;
-      Lwt.async (fun () -> with_chat (chat_handler resource_id) params)
+      Lwt.async (fun () -> with_chat (chat_handler resource resource_id) params)
     end)
