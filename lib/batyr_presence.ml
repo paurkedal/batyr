@@ -197,9 +197,9 @@ let chat_handler account_id chat =
 			 ~callback_error:(on_error ~kind:"presence"));
   Chat_disco.register_info chat;
   Batyr_db.(use (fun dbh ->
-    dbh#query_list Decode.(int ** option epoch)
+    dbh#query_list Decode.(int ** option string ** option epoch)
       ~params:[|string_of_int account_id|]
-      "SELECT resource_id, \
+      "SELECT resource_id, nick, \
 	      (SELECT max(seen_time) \
 	       FROM batyr.messages JOIN batyr.resources AS sender \
 		 ON sender_id = sender.resource_id \
@@ -207,7 +207,7 @@ let chat_handler account_id chat =
        FROM batyr.muc_presence NATURAL JOIN batyr.resources \
        WHERE account_id = $1 AND is_present = true")) >>=
   Lwt_list.iter_s
-    (fun (resource_id, since) ->
+    (fun (resource_id, (nick, since)) ->
       lwt resource = Resource.stored_of_id resource_id in
       lwt seconds =
 	begin match since with
@@ -229,7 +229,7 @@ let chat_handler account_id chat =
       | Some room ->
 	lwt room_id = Node.stored_id room_node >|= Option.get in
 	Hashtbl.replace entered_rooms_by_id room_id room;
-	Chat_muc.enter_room ?seconds chat (Resource.jid resource))
+	Chat_muc.enter_room ?seconds ?nick chat (Resource.jid resource))
 
 let start_chat_sessions () =
   Batyr_db.use (fun dbh ->

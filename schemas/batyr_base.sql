@@ -51,7 +51,8 @@ CREATE TABLE batyr.muc_rooms (
 CREATE TABLE batyr.muc_presence (
     resource_id integer PRIMARY KEY REFERENCES batyr.resources,
     account_id integer NOT NULL REFERENCES batyr.accounts,
-    is_present boolean NOT NULL
+    is_present boolean NOT NULL,
+    nick text
 );
 
 CREATE TYPE batyr.message_type
