@@ -78,15 +78,16 @@ let on_message chat stanza =
       match Chat.(stanza.content.message_delay) with
       | None -> Unix.time ()
       | Some {Chat.delay_stamp; Chat.delay_legacy} ->
-	Lwt_log.ign_debug_f "Got delay stamp %s." delay_stamp;
+	Lwt_log.ign_debug_f ~section "Got delay stamp %s." delay_stamp;
 	try
 	  let fmt = if delay_legacy then "%Y%m%dT%T%z" else "%FT%TZ%z" in
 	  let t =
 	  Calendar.to_unixfloat
 		(Printer.Calendar.from_fstring fmt (delay_stamp ^ "+0000")) in
-	  Lwt_log.ign_debug_f "Converted to %f" t; t
+	  Lwt_log.ign_debug_f ~section "Converted to %f" t; t
 	with Invalid_argument msg ->
-	  Lwt_log.ign_error_f "Received invalid <delay/> stamp: %s" msg;
+	  Lwt_log.ign_error_f ~section "Received invalid <delay/> stamp: %s"
+			      msg;
 	  Unix.time () in
     let sender = Resource.of_jid sender in
     let muc_author =
@@ -152,7 +153,8 @@ let entered_room_by_node node =
 
 let on_presence chat stanza =
   match stanza.Chat.jid_from with
-  | None -> Lwt_log.warning "Ignoring presence stanza lacking \"form\"."
+  | None ->
+    Lwt_log.warning ~section "Ignoring presence stanza lacking \"from\"."
   | Some sender_jid ->
     let entered_room_node = Node.of_jid (JID.bare_jid sender_jid) in
     begin match entered_room_by_node entered_room_node with
@@ -163,12 +165,12 @@ let on_presence chat stanza =
       begin match Chat.(stanza.content.presence_type), user_opt with
       | None, Some user ->
 	Hashtbl.replace (Muc_room.users_by_nick entered_room) nick user;
-	Lwt_log.debug_f "User %s is available in %s."
+	Lwt_log.debug_f ~section "User %s is available in %s."
 			(Muc_user.to_string user)
 			(Muc_room.to_string entered_room)
       | Some Chat.Unavailable, Some user ->
 	Hashtbl.remove (Muc_room.users_by_nick entered_room) nick;
-	Lwt_log.debug_f "User %s is unavailable in %s."
+	Lwt_log.debug_f ~section "User %s is unavailable in %s."
 			(Muc_user.to_string user)
 			(Muc_room.to_string entered_room)
       | _ -> Lwt.return_unit

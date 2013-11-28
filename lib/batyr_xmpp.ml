@@ -17,6 +17,8 @@
 open Unprime
 open Unprime_option
 
+let section = Lwt_log.Section.make "batyr.xmpp"
+
 module JID = JID
 
 module String_map = Map.Make (String)
@@ -75,6 +77,7 @@ open Chat_params
 
 let with_chat session {server; username; password; resource; port} =
   let myjid = JID.make_jid username server resource in
+  Lwt_log.info_f ~section "Connecting %s@%s/%s." username server resource >>
   let inetaddr =
     try Unix.inet_addr_of_string server
     with Failure _ -> (Unix.gethostbyname server).Unix.h_addr_list.(0) in
@@ -88,6 +91,7 @@ let with_chat session {server; username; password; resource; port} =
 		       ~password session in
   lwt r = Chat.parse session_data in
   let module Socket = (val session_data.Chat.socket : Chat.Socket) in
+  Lwt_log.info_f ~section "Disconnecting %s@%s/%s." username server resource >>
   Socket.close Socket.socket
 
 module Chat_version = struct
@@ -123,12 +127,12 @@ module Chat_disco = struct
 	Option.get_else (fun () -> extract_features chat) features in
       match jid_from with
       | Some jid_from ->
-	Lwt_log.info_f "Received disco request from %s." jid_from >>
+	Lwt_log.info_f ~section "Received disco request from %s." jid_from >>
 	let els = make_disco_info ~category ~type_ ~name ~features () in
 	let el = Xml.Xmlelement ((ns_disco_info, "query"), [], els) in
 	Lwt.return (Chat.IQResult (Some el))
       | None ->
-	Lwt_log.warning "Failing disco request lacking from-field." >>
+	Lwt_log.warning ~section "Failing disco request lacking from-field." >>
 	Lwt.fail Chat.BadRequest in
     Chat.register_iq_request_handler chat ns_disco_info on_disco
 end
@@ -141,14 +145,15 @@ module Chat_ping = struct
     | Some jid_from ->
       begin match req with
       | Chat.IQGet _ ->
-	Lwt_log.info_f "Received ping from %s." jid_from >>
+	Lwt_log.info_f ~section "Received ping from %s." jid_from >>
 	Lwt.return (Chat.IQResult None)
       | Chat.IQSet _ ->
-	Lwt_log.warning_f "Failing ping set request from %s." jid_from >>
+	Lwt_log.warning_f ~section "Failing ping set request from %s."
+			  jid_from >>
 	Lwt.fail Chat.BadRequest
       end
     | None ->
-      Lwt_log.warning "Failing ping request lacking from-field." >>
+      Lwt_log.warning ~section "Failing ping request lacking from-field." >>
       Lwt.fail Chat.BadRequest
 
   let register chat =
