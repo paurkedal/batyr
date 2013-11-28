@@ -75,6 +75,9 @@ let phrase_query pat_opt tI_opt tF_opt =
   ^ (match tI_opt with None -> "" | Some tI -> sprintf " from %f" tI)
   ^ (match tF_opt with None -> "" | Some tF -> sprintf " to %f" tF)
 
+let sql_of_pattern pat_s =
+  Batyr_search.denote_pattern (Batyr_search.pattern_of_string pat_s)
+
 let client_message_counts_service =
   Eliom_registration.Ocaml.register_coservice'
     ~get_params:Eliom_parameter.(string "room" ** opt (string "pat") **
@@ -88,7 +91,7 @@ let client_message_counts_service =
       let cond =
 	let open Batyr_db.Expr in
 	var "sender.node_id" = int room_id
-	|> Option.fold (fun pat -> (&&) (var "body" =~ pat)) pat_opt in
+	|> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt in
       let cond_str, params = Batyr_db.Expr.to_sql ~first_index:2 cond in
       Batyr_db.(use (fun dbh ->
 	dbh#query_array Decode.(int ** int) ~params:(Array.append [|tz|] params)
@@ -121,7 +124,7 @@ let client_transcript_service =
 	    (var "sender.node_id" = int room_id)
 	    |> Option.fold (fun tI -> (&&) (var "seen_time" >= epoch tI)) tI_opt
 	    |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
-	    |> Option.fold (fun pat -> (&&) (var "body" =~ pat)) pat_opt
+	    |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt
 	  ) in
 	let cond_str, params = Batyr_db.Expr.to_sql cond in
 	Batyr_db.use
@@ -384,10 +387,14 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     Lwt_react.E.fmap_s relevant_message Batyr_presence.message_events in
   let update_comet =
     Eliom_comet.Channel.create (Lwt_react.E.to_stream update_events) in
+  let info_span = span ~a:[a_class ["error"]] [] in
   let clear_handler =
     {{fun ev ->
+      let info_dom = Html5.To_dom.of_span %info_span in
       let search_dom =
 	Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
+      info_dom##className <- Js.string "";
+      info_dom##innerHTML <- Js.string "";
       search_dom##value <- Js.string "";
       let clear_dom =
 	Domx_html.element_by_id Dom_html.CoerceTo.button "clear_search" in
@@ -404,15 +411,22 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
 	   ~button_type:`Button [pcdata "all"] in
   let search_handler =
     {{fun ev ->
+      let info_dom = Html5.To_dom.of_span %info_span in
       let search_dom =
 	Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
       let pat = match Js.to_string search_dom##value
 		with "" -> None | s -> Some s in
       (Html5.To_dom.of_button %clear_button)##disabled <- Js.bool (pat = None);
-      Lwt.ignore_result begin
+      info_dom##className <- Js.string "";
+      info_dom##innerHTML <- Js.string "";
+      Lwt.ignore_result begin try_lwt
 	update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat
 			       (Html5.To_dom.of_div %transcript_div)
 			       %update_comet
+      with Eliom_lib.Exception_on_server msg ->
+	info_dom##className <- Js.string "error";
+	info_dom##innerHTML <- Js.string msg;
+	Lwt.return_unit
       end
     }} in
   let search_handler_mouse =
@@ -431,11 +445,26 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
 			     transcript_dom %update_comet
     end
   }};
+  let help_span =
+    let bop s = span ~a:[a_class ["bnf-op"]] [pcdata s] in
+    let op s = span [bop "'"; pcdata s; bop "'"] in
+    let vn s = span ~a:[a_style "font-style: italic"] [pcdata s] in
+    let sp = pcdata " " in
+    span ~a:[a_class ["help"]] [
+      vn "pat"; sp; bop "::="; sp;
+      vn "word"; sp; bop "|"; sp;
+      op "\""; vn "string"; op "\""; sp; bop "|"; sp;
+      op "("; vn "pat"; op ")"; sp; bop "|"; sp;
+      op "!"; vn "pat"; sp; bop "|"; sp;
+      vn "pat"; sp; vn "pat"; sp; bop "|"; sp;
+      vn "pat"; sp; op "|"; sp; vn "pat"
+    ] in
   Lwt.return (Batyrweb_tools.D.page
     (sprintf "Transcript of %s" room_jid)
     [ div
       [ pcdata "Show "; clear_button;
-	pcdata " or "; search_button; search_input; ];
+	pcdata " or "; search_button; search_input; pcdata " ";
+	info_span; pcdata " "; help_span ];
       transcript_div ]
   )
 

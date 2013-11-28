@@ -13,7 +13,9 @@ a:link, .b-link { color: #07c; text-decoration: none; cursor: pointer; }
 a:hover, .b-link:hover { text-decoration: underline; }
 .b-link.empty { font-weight: normal; }
 
-p.warning { color: #900; font-weight: bold; }
+.warning, .error { color: #900; font-weight: bold; }
+.bnf-op { color: #c20; }
+.help { padding: 0.5mm 2mm; border: dashed thin #ccc; background-color: #ffe; }
 
 th { text-align: left; }
 table.edit th, table.edit td { padding: 0 2mm; }
