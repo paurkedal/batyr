@@ -223,8 +223,8 @@ module Expr = struct
   let var v = Var v
 
   let not	= let op = prefix 12 "not" in call1 op
-  let (||)	= let op = infixA 11 "or" in call2 op
-  let (&&)	= let op = infixA 10 "and" in call2 op
+  let (&&)	= let op = infixA 11 "and" in call2 op
+  let (||)	= let op = infixA 10 "or" in call2 op
   let is_null	= let op = suffix 18 "is null" in call1 op
   let is_not_null=let op = suffix 18 "is not null" in call1 op
   let (=)	= let op = infixB 15 "=" in call2 op
