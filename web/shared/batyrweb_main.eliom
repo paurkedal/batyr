@@ -17,6 +17,7 @@
 {shared{
   open Eliom_content
   open Printf
+  open Scanf
   open Unprime
   open Unprime_char
   open Unprime_list
@@ -41,6 +42,24 @@
     let render_row room = Html5.D.([td [pcdata room]])
   end
   module Chatrooms_live = Live_table (Chatroom)
+
+  let fragment =
+    let sg, set = React.S.create (Url.Current.get_fragment ()) in
+    Dom_html.window##onhashchange <-
+      Dom.handler (fun _ -> set (Url.Current.get_fragment ()); Js._true);
+    sg
+
+  let fragment_date = React.S.map
+    (fun frag ->
+      let frag_date =
+	match String.cut_affix "T" frag with Some (s, _) -> s | None -> frag in
+      match String.chop_affix "-" frag_date with
+      | [sY; sM; sD] ->
+	(try Some (jsnew Js.date_day(int_of_string sY, int_of_string sM - 1,
+				     int_of_string sD))
+	 with Failure _ -> None)
+      | _ -> None)
+    fragment
 }}
 
 let main_handler () () =
@@ -168,6 +187,7 @@ let client_transcript_service =
 
   type transcript_state = {
     mutable ts_day : int * int * int;
+    mutable ts_day_str : string;
     ts_dom : Dom_html.divElement Js.t;
   }
 
@@ -196,16 +216,18 @@ let client_transcript_service =
 	      jstime##getDate() in
     if day <> ts.ts_day then begin
       let (y, m, d), wd = day, Caltime.day_names.(jstime##getDay()) in
-      let day_str = sprintf "%s %04d-%02d-%02d" wd y m d in
-      let header_h2 = h2 [pcdata day_str] in
+      let day_str = sprintf "%04d-%02d-%02d" y m d in
+      let header_h2 = h2 [pcdata (wd ^ " " ^ day_str)] in
       Dom.appendChild ts.ts_dom (Html5.To_dom.of_h2 header_h2);
-      ts.ts_day <- day
+      ts.ts_day <- day;
+      ts.ts_day_str <- day_str
     end;
-    let hour =
-      sprintf "%02d:%02d:%02d"
-	jstime##getHours() jstime##getMinutes() jstime##getSeconds() in
+    let h, m, s =
+      jstime##getHours(), jstime##getMinutes(), jstime##getSeconds() in
+    let hour = sprintf "%02d:%02d:%02d" h m s in
+    let frag = sprintf "%sT%02d%02d%02d" ts.ts_day_str h m s in
     let message_p =
-      (p ~a:[a_class ["message"]]
+      (p ~a:[a_class ["message"]; a_id frag]
 	(span ~a:[a_class ["hour"]] [pcdata hour] :: pcdata " " ::
 	 span ~a:[a_class ["sender"; msg.msg_sender_cls]]
 	      [pcdata msg.msg_sender] ::
@@ -236,7 +258,8 @@ let client_transcript_service =
   }
 
   let shown_prec = ref 3
-  let shown_date = jsnew Js.date_now()
+  let shown_date = Option.get_else (fun () -> jsnew Js.date_now())
+				   (React.S.value fragment_date)
   let shown_room = ref ""
   let shown_pat = ref None
   let shown_counts = {ct_card = 0; ct_branches = [||]}
@@ -284,6 +307,7 @@ let client_transcript_service =
     let transcript_div = Html5.D.div [] in
     let ts = {
       ts_day = (0, 0, 0);
+      ts_day_str = "";
       ts_dom = Html5.To_dom.of_div transcript_div;
     } in
     let message_count = List.length messages in
