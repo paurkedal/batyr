@@ -18,7 +18,8 @@ InstallType: custom (0.3)
 XCustomInstall:
   set -e
   ocamlfind install batyr META \
-    lib/*.mli _build/lib/*.cmi _build/lib/*.cma _build/lib/*.cmxa \
+    lib/*.mli _build/lib/*.cmi \
+    _build/lib/*.cma _build/lib/*.cmxa _build/lib/*.a \
     _build/web/server/*.cmi _build/web/server/*.cma
   install -d $datadir/$pkg_name/static/css
   install static/css/*.css $datadir/$pkg_name/static/css/
