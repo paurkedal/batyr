@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -202,7 +202,7 @@ module Resource = struct
 	    ~params:[|string_of_int id|]
 	    "SELECT domain_name, node_name, resource_name \
 	     FROM batyr.resources NATURAL JOIN batyr.nodes \
-			      NATURAL JOIN batyr.domains \
+				  NATURAL JOIN batyr.domains \
 	     WHERE resource_id = $1")
 	>|= fun (cost, (domain_name, (node_name, resource_name))) ->
       let resource =
@@ -223,7 +223,7 @@ module Resource = struct
 	  ~params:[|resource.domain_name; resource.node_name;
 		    resource.resource_name|]
 	  "SELECT resource_id FROM batyr.resources NATURAL JOIN batyr.nodes \
-						   NATURAL JOINT batyr.domains \
+						   NATURAL JOIN batyr.domains \
 	   WHERE domain_name = $1 AND node_name = $2 AND resource_name = $3")
       >|= fun (cost, id_opt) ->
     Batyr_cache.enrich cost resource.beacon;
@@ -319,10 +319,10 @@ module Muc_room = struct
 	    ~params:[|string_of_int node_id|]
 	    "SELECT room_alias, room_description, transcribe, \
 		    (SELECT min(seen_time) \
-		       FROM batyr.messages \
-		       JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
-			 ON sender_id = sender.resource_id \
-		      WHERE node_id = $1) \
+		     FROM batyr.messages \
+		     JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
+		     ON sender_id = sender.resource_id \
+		     WHERE node_id = $1) \
 	       FROM batyr.muc_rooms WHERE node_id = $1") >|= fun (cost, qr) ->
 	Option.map
 	  (fun (alias, (description, (transcribe, min_message_time))) ->
