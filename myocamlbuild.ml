@@ -5,7 +5,8 @@ open Ocamlbuild_plugin
 open Ocamlbuild_eliom
 open Ocamlbuild_ocsigen
 
-let server_packages = ["erm_xmpp"; "postgresql"; "prime"; "prime.testing"]
+let server_packages =
+  ["config-file"; "erm_xmpp"; "postgresql"; "prime"; "prime.testing"]
 let local_server_packages = ["lib/batyr"]
 let local_eliom_packages = ["web/server/batyrweb"]
 

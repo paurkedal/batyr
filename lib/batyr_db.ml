@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -385,8 +385,18 @@ object (self)
 
 end
 
-let pool = Lwt_pool.create 5 (fun () -> Lwt.return (new connection ()))
-let quick_pool = Lwt_pool.create 3 (fun () -> Lwt.return (new connection ()))
+let connect () =
+  let open Batyr_config in
+  let host = db_host_cp#get in
+  let hostaddr = db_host_cp#get in
+  let port = db_port_cp#get in
+  let dbname = db_database_cp#get in
+  let user = db_user_cp#get in
+  let password = db_password_cp#get in
+  Lwt.return (new connection ?host ?hostaddr ?port ?dbname ?user ?password ())
+
+let pool = Lwt_pool.create 5 connect
+let quick_pool = Lwt_pool.create 3 connect
 let use ?(quick = false) = Lwt_pool.use (if quick then quick_pool else pool)
 let use_accounted ?quick f =
   use ?quick (fun dbh -> dbh#start_accounting;
