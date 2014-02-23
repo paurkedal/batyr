@@ -31,6 +31,11 @@ let db_user_cp = new option_cp string_wrappers ~group ["db"; "user"]
 let db_password_cp = new option_cp string_wrappers ~group ["db"; "password"]
   None "The password by which to authenticate."
 
+let presence_reconnect_period_cp =
+  new float_cp ~group ["presence"; "reconnect_period"] 600.0
+  "The minimum time in seconds from the last connection to an XMPP account \
+   was established until re-connecting in case the connection is lost."
+
 let () =
   let section = Lwt_log.Section.make "Batyr.config" in
   let fp =

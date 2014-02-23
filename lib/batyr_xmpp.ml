@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -89,7 +89,7 @@ let with_chat session {server; username; password; resource; port} =
   lwt session_data =
     Chat.setup_session ~user_data:() ~myjid ~plain_socket ~tls_socket
 		       ~password session in
-  lwt r = Chat.parse session_data in
+  Chat.parse session_data >>
   let module Socket = (val session_data.Chat.socket : Chat.Socket) in
   Lwt_log.info_f ~section "Disconnecting %s@%s/%s." username server resource >>
   Socket.close Socket.socket

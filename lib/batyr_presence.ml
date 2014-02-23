@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -257,7 +257,24 @@ let start_chat_sessions () =
     let params = Chat_params.make ~server:ldomain ~port ~username:lnode
 				  ~password ~resource:lresource () in
     let session_key = ldomain, port, lnode, lresource in
+    let reconnect_period = Batyr_config.presence_reconnect_period_cp#get in
     if not (Hashtbl.mem chat_sessions session_key) then begin
       Hashtbl.add chat_sessions session_key true;
-      Lwt.async (fun () -> with_chat (chat_handler resource resource_id) params)
+      let rec connect_loop () =
+	let t_start = Unix.time () in
+	begin try_lwt
+	  with_chat (chat_handler resource resource_id) params
+	with
+	| End_of_file ->
+	  Lwt_log.error_f ~section "Lost connection."
+	| xc ->
+	  Lwt_log.error_f ~section "Caught %s." (Printexc.to_string xc) >>
+	  Lwt_log.debug (Printexc.get_backtrace ())
+	end >>
+	let t_dur = Unix.time () -. t_start in
+	let t_sleep = min 0.0 (reconnect_period -. t_dur) in
+	Lwt_log.info_f "Session lasted %g s, will re-connect in %g s."
+		       t_dur t_sleep >>
+	Lwt_unix.sleep t_sleep >> connect_loop () in
+      Lwt.async connect_loop
     end)
