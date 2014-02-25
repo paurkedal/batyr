@@ -272,7 +272,7 @@ let start_chat_sessions () =
 	  Lwt_log.debug (Printexc.get_backtrace ())
 	end >>
 	let t_dur = Unix.time () -. t_start in
-	let t_sleep = max 0.0 (reconnect_period -. t_dur) in
+	let t_sleep = max 1.0 (reconnect_period -. t_dur) in
 	Lwt_log.info_f "Session lasted %g s, will re-connect in %g s."
 		       t_dur t_sleep >>
 	Lwt_unix.sleep t_sleep >> connect_loop () in
