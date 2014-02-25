@@ -395,9 +395,24 @@ let connect () =
   let password = db_password_cp#get in
   Lwt.return (new connection ?host ?hostaddr ?port ?dbname ?user ?password ())
 
-let pool = Lwt_pool.create 5 connect
-let quick_pool = Lwt_pool.create 3 connect
+let validate dbh =
+  try dbh#try_reset; Lwt.return_true
+  with _ -> Lwt_log.warning ~section "Broken DB handle, reconnecting." >>
+	    Lwt.return_false
+
+let pool = Lwt_pool.create ~validate 5 connect
+let quick_pool = Lwt_pool.create ~validate 3 connect
+
 let use ?(quick = false) = Lwt_pool.use (if quick then quick_pool else pool)
+
 let use_accounted ?quick f =
-  use ?quick (fun dbh -> dbh#start_accounting;
-			 f dbh >|= fun qr -> dbh#stop_accounting, qr)
+  let g dbh =
+    dbh#start_accounting;
+    try_lwt
+      lwt r = f dbh in
+      let c = dbh#stop_accounting in
+      Lwt.return (c, r)
+    with xc ->
+      ignore (dbh#stop_accounting);
+      Lwt.fail xc in
+  use ?quick g
