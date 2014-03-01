@@ -1,0 +1,25 @@
+# Batyr - A Chat Logger and Viewer
+
+
+## Synopsis
+
+Batyr is a bot which logs messages from chatrooms to a PostgreSQL database
+and provides a web interface for browsing and searching the them.  The web
+interface runs under [Ocsigen][ocsigen].
+
+
+## Deployment
+
+See the [Ocsigen manual][ocsigen] for how to setup up the web server.  A
+sample configuration for Batyr is installed under `$prefix/share/batyr`.
+Create a PostgreSQL database which can be accessed by the user running the
+Ocsigen server, and prepare it with
+
+    psql -U ocsigen -f $prefix/share/batyr/schemas/batyr_base.sql
+    psql -U ocsigen -f $prefix/share/batyr/schemas/batyr_proc.sql
+
+The first contains the table definitions.  The second contains views and
+functions which can be updated without touching any data.
+
+[ocsigen]: http://ocsigen.org/ocsigenserver/
+[pgenv]: http://www.postgresql.org/docs/9.3/interactive/libpq-envars.html
