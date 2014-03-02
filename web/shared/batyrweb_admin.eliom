@@ -18,9 +18,12 @@
   open Batyrweb_prereq
   open Eliom_content
   open Eliom_pervasives
+  open Unprime
   open Unprime_option
 
-  module Chatroom_base = struct
+  type 'a item_update = Item_added of 'a | Item_removed of 'a deriving (Json)
+
+  module Chatroom_shared = struct
 
     type t = {
       room_jid : string;
@@ -31,13 +34,6 @@
 
     let compare r0 r1 = compare r0.room_jid r1.room_jid
   end
-
-  type chatroom = Chatroom_base.t deriving (Json)
-
-  type update_insn =
-    | Add_chatroom of chatroom
-    | Remove_chatroom of chatroom
-    deriving (Json)
 }}
 
 {server{
@@ -47,78 +43,102 @@
   open Batyrweb_server
   open Printf
 
-  let update_stream, update = Lwt_stream.create ()
-  let update_comet : update_insn Eliom_comet.Channel.t =
-    Eliom_comet.Channel.create ~scope:Eliom_common.site_scope update_stream
-
-  module Chatroom = struct
-    include Chatroom_base
-
-    let get_all () =
-      Lwt.catch
-	(fun () ->
-	  lwt entries =
-	    Batyr_db.use begin fun dbh ->
-	      dbh#query_list
-		Batyr_db.Decode.(int ** option string ** option string ** bool)
-		"SELECT node_id, room_alias, room_description, transcribe \
-		 FROM batyr.muc_rooms NATURAL JOIN batyr.nodes"
-	      end in
-	  let chatroom_of_entry
-		(node_id, (room_alias, (room_description, transcribe))) =
-	    lwt node = Node.stored_of_id node_id in
-	    let room_jid = Node.to_string node in
-	    Lwt.return {room_jid; room_alias; room_description; transcribe} in
-	  Lwt_list.map_p chatroom_of_entry entries)
-	(fun xc ->
-	  Lwt_log.error_f "Failed to query connections: %s"
-			  (Printexc.to_string xc) >>
-	  Lwt.return [])
-
-    let add room =
-      Lwt.catch
-	(fun () ->
-	  lwt node = Lwt.wrap1 Node.of_string room.room_jid in
-	  lwt node_id = Node.store node in
-	  let room = {room with room_jid = Node.to_string node} in
-	  Batyr_db.use begin fun dbh ->
-	    dbh#query_single Batyr_db.Decode.bool
-	      ~params:[|
-		string_of_int node_id;
-		Batyr_db.or_null room.room_alias;
-		Batyr_db.or_null room.room_description;
-		string_of_bool room.transcribe;
-	      |]
-	      "SELECT batyr.update_muc_room($1, $2, $3, $4)" >>= fun _ ->
-	    (update (Some (Add_chatroom room)); Lwt.return (Ok ()))
-	  end)
-	(fun xc ->
-	  Lwt_log.error_f "Failed to create or update %s: %s"
-			  room.room_jid (Printexc.to_string xc) >>
-	  Lwt.return (Failed "Error creating or updating room."))
-
-    let remove room =
-      Lwt.catch
-	(fun () ->
-	  lwt node = Lwt.wrap1 Node.of_string room.room_jid in
-	  lwt node_id =
-	    match_lwt Node.stored_id node with
-	    | None -> Lwt.fail Eliom_common.Eliom_404
-	    | Some id -> Lwt.return id in
-	  Batyr_db.use begin fun dbh ->
-	    dbh#command
-	      ~params:[|string_of_int node_id|]
-	      "DELETE FROM batyr.muc_rooms WHERE node_id = $1"
-	  end >|= fun () ->
-	  update (Some (Remove_chatroom room)))
-	(fun xc ->
-	  Lwt_log.error_f "Failed to delete %s: %s"
-			  room.room_jid (Printexc.to_string xc))
+  module type COLL_SHARED = sig
+    type t deriving (Json)
   end
 
-  let sf_get_all = server_function Json.t<unit> Chatroom.get_all
-  let sf_add = server_function Json.t<chatroom> Chatroom.add
-  let sf_remove = server_function Json.t<chatroom> Chatroom.remove
+  module type COLL_SERVER = sig
+    type t
+    val which_type : string
+    val fetch_all : unit -> t list Lwt.t
+    val add : t -> unit Lwt.t
+    val remove : t -> unit Lwt.t
+  end
+
+  module Server_functions (H : COLL_SHARED)
+			  (S : COLL_SERVER with type t := H.t) = struct
+
+    let update_stream, emit = Lwt_stream.create ()
+    let update_comet : H.t item_update Eliom_comet.Channel.t =
+      Eliom_comet.Channel.create ~scope:Eliom_common.site_scope update_stream
+
+    let fetch_all = server_function Json.t<unit>
+      begin fun () ->
+	try_lwt S.fetch_all () >|= fun entries -> Ok entries
+	with xc ->
+	  let msg = sprintf "Failed to fetch %s list." S.which_type in
+	  Lwt_log.error msg >> Lwt.return (Failed msg)
+      end
+
+    let add = server_function Json.t<H.t>
+      begin fun entry ->
+	try_lwt
+	  S.add entry >|= fun () -> emit (Some (Item_added entry)); Ok ()
+	with xc ->
+	  let msg = sprintf "Failed to add %s." S.which_type in
+	  Lwt_log.error msg >> Lwt.return (Failed msg)
+      end
+
+    let remove = server_function Json.t<H.t>
+      begin fun entry ->
+	try_lwt
+	  S.remove entry >|= fun () -> emit (Some (Item_removed entry)); Ok ()
+	with xc ->
+	  let msg = sprintf "Failed to remove %s." S.which_type in
+	  Lwt_log.error msg >> Lwt.return (Failed msg)
+      end
+
+  end
+
+  module Chatroom = struct
+    open Chatroom_shared
+
+    let which_type = "chat room"
+
+    let fetch_all () =
+      lwt entries =
+	Batyr_db.use begin fun dbh ->
+	  dbh#query_list
+	    Batyr_db.Decode.(int ** option string ** option string ** bool)
+	    "SELECT node_id, room_alias, room_description, transcribe \
+	     FROM batyr.muc_rooms NATURAL JOIN batyr.nodes"
+	  end in
+      let chatroom_of_entry
+	    (node_id, (room_alias, (room_description, transcribe))) =
+	lwt node = Node.stored_of_id node_id in
+	let room_jid = Node.to_string node in
+	Lwt.return {room_jid; room_alias; room_description; transcribe} in
+      Lwt_list.map_p chatroom_of_entry entries
+
+    let add room =
+      lwt node = Lwt.wrap1 Node.of_string room.room_jid in
+      lwt node_id = Node.store node in
+      let room = {room with room_jid = Node.to_string node} in
+      Batyr_db.use begin fun dbh ->
+	dbh#query_single Batyr_db.Decode.bool
+	  ~params:[|
+	    string_of_int node_id;
+	    Batyr_db.or_null room.room_alias;
+	    Batyr_db.or_null room.room_description;
+	    string_of_bool room.transcribe;
+	  |]
+	  "SELECT batyr.update_muc_room($1, $2, $3, $4)" >|= konst ()
+      end
+
+    let remove room =
+      lwt node = Lwt.wrap1 Node.of_string room.room_jid in
+      lwt node_id =
+	match_lwt Node.stored_id node with
+	| None -> Lwt.fail Eliom_common.Eliom_404
+	| Some id -> Lwt.return id in
+      Batyr_db.use begin fun dbh ->
+	dbh#command
+	  ~params:[|string_of_int node_id|]
+	  "DELETE FROM batyr.muc_rooms WHERE node_id = $1" >|= konst ()
+      end
+  end
+
+  module Chatroom_sf = Server_functions (Chatroom_shared) (Chatroom)
 
 }}
 
@@ -131,11 +151,11 @@
     | s -> Some s
 
   module Chatroom = struct
-    include Chatroom_base
+    include Chatroom_shared
 
     let render_row r =
       let remove_handler ev =
-	Lwt.async (fun () -> %sf_remove r) in
+	Lwt.async (fun () -> %Chatroom_sf.remove r) in
       let remove_button =
 	Html5.D.(button ~a:[a_onclick remove_handler] ~button_type:`Button
 			[pcdata "delete"]) in
@@ -168,7 +188,7 @@ let admin_handler () () =
       let transcribe_dom = Html5.To_dom.of_input %transcribe_inp in
       let error_dom = Html5.To_dom.of_td %error_td in
       Lwt.async begin fun () ->
-	%sf_add Chatroom.({
+	%Chatroom_sf.add Chatroom.({
 	  room_jid = Js.to_string jid_dom##value;
 	  room_alias = input_value_opt alias_dom;
 	  room_description = input_value_opt description_dom;
@@ -191,18 +211,22 @@ let admin_handler () () =
     ) in
 
   ignore {unit{
+    let error_dom = Html5.To_dom.of_td %error_td in
+
     let chatrooms_live =
       Chatrooms_live.create (Html5.To_dom.of_table %chatrooms_table) in
 
     Lwt.ignore_result
-      (%sf_get_all () >|= List.iter (Chatrooms_live.add chatrooms_live));
+      (%Chatroom_sf.fetch_all () >|= function
+	| Ok entries -> List.iter (Chatrooms_live.add chatrooms_live) entries
+	| Failed msg -> error_dom##innerHTML <- Js.string msg);
 
     let update = function
-      | Add_chatroom chatroom ->
+      | Item_added chatroom ->
 	Chatrooms_live.add chatrooms_live chatroom
-      | Remove_chatroom chatroom ->
+      | Item_removed chatroom ->
 	Chatrooms_live.remove chatrooms_live chatroom in
-    Lwt.async (fun () -> Lwt_stream.iter update %update_comet)
+    Lwt.async (fun () -> Lwt_stream.iter update %Chatroom_sf.update_comet)
   }};
 
   Lwt.return Html5.D.(Batyrweb_tools.D.page "Administration" [
