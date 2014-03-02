@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ module Live_table (Elt : LIVE_TABLE_ELEMENT) = struct
 	t.table##insertRow (t.static_row_count + i)
       | Some i ->
 	let row =
-	  Js.Opt.get (t.table##rows##item (t.static_row_count + 1))
+	  Js.Opt.get (t.table##rows##item (t.static_row_count + i))
 		     (fun () -> failwith "Js.Opt.get") in
 	row##innerHTML <- Js.string ""; row in
     List.iter
