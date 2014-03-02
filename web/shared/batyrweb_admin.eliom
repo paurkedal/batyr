@@ -159,18 +159,20 @@ let admin_handler () () =
   let jid_inp = Html5.D.(input ~input_type:`Text ()) in
   let alias_inp = Html5.D.(input ~input_type:`Text ()) in
   let description_inp = Html5.D.(input ~input_type:`Text ()) in
+  let transcribe_inp = Html5.D.(input ~input_type:`Checkbox ()) in
   let add_handler =
     {{fun ev ->
       let jid_dom = Html5.To_dom.of_input %jid_inp in
       let alias_dom = Html5.To_dom.of_input %alias_inp in
       let description_dom = Html5.To_dom.of_input %description_inp in
+      let transcribe_dom = Html5.To_dom.of_input %transcribe_inp in
       let error_dom = Html5.To_dom.of_td %error_td in
       Lwt.async begin fun () ->
 	%sf_add Chatroom.({
 	  room_jid = Js.to_string jid_dom##value;
 	  room_alias = input_value_opt alias_dom;
 	  room_description = input_value_opt description_dom;
-	  transcribe = false;
+	  transcribe = Js.to_bool transcribe_dom##checked;
 	}) >|=
 	function
 	| Ok () -> error_dom##innerHTML <- Js.string ""
@@ -185,7 +187,7 @@ let admin_handler () () =
       (tr [th [pcdata "JID"]; th [pcdata "Alias"]; th [pcdata "Description"];
 	   th [pcdata "Transcribe"]])
       [tr [td [jid_inp]; td [alias_inp]; td [description_inp];
-	   td [add_button]; error_td]]
+	   td [transcribe_inp]; td [add_button]; error_td]]
     ) in
 
   ignore {unit{
