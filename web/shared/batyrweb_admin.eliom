@@ -101,7 +101,7 @@
 	  dbh#query_list
 	    Batyr_db.Decode.(int ** option string ** option string ** bool)
 	    "SELECT node_id, room_alias, room_description, transcribe \
-	     FROM batyr.muc_rooms NATURAL JOIN batyr.nodes"
+	     FROM batyr.muc_rooms"
 	  end in
       let chatroom_of_entry
 	    (node_id, (room_alias, (room_description, transcribe))) =
