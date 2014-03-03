@@ -20,7 +20,128 @@
   open Eliom_pervasives
   open Unprime
   open Unprime_option
+}}
 
+(* Accounts *)
+
+{shared{
+  module Account_shared = struct
+    type t = {
+      account_jid : string;
+      server_port : int;
+      client_password : string;
+      is_active : bool;
+    } deriving (Json)
+
+    let compare acA acB = compare acA.account_jid acB.account_jid
+  end
+}}
+{client{
+  module Account = struct
+    include Account_shared
+
+    type edit_dom = {
+      ed_jid : Dom_html.inputElement Js.t;
+      ed_password : Dom_html.inputElement Js.t;
+      ed_server_port : Dom_html.inputElement Js.t;
+      ed_is_active : Dom_html.inputElement Js.t;
+    }
+
+    let render_headers () =
+      let open Html5.D in
+      [ th [pcdata "JID"]; th [pcdata "Password"];
+	th [pcdata "Server Port"]; th [pcdata "Active"] ]
+
+    let render_row ac =
+      let open Html5.D in
+      [ td [pcdata ac.account_jid]; td [pcdata ac.client_password];
+	td [pcdata (string_of_int ac.server_port)];
+	td [pcdata (string_of_bool ac.is_active)] ]
+
+    let render_edit_row ac_opt =
+      let open Html5.D in
+      let jid_input = input ~input_type:`Text () in
+      let password_input = input ~input_type:`Text () in
+      let server_port_input = input ~input_type:`Text () in
+      let is_active_input = input ~input_type:`Checkbox () in
+      let edit_dom = {
+	ed_jid = Html5.To_dom.of_input jid_input;
+	ed_password = Html5.To_dom.of_input password_input;
+	ed_server_port = Html5.To_dom.of_input server_port_input;
+	ed_is_active = Html5.To_dom.of_input is_active_input;
+      } in
+      let tds =
+	[ td [jid_input];
+	  td [password_input];
+	  td [server_port_input];
+	  td [is_active_input] ] in
+      (edit_dom, tds)
+
+    let decode_row _ ed =
+      { account_jid = Js.to_string ed.ed_jid##value;
+	client_password = Js.to_string ed.ed_password##value;
+	server_port = int_of_string (Js.to_string ed.ed_server_port##value);
+	is_active = Js.to_bool ed.ed_is_active##checked; }
+  end
+}}
+{server{
+  open Batyr_data
+
+  module Account = struct
+    include Account_shared
+
+    let which_type = "account"
+
+    let fetch_all () =
+      lwt entries =
+	Batyr_db.use begin fun dbh ->
+	  dbh#query_list
+	    Batyr_db.Decode.(int ** string ** int ** bool)
+	    "SELECT resource_id, client_password, server_port, is_active \
+	     FROM batyr.accounts"
+	  end in
+      let account_of_entry
+	    (resource_id, (client_password, (server_port, is_active))) =
+	lwt resource = Resource.stored_of_id resource_id in
+	let account_jid = Resource.to_string resource in
+	Lwt.return {account_jid; client_password; server_port; is_active} in
+      Lwt_list.map_p account_of_entry entries
+
+    let add account =
+      lwt resource = Lwt.wrap1 Resource.of_string account.account_jid in
+      lwt resource_id = Resource.store resource in
+      let account = {account with account_jid = Resource.to_string resource} in
+      Batyr_db.use begin fun dbh ->
+	dbh#command
+	  ~params:[|
+	    string_of_int resource_id;
+	    string_of_int account.server_port;
+	    account.client_password;
+	    string_of_bool account.is_active;
+	  |]
+	  "INSERT INTO batyr.accounts \
+	    (resource_id, server_port, client_password, is_active) \
+	   VALUES ($1, $2, $3, $4)"
+      end
+
+    let remove account =
+      lwt resource = Lwt.wrap1 Resource.of_string account.account_jid in
+      lwt resource_id =
+	match_lwt Resource.stored_id resource with
+	| None -> Lwt.fail Eliom_common.Eliom_404
+	| Some id -> Lwt.return id in
+      Batyr_db.use begin fun dbh ->
+	dbh#command
+	  ~params:[|string_of_int resource_id|]
+	  "DELETE FROM batyr.accounts WHERE resource_id = $1" >|= konst ()
+      end
+  end
+}}
+{shared{ module Accounts_editor = Bwl_table_editor.Make (Account) }}
+
+(* Chatrooms *)
+
+{shared{
   type 'a item_update = Item_added of 'a | Item_removed of 'a deriving (Json)
 
   module Chatroom_shared = struct
@@ -34,8 +155,8 @@
 
     let compare r0 r1 = compare r0.room_jid r1.room_jid
   end
-}}
 
+}}
 {server{
   open Batyr_data
   open Batyr_prereq
@@ -171,6 +292,7 @@
   module Chatrooms_live = Live_table (Chatroom)
 }}
 
+
 module Admin_app = Eliom_registration.App
   (struct let application_name = "web-batyrweb_admin" end)
 
@@ -229,7 +351,14 @@ let admin_handler () () =
     Lwt.async (fun () -> Lwt_stream.iter update %Chatroom_sf.update_comet)
   }};
 
+  let accounts_table =
+    Accounts_editor.create
+      {Accounts_editor.clientside{Accounts_editor.clientside}}
+      Accounts_editor.serverside in
+
   Lwt.return Html5.D.(Batyrweb_tools.D.page "Administration" [
+    h2 [pcdata "Accounts"];
+    accounts_table;
     h2 [pcdata "Chatrooms"];
     chatrooms_table;
   ])
