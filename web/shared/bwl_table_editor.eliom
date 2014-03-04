@@ -73,7 +73,7 @@
 
       let row_pos i =
 	match !editing with
-	| Some (pos, _, None) when 1 + i >= pos -> 2 + i
+	| Some (pos, _, None, _) when 1 + i >= pos -> 2 + i
 	| _ -> 1 + i in
 
       let rec render_row pos row elt =
@@ -99,9 +99,7 @@
 	  ]) in
 	Dom.appendChild row (Html5.To_dom.of_td outside_td)
 
-      and render_edit_row row elt_opt =
-	let edit_dom, edit_tds = E.render_edit_row elt_opt in
-	row##innerHTML <- Js.string "";
+      and render_edit_row_outside ?(is_removed = false) row elt_opt edit_dom =
 	let on_cancel ev = disable_edit () in
 	let on_add ev =
 	  Lwt.async begin fun () ->
@@ -109,28 +107,38 @@
 	    | Ok () -> on_cancel ev
 	    | Failed msg -> assert false (* FIXME *)
 	  end in
+	let commit_label =
+	  if is_removed then "re-add" else
+	  if elt_opt = None then "add" else
+	  "update" in
 	let outside_td = Html5.D.(td [
 	  button ~a:[a_onclick on_cancel] ~button_type:`Button
 		 [pcdata "cancel"];
 	  button ~a:[a_onclick on_add] ~button_type:`Button
-		 [pcdata (if elt_opt = None then "add" else "update")];
+		 [pcdata commit_label];
 	]) in
-	List.iter
-	  (fun cell -> Dom.appendChild row (Html5.To_dom.of_td cell))
-	  (edit_tds @ [outside_td])
+	Dom.appendChild row (Html5.To_dom.of_td outside_td)
+
+      and render_edit_row row elt_opt =
+	row##innerHTML <- Js.string "";
+	let edit_dom, edit_tds = E.render_edit_row elt_opt in
+	List.iter (fun cell -> Dom.appendChild row (Html5.To_dom.of_td cell))
+		  edit_tds;
+	render_edit_row_outside row elt_opt edit_dom;
+	edit_dom
 
       and disable_edit () =
 	begin match !editing with
 	| None -> ()
-	| Some (_, row, None) -> Dom.removeChild table_dom row;
-	| Some (pos, row, Some elt) -> render_row pos row elt
+	| Some (_, row, None, _) -> Dom.removeChild table_dom row;
+	| Some (pos, row, Some elt, _) -> render_row pos row elt
 	end;
 	editing := None
 
       and enable_edit pos row elt_opt =
 	if !editing <> None then disable_edit ();
-	render_edit_row row elt_opt;
-	editing := Some (pos, row, elt_opt) in
+	let edit_dom = render_edit_row row elt_opt in
+	editing := Some (pos, row, elt_opt, edit_dom) in
 
       let on_new _ _ =
 	enable_edit 1 table_dom##insertRow(1) None; Lwt.return_unit in
@@ -156,8 +164,10 @@
 	| Some i ->
 	  enset := Enset.remove elt !enset;
 	  begin match !editing with
-	  | Some (pos, row, Some _) when pos = 1 + i ->
-	    editing := Some (pos, row, None)
+	  | Some (pos, row, Some _, edit_dom) when pos = 1 + i ->
+	    editing := Some (pos, row, None, edit_dom);
+	    Js.Opt.iter (row##lastChild) (Dom.removeChild row);
+	    render_edit_row_outside ~is_removed:true row None edit_dom
 	  | _ ->
 	    table_dom##deleteRow (row_pos i)
 	  end in
