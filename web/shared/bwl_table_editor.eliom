@@ -35,7 +35,7 @@
     type clientside =
       [`Div] Html5.elt ->
 	(unit -> E.t list fallible Lwt.t)
-      * (E.t -> unit fallible Lwt.t)
+      * (E.t option * E.t -> unit fallible Lwt.t)
       * (E.t -> unit fallible Lwt.t)
       * update Lwt_stream.t ->
       unit
@@ -63,7 +63,7 @@
       fun outer_div (sf_fetch_all, sf_add, sf_remove, update_stream) ->
 
       let enset = ref Enset.empty in
-      let editing = ref None (* or Some (pos, is_new) *) in
+      let editing = ref None (* or Some (pos, row, elt_opt) *) in
 
       let new_button = Html5.D.(button ~button_type:`Button [pcdata "new"]) in
       let top_outside_td = Html5.D.td [new_button] in
@@ -71,55 +71,19 @@
       let table = Html5.D.(table ~a:[a_class ["edit"]] top_tr []) in
       let table_dom = Html5.To_dom.of_table table in
 
-      let on_new _ _ =
-	begin match !editing with
-	| Some _ -> ()
-	| None ->
-	  let edit_dom, edit_tds = E.render_edit_row None in
-	  let row = table_dom##insertRow(1) in
-	  let on_cancel ev =
-	    table_dom##deleteRow(1);
-	    editing := None in
-	  let on_add ev =
-	    Lwt.async begin fun () ->
-	      sf_add (E.decode_row None edit_dom) >|= function
-	      | Ok () -> on_cancel ev
-	      | Failed msg -> assert false (* FIXME *)
-	    end in
-	  let outside_td = Html5.D.(td [
-	    button ~a:[a_onclick on_add] ~button_type:`Button [pcdata "add"];
-	    button ~a:[a_onclick on_cancel] ~button_type:`Button [pcdata "cancel"];
-	  ]) in
-	  List.iter
-	    (fun cell -> Dom.appendChild row (Html5.To_dom.of_td cell))
-	    (edit_tds @ [outside_td]);
-	  editing := Some (1, true)
-	end;
-	Lwt.return_unit in
-      Lwt_js_events.(async
-	(fun () -> clicks (Html5.To_dom.of_element new_button) on_new));
-
       let row_pos i =
 	match !editing with
-	| Some (j, true) when i >= j -> 2 + i
+	| Some (pos, _, None) when 1 + i >= pos -> 2 + i
 	| _ -> 1 + i in
 
-      let add elt =
-	let row =
-	  match Enset.locate elt !enset with
-	  | None ->
-	    enset := Enset.add elt !enset;
-	    let i = Option.get (Enset.locate elt !enset) in
-	    table_dom##insertRow (row_pos i)
-	  | Some i ->
-	    let row = Js.Opt.get (table_dom##rows##item(row_pos i))
-				 (fun () -> failwith "Js.Opt.get") in
-	    row##innerHTML <- Js.string ""; row in
+      let rec render_row pos row elt =
+	row##innerHTML <- Js.string "";
 	List.iter
 	  (fun cell ->
 	    let cell_dom = Html5.To_dom.of_td cell in
 	    ignore (Dom.appendChild row cell_dom))
 	  (E.render_row elt);
+	let on_edit ev = enable_edit pos row (Some elt) in
 	let on_remove ev =
 	  Lwt.async begin fun () ->
 	    sf_remove elt >|= function
@@ -128,20 +92,74 @@
 	  end in
 	let outside_td = Html5.D.(
 	  td ~a:[a_class ["outside"]] [
+	    button ~a:[a_onclick on_edit]
+		   ~button_type:`Button [pcdata "edit"];
 	    button ~a:[a_onclick on_remove]
 		   ~button_type:`Button [pcdata "remove"]
 	  ]) in
-	Dom.appendChild row (Html5.To_dom.of_td outside_td) in
+	Dom.appendChild row (Html5.To_dom.of_td outside_td)
+
+      and render_edit_row row elt_opt =
+	let edit_dom, edit_tds = E.render_edit_row elt_opt in
+	row##innerHTML <- Js.string "";
+	let on_cancel ev = disable_edit () in
+	let on_add ev =
+	  Lwt.async begin fun () ->
+	    sf_add (elt_opt, E.decode_row elt_opt edit_dom) >|= function
+	    | Ok () -> on_cancel ev
+	    | Failed msg -> assert false (* FIXME *)
+	  end in
+	let outside_td = Html5.D.(td [
+	  button ~a:[a_onclick on_cancel] ~button_type:`Button
+		 [pcdata "cancel"];
+	  button ~a:[a_onclick on_add] ~button_type:`Button
+		 [pcdata (if elt_opt = None then "add" else "update")];
+	]) in
+	List.iter
+	  (fun cell -> Dom.appendChild row (Html5.To_dom.of_td cell))
+	  (edit_tds @ [outside_td])
+
+      and disable_edit () =
+	begin match !editing with
+	| None -> ()
+	| Some (_, row, None) -> Dom.removeChild table_dom row;
+	| Some (pos, row, Some elt) -> render_row pos row elt
+	end;
+	editing := None
+
+      and enable_edit pos row elt_opt =
+	if !editing <> None then disable_edit ();
+	render_edit_row row elt_opt;
+	editing := Some (pos, row, elt_opt) in
+
+      let on_new _ _ =
+	enable_edit 1 table_dom##insertRow(1) None; Lwt.return_unit in
+      Lwt_js_events.(async
+	(fun () -> clicks (Html5.To_dom.of_element new_button) on_new));
+
+      let add elt =
+	let i, row =
+	  match Enset.locate elt !enset with
+	  | None ->
+	    enset := Enset.add elt !enset;
+	    let i = Option.get (Enset.locate elt !enset) in
+	    i, table_dom##insertRow (row_pos i)
+	  | Some i ->
+	    let row = Js.Opt.get (table_dom##rows##item(row_pos i))
+				 (fun () -> failwith "Js.Opt.get") in
+	    i, row in
+	render_row (row_pos i) row elt in
 
       let remove elt =
 	match Enset.locate elt !enset with
 	| None -> Eliom_lib.error "No element matches delete request."
 	| Some i ->
 	  enset := Enset.remove elt !enset;
-	  table_dom##deleteRow (row_pos i);
 	  begin match !editing with
-	  | Some (j, false) when j = i -> editing := Some (j, true)
-	  | _ -> ()
+	  | Some (pos, row, Some _) when pos = 1 + i ->
+	    editing := Some (pos, row, None)
+	  | _ ->
+	    table_dom##deleteRow (row_pos i)
 	  end in
 
       Lwt.async begin fun () ->
@@ -170,7 +188,7 @@
 
     val which_type : string
     val fetch_all : unit -> t list Lwt.t
-    val add : t -> unit Lwt.t
+    val add : t option -> t -> unit Lwt.t
     val remove : t -> unit Lwt.t
   end
 
@@ -189,10 +207,13 @@
           Lwt_log.error msg >> Lwt.return (Failed msg)
       end
 
-    let add = server_function Json.t<E.t>
-      begin fun entry ->
+    let add = server_function Json.t<E.t option * E.t>
+      begin fun (old_entry_opt, entry) ->
         try_lwt
-          E.add entry >|= fun () -> emit (Some (Add entry)); Ok ()
+          E.add old_entry_opt entry >|= fun () ->
+	  Option.iter (fun entry -> emit (Some (Remove entry))) old_entry_opt;
+	  emit (Some (Add entry));
+	  Ok ()
         with xc ->
           let msg = sprintf "Failed to add %s." E.which_type in
           Lwt_log.error msg >> Lwt.return (Failed msg)

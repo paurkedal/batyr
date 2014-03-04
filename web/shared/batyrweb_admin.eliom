@@ -60,22 +60,29 @@
 
     let render_edit_row ac_opt =
       let open Html5.D in
-      let jid_input = input ~input_type:`Text () in
-      let password_input = input ~input_type:`Text () in
-      let server_port_input = input ~input_type:`Text () in
+      let jid_input = input ~a:[a_size 12] ~input_type:`Text () in
+      let password_input = input ~a:[a_size 12] ~input_type:`Text () in
+      let server_port_input = input ~a:[a_size 4] ~input_type:`Text () in
       let is_active_input = input ~input_type:`Checkbox () in
-      let edit_dom = {
+      let ed = {
 	ed_jid = Html5.To_dom.of_input jid_input;
 	ed_password = Html5.To_dom.of_input password_input;
 	ed_server_port = Html5.To_dom.of_input server_port_input;
 	ed_is_active = Html5.To_dom.of_input is_active_input;
       } in
+      Option.iter
+	(fun ac ->
+	  ed.ed_jid##value <- Js.string ac.account_jid;
+	  ed.ed_password##value <- Js.string ac.client_password;
+	  ed.ed_server_port##value <- Js.string (string_of_int ac.server_port);
+	  ed.ed_is_active##checked <- Js.bool ac.is_active)
+	ac_opt;
       let tds =
 	[ td [jid_input];
 	  td [password_input];
 	  td [server_port_input];
 	  td [is_active_input] ] in
-      (edit_dom, tds)
+      (ed, tds)
 
     let decode_row _ ed =
       { account_jid = Js.to_string ed.ed_jid##value;
@@ -107,21 +114,40 @@
 	Lwt.return {account_jid; client_password; server_port; is_active} in
       Lwt_list.map_p account_of_entry entries
 
-    let add account =
+    let add old_account_opt account =
+      lwt old_resource_id_opt =
+	match old_account_opt with
+	| None -> Lwt.return_none
+	| Some old_account ->
+	  lwt resource = Lwt.wrap1 Resource.of_string old_account.account_jid in
+	  Resource.stored_id resource in
       lwt resource = Lwt.wrap1 Resource.of_string account.account_jid in
       lwt resource_id = Resource.store resource in
       let account = {account with account_jid = Resource.to_string resource} in
-      Batyr_db.use begin fun dbh ->
-	dbh#command
-	  ~params:[|
-	    string_of_int resource_id;
-	    string_of_int account.server_port;
-	    account.client_password;
-	    string_of_bool account.is_active;
-	  |]
+      let params = [|
+	string_of_int resource_id;
+	string_of_int account.server_port;
+	account.client_password;
+	string_of_bool account.is_active;
+      |] in
+      let sql =
+	match old_resource_id_opt with
+	| Some old_resource_id when old_resource_id = resource_id ->
+	  "UPDATE batyr.accounts \
+	   SET server_port = $2, client_password = $3, is_active = $4 \
+	   WHERE resource_id = $1"
+	| _ ->
 	  "INSERT INTO batyr.accounts \
-	    (resource_id, server_port, client_password, is_active) \
-	   VALUES ($1, $2, $3, $4)"
+	      (resource_id, server_port, client_password, is_active) \
+	   VALUES ($1, $2, $3, $4)" in
+      Batyr_db.use begin fun dbh ->
+	dbh#command ~params sql >>
+	begin match old_resource_id_opt with
+	| Some old_resource_id when old_resource_id <> resource_id ->
+	  dbh#command ~params:[|string_of_int old_resource_id|]
+	    "DELETE FROM batyr.accounts WHERE resource_id = $1"
+	| _ -> Lwt.return_unit
+	end
       end
 
     let remove account =

@@ -20,6 +20,7 @@ a:hover, .b-link:hover { text-decoration: underline; }
 th { text-align: left; }
 table.edit th, table.edit td { padding: 0 2mm; }
 table.edit th:first-child, table.edit td:first-child { padding: 0; }
+table.edit input { width: 100%; }
 
 .b-tabbar {
 	margin: 0;
