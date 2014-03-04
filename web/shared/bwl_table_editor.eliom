@@ -32,13 +32,13 @@
 
     type update = Add of E.t | Remove of E.t | Replace of E.t * E.t
 
-    type clientside =
-      [`Div] Html5.elt ->
-	(unit -> E.t list fallible Lwt.t)
-      * (E.t option * E.t -> unit fallible Lwt.t)
-      * (E.t -> unit fallible Lwt.t)
-      * update Lwt_stream.t ->
-      unit
+    type serverside =
+	(unit, E.t list fallible) server_function
+      * (E.t option * E.t, unit fallible) server_function
+      * (E.t, unit fallible) server_function
+      * update Eliom_comet.Channel.t
+
+    type clientside = [`Div] Html5.elt -> serverside -> unit
 
   end
 }}
