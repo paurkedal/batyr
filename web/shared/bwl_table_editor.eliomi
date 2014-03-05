@@ -35,7 +35,7 @@
     val decode_row : t option -> edit_dom -> t
   end
 
-  module Make : functor (E : ELEMENT) -> sig
+  module Make (E : ELEMENT) : sig
     type clientside
     val clientside : clientside
   end

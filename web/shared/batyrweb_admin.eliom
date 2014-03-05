@@ -28,6 +28,7 @@
 }}
 
 (* Accounts *)
+(* ======== *)
 
 {shared{
   module Account_shared = struct
@@ -97,8 +98,6 @@
   end
 }}
 {server{
-  open Batyr_data
-
   module Account = struct
     include Account_shared
 
@@ -170,7 +169,9 @@
 }}
 {shared{ module Accounts_editor = Bwl_table_editor.Make (Account) }}
 
+
 (* Chatrooms *)
+(* ========= *)
 
 {shared{
   module Chatroom_shared = struct
@@ -255,10 +256,7 @@
       end
   end
 }}
-
 {client{
-  open Batyrweb_client
-
   let input_value_opt inp =
     match String.trim (Js.to_string inp##value) with
     | "" -> None
@@ -320,25 +318,29 @@
 }}
 {shared{ module Chatrooms_editor = Bwl_table_editor.Make (Chatroom) }}
 
+
+(* Main *)
+(* ==== *)
+
 module Admin_app = Eliom_registration.App
   (struct let application_name = "web-batyrweb_admin" end)
 
 let admin_handler () () =
 
-  let accounts_table =
+  let accounts_editor =
     Accounts_editor.create
       {Accounts_editor.clientside{Accounts_editor.clientside}}
       Accounts_editor.serverside in
-  let chatrooms_table =
+  let chatrooms_editor =
     Chatrooms_editor.create
       {Chatrooms_editor.clientside{Chatrooms_editor.clientside}}
       Chatrooms_editor.serverside in
 
   Lwt.return Html5.D.(Batyrweb_tools.D.page "Administration" [
     h2 [pcdata "Accounts"];
-    accounts_table;
+    accounts_editor;
     h2 [pcdata "Chatrooms"];
-    chatrooms_table;
+    chatrooms_editor;
   ])
 
 let () =
