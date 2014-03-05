@@ -66,7 +66,7 @@
       let editing = ref None (* or Some (pos, row, elt_opt) *) in
 
       let new_button = Html5.D.(button ~button_type:`Button [pcdata "new"]) in
-      let top_outside_td = Html5.D.td [new_button] in
+      let top_outside_td = Html5.D.(td ~a:[a_class ["outside"]] [new_button]) in
       let top_tr = Html5.D.tr (E.render_headers () @ [top_outside_td]) in
       let table = Html5.D.(table ~a:[a_class ["edit"]] top_tr []) in
       let table_dom = Html5.To_dom.of_table table in
@@ -111,7 +111,7 @@
 	  if is_removed then "re-add" else
 	  if elt_opt = None then "add" else
 	  "update" in
-	let outside_td = Html5.D.(td [
+	let outside_td = Html5.D.(td ~a:[a_class ["outside"]] [
 	  button ~a:[a_onclick on_cancel] ~button_type:`Button
 		 [pcdata "cancel"];
 	  button ~a:[a_onclick on_add] ~button_type:`Button

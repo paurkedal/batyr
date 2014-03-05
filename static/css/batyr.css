@@ -18,8 +18,10 @@ a:hover, .b-link:hover { text-decoration: underline; }
 .help { padding: 0.5mm 2mm; border: dashed thin #ccc; background-color: #ffe; }
 
 th { text-align: left; }
-table.edit th, table.edit td { padding: 0 2mm; }
-table.edit th:first-child, table.edit td:first-child { padding: 0; }
+table.edit { border-collapse: collapse; }
+table.edit th, table.edit td { padding: 0 2mm; border: solid thin #ccc; }
+table.edit th { background-color: #eee; }
+table.edit .outside { background-color: none; border: none; }
 table.edit input { width: 100%; }
 
 .b-tabbar {
