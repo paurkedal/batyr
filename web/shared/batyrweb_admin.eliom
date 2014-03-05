@@ -319,6 +319,132 @@
 {shared{ module Chatrooms_editor = Bwl_table_editor.Make (Chatroom) }}
 
 
+(* Presence *)
+(* ======== *)
+
+{shared{
+  module Presence_shared = struct
+    type t = {
+      resource_jid : string;
+      account_jid : string;
+      is_present : bool;
+      nick : string option;
+    } deriving (Json)
+    let compare presA presB = compare presA.resource_jid presB.resource_jid
+  end
+}}
+{server{
+  module Presence = struct
+    include Presence_shared
+    let which_type = "presence"
+    let fetch_all () =
+      Batyr_db.(use begin fun dbh ->
+	dbh#query_list Decode.(string ** string ** bool ** option string)
+	  "SELECT resource.jid, account.jid, is_present, nick \
+	   FROM batyr.muc_presence \
+	   NATURAL JOIN batyr.resource_jids AS resource \
+	   INNER JOIN batyr.resource_jids AS account \
+		   ON account_id = account.resource_id" >|=
+	List.map
+	  (fun (resource_jid, (account_jid, (is_present, nick))) ->
+	    {resource_jid; account_jid; is_present; nick})
+      end)
+    let add old_pres_opt pres =
+      lwt old_resource_id_opt =
+	match old_pres_opt with
+	| None -> Lwt.return_none
+	| Some old_pres ->
+	  Resource.stored_id (Resource.of_string old_pres.resource_jid) in
+      lwt resource_id = Resource.store (Resource.of_string pres.resource_jid) in
+      lwt account_id =
+	Resource.stored_id (Resource.of_string pres.account_jid)
+	  >|= Option.get in
+      let params =
+	[| string_of_int resource_id; string_of_int account_id;
+	   Batyr_db.or_null pres.nick; string_of_bool pres.is_present |] in
+      let sql =
+	match old_resource_id_opt with
+	| Some old_resource_id when old_resource_id = resource_id ->
+	  "UPDATE batyr.muc_presence \
+	   SET account_id = $2, nick = $3, is_present = $4 \
+	   WHERE resource_id = $1"
+	| _ ->
+	  "INSERT INTO batyr.muc_presence \
+	      (resource_id, account_id, nick, is_present) \
+	   VALUES ($1, $2, $3, $4)" in
+      Batyr_db.(use begin fun dbh ->
+	dbh#command ~params sql >>
+	match old_resource_id_opt with
+	| Some old_resource_id when old_resource_id <> resource_id ->
+	  dbh#command ~params:[|string_of_int old_resource_id|]
+	    "DELETE FROM batyr.muc_presence WHERE resource_id = $1"
+	| _ -> Lwt.return_unit
+      end)
+    let remove pres =
+      lwt resource_id =
+	Resource.stored_id (Resource.of_string pres.resource_jid)
+	  >|= Option.get in
+      Batyr_db.(use begin fun dbh ->
+	dbh#command ~params:[|string_of_int resource_id|]
+		    "DELETE FROM batyr.muc_presence WHERE resource_id = $1"
+      end)
+  end
+}}
+{client{
+  module Presence = struct
+    include Presence_shared
+
+    type edit_dom = {
+      ed_resource_jid : Dom_html.inputElement Js.t;
+      ed_account_jid : Dom_html.inputElement Js.t;
+      ed_nick : Dom_html.inputElement Js.t;
+      ed_is_present : Dom_html.inputElement Js.t;
+    }
+
+    let render_headers () =
+      let open Html5.D in
+      [th [pcdata "Resource"]; th [pcdata "Account"];
+       th [pcdata "Nick"]; th [pcdata "Present"]]
+
+    let render_row pres =
+      let open Html5.D in
+      [td [pcdata pres.resource_jid]; td [pcdata pres.account_jid];
+       td [pcdata (Option.get_or "-" pres.nick)];
+       td [pcdata (string_of_bool pres.is_present)]]
+
+    let render_edit_row pres_opt =
+      let open Html5.D in
+      let inp_resource_jid = input ~input_type:`Text () in
+      let inp_account_jid = input ~input_type:`Text () in
+      let inp_nick = input ~input_type:`Text () in
+      let inp_is_present = input ~input_type:`Checkbox () in
+      let ed = {
+	ed_resource_jid = Html5.To_dom.of_input inp_resource_jid;
+	ed_account_jid = Html5.To_dom.of_input inp_account_jid;
+	ed_nick = Html5.To_dom.of_input inp_nick;
+	ed_is_present = Html5.To_dom.of_input inp_is_present;
+      } in
+      Option.iter
+	(fun pres ->
+	  ed.ed_resource_jid##value <- Js.string pres.resource_jid;
+	  ed.ed_account_jid##value <- Js.string pres.account_jid;
+	  ed.ed_nick##value <- Js.string (Option.get_or "" pres.nick);
+	  ed.ed_is_present##checked <- Js.bool pres.is_present)
+	pres_opt;
+      ed, [td [inp_resource_jid]; td [inp_account_jid];
+	   td [inp_nick]; td [inp_is_present]]
+
+    let decode_row pres_opt ed =
+      let resource_jid = Js.to_string ed.ed_resource_jid##value in
+      let account_jid = Js.to_string ed.ed_account_jid##value in
+      let nick = input_value_opt ed.ed_nick in
+      let is_present = Js.to_bool ed.ed_is_present##checked in
+      {resource_jid; account_jid; nick; is_present}
+  end
+}}
+{shared{ module Presence_editor = Bwl_table_editor.Make (Presence) }}
+
+
 (* Main *)
 (* ==== *)
 
@@ -335,8 +461,14 @@ let admin_handler () () =
     Chatrooms_editor.create
       {Chatrooms_editor.clientside{Chatrooms_editor.clientside}}
       Chatrooms_editor.serverside in
+  let presence_editor =
+    Presence_editor.create
+      {Presence_editor.clientside{Presence_editor.clientside}}
+      Presence_editor.serverside in
 
   Lwt.return Html5.D.(Batyrweb_tools.D.page "Administration" [
+    h2 [pcdata "Presence"];
+    presence_editor;
     h2 [pcdata "Accounts"];
     accounts_editor;
     h2 [pcdata "Chatrooms"];
