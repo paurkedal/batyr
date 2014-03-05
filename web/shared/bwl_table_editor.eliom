@@ -88,7 +88,7 @@
 	  Lwt.async begin fun () ->
 	    sf_remove elt >|= function
 	    | Ok () -> ()
-	    | Failed msg -> assert false (* FIXME *)
+	    | Failed msg -> Dom_html.window##alert(Js.string msg)
 	  end in
 	let outside_td = Html5.D.(
 	  td ~a:[a_class ["outside"]] [
@@ -105,7 +105,7 @@
 	  Lwt.async begin fun () ->
 	    sf_add (elt_opt, E.decode_row elt_opt edit_dom) >|= function
 	    | Ok () -> on_cancel ev
-	    | Failed msg -> assert false (* FIXME *)
+	    | Failed msg -> Dom_html.window##alert(Js.string msg)
 	  end in
 	let commit_label =
 	  if is_removed then "re-add" else
@@ -185,7 +185,7 @@
       Lwt.ignore_result
 	(sf_fetch_all () >|= function
 	  | Ok entries -> List.iter add entries
-	  | Failed msg -> assert false (* FIXME *));
+	  | Failed msg -> Dom_html.window##alert(Js.string msg));
 
       Html5.Manip.appendChild outer_div table
   end
