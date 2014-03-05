@@ -242,7 +242,7 @@
 
     let create clientside serverside =
       let outer_div = Html5.D.div [] in
-      {unit{React.E.fix (%clientside %outer_div %serverside)}};
+      ignore {unit{%clientside %outer_div %serverside}};
       outer_div
   end
 }}
