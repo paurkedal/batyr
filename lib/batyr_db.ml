@@ -24,6 +24,7 @@ open Unprime_string
 
 let section = Lwt_log.Section.make "batyr.db"
 
+exception Runtime_error of string
 exception Response_error of string
 let raise_resperr fmt = ksprintf (fun s -> raise (Response_error s)) fmt
 let fail_resperr fmt = ksprintf (fun s -> Lwt.fail (Response_error s)) fmt
@@ -258,13 +259,13 @@ end
 let check_command_ok r =
   match r#status with
   | Command_ok -> Lwt.return_unit
-  | Bad_response | Nonfatal_error | Fatal_error -> failwith r#error
+  | Bad_response|Nonfatal_error|Fatal_error -> Lwt.fail (Runtime_error r#error)
   | _ -> Lwt.fail (Response_error "Expected Command_ok or an error response.")
 
 let check_tuples_ok r =
   match r#status with
   | Tuples_ok -> Lwt.return_unit
-  | Bad_response | Nonfatal_error | Fatal_error -> failwith r#error
+  | Bad_response|Nonfatal_error|Fatal_error -> Lwt.fail (Runtime_error r#error)
   | _ -> Lwt.fail (Response_error "Expected Tuples_ok or an error response.")
 
 class connection
