@@ -22,6 +22,9 @@
   open Unprime_list
   open Unprime_option
 }}
+{client{
+  open Bwl_content
+}}
 {server{
   open Batyr_data
   open Batyr_prereq
@@ -416,18 +419,19 @@
     let simple_select = Eliom_content_core.Html5.D.select
     let simple_option l = Eliom_content_core.Html5.D.(option (pcdata l))
 
-    let account_options : [`Option] Html5.elt list React.signal =
+    let account_optgroup : [`Optgroup] Html5.elt React.signal =
       let mkopt acct = simple_option acct.Account.account_jid in
       React.S.map
 	(fun accts ->
-	  Accounts_editor.Enset.fold (List.push *< mkopt) accts [] |> List.rev)
+	  Accounts_editor.Enset.fold (List.push *< mkopt) accts []
+	    |> List.rev
+	    |> Html5.D.optgroup ~label:"Accounts from above")
 	Accounts_editor.content
 
     let render_edit_row pres_opt =
       let open Html5.D in
       let inp_resource_jid = input ~input_type:`Text () in
-      (* TODO: Use reactive DOM when available. *)
-      let inp_account_jid = simple_select (React.S.value account_options) in
+      let inp_account_jid = Html5_R.simple_select [account_optgroup] in
       let inp_nick = input ~input_type:`Text () in
       let inp_is_present = input ~input_type:`Checkbox () in
       let ed = {
