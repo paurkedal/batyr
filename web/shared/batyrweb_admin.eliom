@@ -430,9 +430,9 @@
 
     let render_edit_row pres_opt =
       let open Html5.D in
-      let inp_resource_jid = input ~input_type:`Text () in
+      let inp_resource_jid = input ~a:[a_size 12] ~input_type:`Text () in
       let inp_account_jid = Html5_R.simple_select [account_optgroup] in
-      let inp_nick = input ~input_type:`Text () in
+      let inp_nick = input ~a:[a_size 8] ~input_type:`Text () in
       let inp_is_present = input ~input_type:`Checkbox () in
       let ed = {
 	ed_resource_jid = Html5.To_dom.of_input inp_resource_jid;
