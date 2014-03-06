@@ -19,6 +19,7 @@
   open Eliom_content
   open Eliom_pervasives
   open Unprime
+  open Unprime_list
   open Unprime_option
 }}
 {server{
@@ -396,7 +397,7 @@
 
     type edit_dom = {
       ed_resource_jid : Dom_html.inputElement Js.t;
-      ed_account_jid : Dom_html.inputElement Js.t;
+      ed_account_jid : Dom_html.selectElement Js.t;
       ed_nick : Dom_html.inputElement Js.t;
       ed_is_present : Dom_html.inputElement Js.t;
     }
@@ -412,15 +413,26 @@
        td [pcdata (Option.get_or "-" pres.nick)];
        td [pcdata (string_of_bool pres.is_present)]]
 
+    let simple_select = Eliom_content_core.Html5.D.select
+    let simple_option l = Eliom_content_core.Html5.D.(option (pcdata l))
+
+    let account_options : [`Option] Html5.elt list React.signal =
+      let mkopt acct = simple_option acct.Account.account_jid in
+      React.S.map
+	(fun accts ->
+	  Accounts_editor.Enset.fold (List.push *< mkopt) accts [] |> List.rev)
+	Accounts_editor.content
+
     let render_edit_row pres_opt =
       let open Html5.D in
       let inp_resource_jid = input ~input_type:`Text () in
-      let inp_account_jid = input ~input_type:`Text () in
+      (* TODO: Use reactive DOM when available. *)
+      let inp_account_jid = simple_select (React.S.value account_options) in
       let inp_nick = input ~input_type:`Text () in
       let inp_is_present = input ~input_type:`Checkbox () in
       let ed = {
 	ed_resource_jid = Html5.To_dom.of_input inp_resource_jid;
-	ed_account_jid = Html5.To_dom.of_input inp_account_jid;
+	ed_account_jid = Html5.To_dom.of_select inp_account_jid;
 	ed_nick = Html5.To_dom.of_input inp_nick;
 	ed_is_present = Html5.To_dom.of_input inp_is_present;
       } in
@@ -467,10 +479,10 @@ let admin_handler () () =
       Presence_editor.serverside in
 
   Lwt.return Html5.D.(Batyrweb_tools.D.page "Administration" [
-    h2 [pcdata "Presence"];
-    presence_editor;
     h2 [pcdata "Accounts"];
     accounts_editor;
+    h2 [pcdata "Presence"];
+    presence_editor;
     h2 [pcdata "Chatrooms"];
     chatrooms_editor;
   ])

@@ -38,6 +38,10 @@
   module Make (E : ELEMENT) : sig
     type clientside
     val clientside : clientside
+
+    module Enset : Prime_enumset.S with type elt = E.t
+
+    val content : Enset.t React.signal
   end
 }}
 

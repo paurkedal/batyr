@@ -59,6 +59,8 @@
     include Make_shared (E)
     module Enset = Prime_enumset.Make (E)
 
+    let content, set_content = React.S.create Enset.empty
+
     let clientside : clientside =
       fun outer_div (sf_fetch_all, sf_add, sf_remove, update_stream) ->
 
@@ -150,6 +152,7 @@
 	  match Enset.locate elt !enset with
 	  | None ->
 	    enset := Enset.add elt !enset;
+	    set_content !enset;
 	    let i = Option.get (Enset.locate elt !enset) in
 	    i, table_dom##insertRow (row_pos i)
 	  | Some i ->
@@ -163,6 +166,7 @@
 	| None -> Eliom_lib.error "No element matches delete request."
 	| Some i ->
 	  enset := Enset.remove elt !enset;
+	  set_content !enset;
 	  begin match !editing with
 	  | Some (pos, row, Some _, edit_dom) when pos = 1 + i ->
 	    editing := Some (pos, row, None, edit_dom);
