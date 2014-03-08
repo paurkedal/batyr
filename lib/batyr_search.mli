@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,8 +14,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+(** Search patterns for logged messages. *)
+
 include module type of Batyr_search_types
 
 val pattern_of_string : string -> search_pattern
+(** Compile a pattern.
+    @raise Syntax_error if the pattern is ill-formed. *)
 
 val denote_pattern : search_pattern -> bool Batyr_db.Expr.t
+(** Turn a pattern into an SQL query. *)

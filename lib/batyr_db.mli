@@ -14,6 +14,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+(** Concurrency, pooling, etc. for postgresql-ocaml using lwt. *)
+
 exception Runtime_error of string
 exception Response_error of string
 

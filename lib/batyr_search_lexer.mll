@@ -47,6 +47,11 @@ and lex_regex buf = parse
 {
   open Lexing
 
+  let start' lex lexbuf =
+    try start lex lexbuf with
+    | Failure msg -> raise (Syntax_error msg)
+    | Parsing.Parse_error -> raise (Syntax_error "syntax error")
+
   let parse_file path =
     let ic = open_in path in
     let lexbuf = from_channel ic in
@@ -56,7 +61,7 @@ and lex_regex buf = parse
       pos_bol = 0;
       pos_cnum = 0
     };
-    try start lex lexbuf with
+    try start' lex lexbuf with
     | xc -> close_in ic; raise xc
 
   let parse_string str =
@@ -67,5 +72,5 @@ and lex_regex buf = parse
       pos_bol = 0;
       pos_cnum = 0
     };
-    start lex lexbuf
+    start' lex lexbuf
 }

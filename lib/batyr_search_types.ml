@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,6 +14,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+(** Search patterns for logged messages (types). *)
+
+(** The compiled pattern type. *)
 type search_pattern =
   | Sp_regex of string
   | Sp_substring of string
@@ -22,4 +25,5 @@ type search_pattern =
   | Sp_and of search_pattern * search_pattern
   | Sp_or of search_pattern * search_pattern
 
-exception Parse_error of int
+exception Syntax_error of string
+(** Error raised by the pattern compiler. *)

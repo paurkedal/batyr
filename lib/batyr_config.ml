@@ -14,6 +14,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+(** Global configuration. *)
+
 open Config_file
 
 let group = new group

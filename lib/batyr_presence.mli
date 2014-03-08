@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,9 +14,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+(** XMPP presence management and logger. *)
+
 open Batyr_data
 open Batyr_xmpp
 
+(** High-level view of a row of the [messages] table. *)
 module Message : sig
   type t
 
@@ -30,5 +33,8 @@ module Message : sig
 end
 
 val message_events : Message.t Lwt_react.E.t
+(** This emits an events as new message are detected. *)
 
 val start_chat_sessions : unit -> unit Lwt.t
+(** Log in to accounts and join chats according to the active entries in the
+    [accounts] and [muc_presence] tables. *)
