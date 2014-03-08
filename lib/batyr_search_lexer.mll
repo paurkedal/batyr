@@ -31,7 +31,7 @@ rule lex = parse
   | ')' { RPAREN }
   | '|' { OR }
   | '!' { NOT }
-  | wordbound (wordchar+ wordbound)? as s { ATOM (Sp_word s) }
+  | wordbound (wordchar* wordbound)? as s { ATOM (Sp_word s) }
   | eof { EOF }
 
 and lex_quoted buf = parse
