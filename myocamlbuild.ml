@@ -19,6 +19,7 @@ let () = dispatch begin function
     enable_eliom_rules ();
     enable_ocsigen_conf_rules ~server_subdir:"web/server"
 	~local_server_packages ~server_packages ~local_eliom_packages ();
+    copy_rule "Copy: mllib -> odocl" "lib/batyr.mllib" "lib/api.odocl";
     Pathname.define_context "web/server" ["web"];
     Pathname.define_context "web/client" ["web"];
     flag ["ocaml"; "link"; "library"; "thread"] & A"-thread";

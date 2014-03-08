@@ -38,3 +38,9 @@ XCustomUninstall:
   ocamlfind remove $pkg_name
   rm -rf $datadir/$pkg_name
   echo "Removed $datadir/$pkg_name"
+
+Document api
+  Title: Batyr Library API
+  Type: custom (0.3)
+  XCustom: ocamlbuild-with-findlib lib/api.docdir/index.html
+  BuildTools: ocamlbuild, ocamldoc
