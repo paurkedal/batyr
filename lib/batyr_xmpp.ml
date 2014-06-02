@@ -47,7 +47,10 @@ let make_tls_socket fd =
   let module Socket = struct
     type t = Lwt_ssl.socket
     let socket = ssl_socket
-    let read socket buf start len = Lwt_ssl.read socket buf start len
+    let read socket buf start len =
+      lwt size = Lwt_ssl.read socket buf start len in
+      Lwt_log.debug_f ~section "In: %s\n" (String.sub buf start size) >>
+      Lwt.return size
     let write socket buf =
       let n = String.length buf in
       let rec loop i =
