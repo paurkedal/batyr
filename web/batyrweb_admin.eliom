@@ -419,19 +419,23 @@
     let simple_select = Eliom_content_core.Html5.D.select
     let simple_option l = Eliom_content_core.Html5.D.(option (pcdata l))
 
-    let account_optgroup : [`Optgroup] Html5.elt React.signal =
-      let mkopt acct = simple_option acct.Account.account_jid in
+    let dummy_opt = ([], "*", None, false)
+
+    let account_optgroup : [`Option] Eliom_content.Html5.R.elt list React.S.t =
+      let mkopt acct =
+	Html5.R.option
+	  (React.S.const (Html5.R.pcdata
+	    (React.S.const acct.Account.account_jid))) in
       React.S.map
 	(fun accts ->
 	  Accounts_editor.Enset.fold (List.push *< mkopt) accts []
-	    |> List.rev
-	    |> Html5.D.optgroup ~label:"Accounts from above")
+	    |> List.rev)
 	Accounts_editor.content
 
     let render_edit_row pres_opt =
       let open Html5.D in
       let inp_resource_jid = input ~a:[a_size 12] ~input_type:`Text () in
-      let inp_account_jid = Html5_R.simple_select [account_optgroup] in
+      let inp_account_jid = Html5.R.select account_optgroup in
       let inp_nick = input ~a:[a_size 8] ~input_type:`Text () in
       let inp_is_present = input ~input_type:`Checkbox () in
       let ed = {
@@ -465,22 +469,24 @@
 (* ==== *)
 
 module Admin_app = Eliom_registration.App
-  (struct let application_name = "web-batyrweb_admin" end)
+  (struct let application_name = "admin" end)
 
 let admin_handler () () =
 
-  let accounts_editor =
-    Accounts_editor.create
-      {Accounts_editor.clientside{Accounts_editor.clientside}}
-      Accounts_editor.serverside in
-  let chatrooms_editor =
-    Chatrooms_editor.create
-      {Chatrooms_editor.clientside{Chatrooms_editor.clientside}}
-      Chatrooms_editor.serverside in
-  let presence_editor =
-    Presence_editor.create
-      {Presence_editor.clientside{Presence_editor.clientside}}
-      Presence_editor.serverside in
+  let accounts_editor = Html5.D.div [] in
+  ignore {unit{
+    Accounts_editor.clientside %accounts_editor %Accounts_editor.serverside
+  }};
+
+  let chatrooms_editor = Html5.D.div [] in
+  ignore {unit{
+    Chatrooms_editor.clientside %chatrooms_editor %Chatrooms_editor.serverside
+  }};
+
+  let presence_editor = Html5.D.div [] in
+  ignore {unit{
+    Presence_editor.clientside %presence_editor %Presence_editor.serverside
+  }};
 
   Lwt.return Html5.D.(Batyrweb_tools.D.page "Administration" [
     h2 [pcdata "Accounts"];

@@ -37,9 +37,4 @@ module Html5_R : sig
     [< Html5_types.span_content_fun] Html5.elt React.signal list ->
     [> `Span] Html5.elt
 
-  val simple_select :
-    ?a: [< Html5_types.select_attrib] Html5.attrib list ->
-    [< Html5_types.select_content_fun] Html5.elt React.signal list ->
-    [> `Select] Html5.elt
-
 end

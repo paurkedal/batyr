@@ -243,10 +243,5 @@
       end
 
     let serverside = fetch_all, add, remove, update_comet
-
-    let create clientside serverside =
-      let outer_div = Html5.D.div [] in
-      ignore {unit{%clientside %outer_div %serverside}};
-      outer_div
   end
 }}

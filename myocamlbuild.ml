@@ -1,30 +1,25 @@
-(*# require ocamlbuild-eliom *)
-(*# require oasis.base *)
+(* OASIS_START *)
+(* OASIS_STOP *)
 
-open Ocamlbuild_plugin
-open Ocamlbuild_eliom
-open Ocamlbuild_ocsigen
+module M = Ocamlbuild_eliom.Make (struct
+  let client_dir = "client"
+  let server_dir = "server"
+  let type_dir = "type"
+end)
 
-let server_packages =
-  ["config-file"; "erm_xmpp"; "postgresql"; "prime"; "prime.testing"]
-let local_server_packages = ["lib/batyr"]
-let local_eliom_packages = ["web/server/batyrweb"]
+let oasis_executables = [
+  "web/client/main.byte";
+  "web/client/admin.byte";
+]
 
-let () = dispatch begin function
+let () = Ocamlbuild_plugin.dispatch @@ fun hook ->
+  dispatch_default hook;
+  M.dispatcher ~oasis_executables hook;
+  match hook with
   | Before_options ->
-    Options.use_ocamlfind := true;
     Options.make_links := false
-
   | After_rules ->
-    enable_eliom_rules ();
-    enable_ocsigen_conf_rules ~server_subdir:"web/server"
-	~local_server_packages ~server_packages ~local_eliom_packages ();
-    copy_rule "Copy: mllib -> odocl" "lib/batyr.mllib" "lib/api.odocl";
-    Pathname.define_context "web/server" ["web"];
-    Pathname.define_context "web/client" ["web"];
-    flag ["ocaml"; "link"; "library"; "thread"] & A"-thread";
-    eliom_lib ~dir:"lib" "batyr";
-    Pathname.define_context "web/server" ["lib"]
-
+    (* Cf https://github.com/ocsigen/js_of_ocaml/issues/20 *)
+    flag ["js_of_ocaml"] &
+      S[A"+eliom/client/eliom_client.js"; A"+js_of_ocaml/weak.js"]
   | _ -> ()
-end

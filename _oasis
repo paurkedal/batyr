@@ -1,46 +1,72 @@
-OASISFormat: 0.3
+OASISFormat: 0.4
 Name: batyr
 Version: 0.2
 Synopsis: A jabber logger and web interface
 Authors: Petter A. Urkedal
 License: GPL-3
-Plugins: DevFiles (0.3)
+AlphaFeatures: ocamlbuild_more_args, compiled_setup_ml
+Plugins: DevFiles (0.4), META (0.4)
+BuildTools: ocamlbuild
+XOCamlbuildPluginTags: package(eliom.ocamlbuild)
+OCamlVersion: >= 4.01
 
-FilesAB: META.ab, lib/batyr_version.ml.ab
+FilesAB: lib/batyr_version.ml.ab
 
-BuildType: custom (0.3)
-BuildDepends: calendar, config-file, eliom, erm_xmpp, lwt, lwt.ssl,
-  postgresql, prime, prime.testing
-XCustomBuild: ocamlbuild-with-findlib lib.otarget client.otarget server.otarget
-XCustomBuildClean: ocamlbuild-with-findlib -clean
+Library batyr
+  Path: lib
+  Modules:
+    Batyr_data,
+    Batyr_db,
+    Batyr_cache,
+    Batyr_config,
+    Batyr_prereq,
+    Batyr_presence,
+    Batyr_search,
+    Batyr_search_lexer,
+    Batyr_search_parser,
+    Batyr_search_types,
+    Batyr_version,
+    Batyr_xmpp
+  BuildDepends:
+    calendar, config-file, eliom, erm_xmpp, lwt, lwt.ssl,
+    postgresql, prime, prime.testing
+  ByteOpt: -thread
+  NativeOpt: -thread
 
-InstallType: custom (0.3)
-XCustomInstall:
-  set -e
-  ocamlfind install batyr META \
-    lib/*.mli _build/lib/*.cmi \
-    _build/lib/*.cma _build/lib/*.cmxa _build/lib/*.a \
-    _build/web/server/*.cmi _build/web/server/*.cma
-  install -d $datadir/$pkg_name/static/css
-  install static/css/*.css $datadir/$pkg_name/static/css/
-  install _build/static/*.js $datadir/$pkg_name/static/
-  echo "Installed static web content under $datadir/$pkg_name/static"
-  install _build/$pkg_name.conf $datadir/$pkg_name/$pkg_name.conf.sample
-  echo "Installed sample config $datadir/$pkg_name/$pkg_name.conf.sample"
-  install -d $datadir/$pkg_name/schemas
-  install schemas/*.sql $datadir/$pkg_name/schemas/
-  for dir in schemas/updates/*; do
-    install -d $datadir/$pkg_name/\$dir
-    install \$dir/*.sql $datadir/$pkg_name/\$dir/
-  done
-  echo "Installed DB schemas under $datadir/$pkg_name/schemas"
-XCustomUninstall:
-  ocamlfind remove $pkg_name
-  rm -rf $datadir/$pkg_name
-  echo "Removed $datadir/$pkg_name"
+Library web
+  FindlibParent: batyr
+  Path: web
+  Modules:
+    server/Batyrweb_admin,
+    server/Batyrweb_main,
+    server/Batyrweb_tools,
+    Batyrweb_prereq,
+    Batyrweb_server,
+    server/Bwl_table_editor
+  BuildDepends:
+    batyr, eliom.server
+  ByteOpt: -thread
+  NativeOpt: -thread
+  DataFiles:
+    static/css/*.css ($datadir/batyr/static/css),
+    ../_build/web/client/*.js ($datadir/batyr/static)
+
+Executable batyrweb_main
+  Path: web/client
+  BuildDepends: eliom.client, prime, prime.testing
+  MainIs: main.ml
+  ByteOpt: -thread
+  Install: false
+
+Executable batyrweb_admin
+  Path: web/client
+  BuildDepends: eliom.client, prime, prime.testing
+  MainIs: admin.ml
+  ByteOpt: -thread
+  Install: false
 
 Document api
   Title: Batyr Library API
-  Type: custom (0.3)
+  Type: custom (0.4)
   XCustom: ocamlbuild-with-findlib lib/api.docdir/index.html
   BuildTools: ocamlbuild, ocamldoc

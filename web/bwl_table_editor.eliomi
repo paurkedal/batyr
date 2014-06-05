@@ -36,7 +36,8 @@
   end
 
   module Make (E : ELEMENT) : sig
-    type clientside
+    type serverside
+    type clientside = [`Div] Html5.elt -> serverside -> unit
     val clientside : clientside
 
     module Enset : Prime_enumset.S with type elt = E.t
@@ -59,7 +60,5 @@
     type clientside
     type serverside
     val serverside : serverside
-    val create : clientside Eliom_lib.client_value -> serverside ->
-		 [> `Div] Html5.elt
   end
 }}

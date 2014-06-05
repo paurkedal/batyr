@@ -273,7 +273,7 @@ let client_transcript_service =
       (* FIXME: Need the real timezone for this to work across DST. *)
       let tz = sprintf "%d" (shown_date##getTimezoneOffset() / 60) in
       lwt counts =
-	Eliom_client.call_caml_service ~service:%client_message_counts_service
+	Eliom_client.call_ocaml_service ~service:%client_message_counts_service
 	  (room, (pat, tz)) () in
       let init_mday d =
 	{ct_card = 0; ct_branches = [||]} in
@@ -301,8 +301,8 @@ let client_transcript_service =
 
   let render_messages ~room ?tI ?tF ?pat update_comet =
     disable_updates ();
-    Eliom_client.call_caml_service ~service:%client_transcript_service
-				   (room, (tI, (tF, pat))) ()
+    Eliom_client.call_ocaml_service ~service:%client_transcript_service
+				    (room, (tI, (tF, pat))) ()
       >|= fun messages ->
     let transcript_div = Html5.D.div [] in
     let ts = {
@@ -493,7 +493,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   )
 
 module Main_app =
-  Eliom_registration.App (struct let application_name = "web-batyrweb_main" end)
+  Eliom_registration.App (struct let application_name = "main" end)
 let () =
   Main_app.register ~service:main_service main_handler;
   Main_app.register ~service:transcript_service transcript_handler

@@ -46,9 +46,4 @@ module Html5_R = struct
     append_child_signals (Html5.To_dom.of_span p_span) esigs;
     p_span
 
-  let simple_select ?a esigs =
-    let p_select = Eliom_content_core.Html5.D.select ?a [] in
-    append_child_signals (Html5.To_dom.of_select p_select) esigs;
-    p_select
-
 end
