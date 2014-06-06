@@ -41,7 +41,7 @@ Library web
     server/Batyrweb_main,
     server/Batyrweb_tools,
     Batyrweb_prereq,
-    Batyrweb_server,
+    server/Batyrweb_server,
     server/Bwl_table_editor
   BuildDepends:
     batyr, eliom.server
@@ -67,6 +67,9 @@ Executable batyrweb_admin
 
 Document api
   Title: Batyr Library API
-  Type: custom (0.4)
-  XCustom: ocamlbuild-with-findlib lib/api.docdir/index.html
-  BuildTools: ocamlbuild, ocamldoc
+  Type: ocamlbuild (0.4)
+  InstallDir: $htmldir/html
+  BuildTools+: ocamldoc
+  XOCamlbuildPath: lib
+  XOCamlbuildLibraries: batyr
+  DataFiles: COPYING ($docdir)
