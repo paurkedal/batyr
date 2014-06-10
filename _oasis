@@ -33,8 +33,9 @@ Library batyr
   ByteOpt: -thread
   NativeOpt: -thread
 
-Library web
+Library batyrweb
   FindlibParent: batyr
+  FindlibName: web
   Path: web
   Modules:
     server/Batyrweb_admin,
