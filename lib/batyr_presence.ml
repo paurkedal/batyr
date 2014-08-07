@@ -48,6 +48,20 @@ module Message = struct
   let body {body} = body
 end
 
+type room_session = {
+  rs_room : Muc_room.t;
+  rs_users_by_nick : (string, Muc_user.t) Hashtbl.t;
+  mutable rs_is_present : bool;
+}
+
+type chat_session = {
+  cs_chat : Chat.chat;
+  cs_rooms : (int, room_session) Hashtbl.t;
+  cs_presence_events : Chat.presence_content Chat.stanza React.E.t;
+  cs_message_events : Chat.message_content Chat.stanza React.E.t;
+  mutable cs_retained_events : (unit -> unit) list;
+}
+
 let chat_sessions = Hashtbl.create 11
 
 let string_of_message_type = function
@@ -58,7 +72,7 @@ let string_of_message_type = function
 
 let message_events, emit_message = Lwt_react.E.create ()
 
-let on_message chat stanza =
+let on_message cs stanza =
   let open Xml in
   List.iter
     (function
@@ -91,10 +105,11 @@ let on_message chat stanza =
     let muc_room = Muc_room.cached_of_node (Resource.node sender) in
     let muc_author =
       Option.search
-	(fun room->
+	(fun room ->
+	  let room_id = Option.get (Node.cached_id (Muc_room.node room)) in
+	  let rs = Hashtbl.find cs.cs_rooms room_id in
 	  let nick = Resource.resource_name sender in
-	  try
-	    Muc_user.resource (Hashtbl.find (Muc_room.users_by_nick room) nick)
+	  try Muc_user.resource (Hashtbl.find rs.rs_users_by_nick nick)
 	  with Not_found -> None)
 	muc_room in
     let recipient = Resource.of_jid (JID.of_string recipient) in
@@ -145,15 +160,14 @@ let extract_muc_user nick =
     | _ -> None
     end
 
-let entered_rooms_by_id = Hashtbl.create 23
-let entered_room_by_node node =
+let entered_room_by_node cs node =
   Option.search
     (fun id ->
-      try Some (Hashtbl.find entered_rooms_by_id id)
+      try Some (Hashtbl.find cs.cs_rooms id)
       with Not_found -> None)
     (Node.cached_id node)
 
-let on_presence chat stanza =
+let on_presence cs stanza =
   match stanza.Chat.jid_from with
   | None ->
     Lwt_log.warning ~section "Ignoring presence stanza lacking \"from\"."
@@ -165,31 +179,31 @@ let on_presence chat stanza =
       (JID.string_of_jid sender_jid) >>
     begin match Chat.(stanza.content.presence_type) with
     | Some Chat.Subscribe ->
-      Chat.send_presence chat ~jid_to:sender_jid ~kind:Chat.Subscribed ()
+      Chat.send_presence cs.cs_chat ~jid_to:sender_jid ~kind:Chat.Subscribed ()
     | _ -> Lwt.return_unit
     end >>
     let entered_room_node = Node.of_jid (JID.bare_jid sender_jid) in
-    begin match entered_room_by_node entered_room_node with
+    begin match entered_room_by_node cs entered_room_node with
     | None -> Lwt.return_unit
-    | Some entered_room ->
+    | Some rs ->
       let nick = sender_jid.JID.lresource in
       let user_opt = extract_muc_user nick stanza.Chat.x in
       begin match Chat.(stanza.content.presence_type), user_opt with
       | None, Some user ->
-	Hashtbl.replace (Muc_room.users_by_nick entered_room) nick user;
+	Hashtbl.replace rs.rs_users_by_nick nick user;
 	Lwt_log.debug_f ~section "User %s is available in %s."
 			(Muc_user.to_string user)
-			(Muc_room.to_string entered_room)
+			(Muc_room.to_string rs.rs_room)
       | Some Chat.Unavailable, Some user ->
-	Hashtbl.remove (Muc_room.users_by_nick entered_room) nick;
+	Hashtbl.remove rs.rs_users_by_nick nick;
 	Lwt_log.debug_f ~section "User %s is unavailable in %s."
 			(Muc_user.to_string user)
-			(Muc_room.to_string entered_room)
+			(Muc_room.to_string rs.rs_room)
       | _ -> Lwt.return_unit
       end
     end
 
-let on_error ~kind chat ?id ?jid_from ?jid_to ?lang error =
+let on_error ~kind cs ?id ?jid_from ?jid_to ?lang error =
   let jid_from = Option.map JID.string_of_jid jid_from in
   let props = []
     |> Option.fold (fun s acc -> sprintf "recipient = %s" s :: acc) jid_to
@@ -198,15 +212,59 @@ let on_error ~kind chat ?id ?jid_from ?jid_to ?lang error =
   Lwt_log.error_f ~section "%s error; %s; %s" kind
 		  (String.concat ", " props) error.StanzaError.err_text
 
-let chat_handler account_resource account_id chat =
-  Chat_version.register chat;
-  Chat_ping.register chat;
+let retain_event cs ev =
+  cs.cs_retained_events <- (fun () -> ev; ()) :: cs.cs_retained_events
+
+let muc_handler cs (resource_id, (nick, since)) =
+  lwt resource = Resource.stored_of_id resource_id in
+  lwt seconds =
+    begin match since with
+    | None ->
+      Lwt_log.info_f ~section "Entering %s, no previous logs."
+		     (Resource.to_string resource) >>
+      Lwt.return_none
+    | Some t ->
+      let t = Unix.time () -. t -. 1.0 in (* FIXME: Need <delay/> *)
+      Lwt_log.info_f ~section "Entering %s, seconds = %f"
+		     (Resource.to_string resource) t >>
+      Lwt.return (Some (int_of_float t))
+    end in
+  let room_node = Resource.node resource in
+  match_lwt Muc_room.stored_of_node room_node with
+  | None ->
+    Lwt_log.error_f ~section "Presence in non-room %s."
+		    (Node.to_string room_node)
+  | Some room ->
+    lwt room_id = Node.stored_id room_node >|= Option.get in
+    let rs = {
+      rs_room = room;
+      rs_users_by_nick = Hashtbl.create 17;
+      rs_is_present = false;
+    } in
+    Hashtbl.replace cs.cs_rooms room_id rs;
+    Chat_muc.enter_room ?seconds ?nick cs.cs_chat (Resource.jid resource)
+
+let chat_handler session_key account_resource account_id chat =
+  let presence_ev, emit_presence = React.E.create () in
+  let message_ev, emit_message = React.E.create () in
+  let cs = {
+    cs_chat = chat;
+    cs_rooms = Hashtbl.create 23;
+    cs_presence_events = presence_ev;
+    cs_message_events = message_ev;
+    cs_retained_events = [];
+  } in
+  Hashtbl.add chat_sessions session_key cs;
   Chat.register_stanza_handler chat (Chat.ns_client, "message")
-    (Chat.parse_message ~callback:on_message
+    (Chat.parse_message ~callback:(fun _ -> Lwt.wrap1 emit_message)
 			~callback_error:(on_error ~kind:"message"));
   Chat.register_stanza_handler chat (Chat.ns_client, "presence")
-    (Chat.parse_presence ~callback:on_presence
+    (Chat.parse_presence ~callback:(fun _ -> Lwt.wrap1 emit_presence)
 			 ~callback_error:(on_error ~kind:"presence"));
+  retain_event cs (Lwt_react.E.map (on_presence cs) presence_ev);
+  retain_event cs (Lwt_react.E.map (on_message cs) message_ev);
+  Chat_version.register chat;
+  Chat_ping.register chat;
   Chat_disco.register_info chat;
   Chat.send_presence chat ~jid_from:(Resource.jid account_resource)
 		     ~show:Chat.ShowDND ~status:"logging" () >>
@@ -220,30 +278,7 @@ let chat_handler account_resource account_id chat =
 	       WHERE sender.node_id = node_id) \
        FROM batyr.muc_presence NATURAL JOIN batyr.resources \
        WHERE account_id = $1 AND is_present = true")) >>=
-  Lwt_list.iter_s
-    (fun (resource_id, (nick, since)) ->
-      lwt resource = Resource.stored_of_id resource_id in
-      lwt seconds =
-	begin match since with
-	| None ->
-	  Lwt_log.info_f ~section "Entering %s, no previous logs."
-			 (Resource.to_string resource) >>
-	  Lwt.return_none
-	| Some t ->
-	  let t = Unix.time () -. t -. 1.0 in (* FIXME: Need <delay/> *)
-	  Lwt_log.info_f ~section "Entering %s, seconds = %f"
-			 (Resource.to_string resource) t >>
-	  Lwt.return (Some (int_of_float t))
-	end in
-      let room_node = Resource.node resource in
-      match_lwt Muc_room.stored_of_node room_node with
-      | None ->
-	Lwt_log.error_f ~section "Presence in non-room %s."
-			(Node.to_string room_node)
-      | Some room ->
-	lwt room_id = Node.stored_id room_node >|= Option.get in
-	Hashtbl.replace entered_rooms_by_id room_id room;
-	Chat_muc.enter_room ?seconds ?nick chat (Resource.jid resource))
+  Lwt_list.iter_s (muc_handler cs)
 
 let start_chat_sessions () =
   Batyr_db.use (fun dbh ->
@@ -259,18 +294,18 @@ let start_chat_sessions () =
     let session_key = ldomain, port, lnode, lresource in
     let reconnect_period = Batyr_config.presence_reconnect_period_cp#get in
     if not (Hashtbl.mem chat_sessions session_key) then begin
-      Hashtbl.add chat_sessions session_key true;
       let rec connect_loop () =
 	let t_start = Unix.time () in
 	begin try_lwt
-	  with_chat (chat_handler resource resource_id) params
+	  with_chat (chat_handler session_key resource resource_id) params
 	with
 	| End_of_file ->
 	  Lwt_log.error_f ~section "Lost connection."
 	| xc ->
 	  Lwt_log.error_f ~section "Caught %s." (Printexc.to_string xc) >>
 	  Lwt_log.debug (Printexc.get_backtrace ())
-	end >>
+	end >>= fun () ->
+	Hashtbl.remove chat_sessions session_key;
 	let t_dur = Unix.time () -. t_start in
 	let t_sleep = max 1.0 (reconnect_period -. t_dur) in
 	Lwt_log.info_f "Session lasted %g s, will re-connect in %g s."

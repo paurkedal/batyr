@@ -273,7 +273,6 @@ module Muc_room = struct
     description : string option;
     transcribe : bool;
     min_message_time : float option;
-    users_by_nick : (string, Muc_user.t) Hashtbl.t;
     beacon : Batyr_cache.beacon;
   }
   type t' = t
@@ -294,11 +293,10 @@ module Muc_room = struct
   let transcribe {transcribe} = transcribe
   let min_message_time {min_message_time} = min_message_time
   let to_string {node} = Node.to_string node
-  let users_by_nick {users_by_nick} = users_by_nick
 
   let make_dummy node = {
     node; alias = None; description = None; transcribe = false;
-    min_message_time = None; users_by_nick = Hashtbl.create 1;
+    min_message_time = None;
     beacon = Batyr_cache.dummy_beacon;
   }
 
@@ -329,7 +327,7 @@ module Muc_room = struct
 	    let room =
 	      Batyr_cache.cache cost (fun beacon ->
 		{node; alias; description; transcribe; min_message_time;
-		 users_by_nick = Hashtbl.create 27; beacon}) in
+		 beacon}) in
 	    Node_cache.merge node_cache room)
 	  qr
       end
