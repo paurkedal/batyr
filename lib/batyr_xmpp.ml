@@ -143,6 +143,18 @@ end
 module Chat_ping = struct
   let ns_ping = Some "urn:xmpp:ping"
 
+  let ping ~jid_from ~jid_to chat =
+    let r = ref None in
+    Chat.make_iq_request chat
+      ~jid_from ~jid_to
+      (Chat.IQGet Xml.(Xmlelement ((ns_ping, "ping"), [], [])))
+      (fun resp jid_from' jid_to' lang () ->
+	Lwt.return @@
+	  match resp with
+	  | Chat.IQResult r -> ()
+	  | Chat.IQError err -> r := Some err) >>
+    Lwt.return !r
+
   let on_ping req jid_from jid_to lang () =
     match jid_from with
     | Some jid_from ->

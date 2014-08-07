@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -114,6 +114,8 @@ module Chat_disco : sig
 end
 
 module Chat_ping : sig
+  val ping : jid_from: JID.t -> jid_to: JID.t -> Chat.chat ->
+	     StanzaError.t option Lwt.t
   val ns_ping : string option
   val register : Chat.chat -> unit
 end
