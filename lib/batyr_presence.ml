@@ -48,17 +48,25 @@ module Message = struct
   let body {body} = body
 end
 
-type room_session = {
-  rs_room : Muc_room.t;
-  rs_users_by_nick : (string, Muc_user.t) Hashtbl.t;
-  mutable rs_is_present : bool;
+type muc_session = {
+  ms_room : Muc_room.t;
+  ms_users_by_nick : (string, Muc_user.t) Hashtbl.t;
+  ms_emit_presence : ?step: React.step ->
+		     Chat.presence_content Chat.stanza -> unit;
+  ms_presences : Chat.presence_content Chat.stanza React.E.t;
+  ms_emit_message : ?step: React.step -> Message.t -> unit;
+  ms_messages : Message.t React.E.t;
+  mutable ms_is_present : bool;
 }
 
 type chat_session = {
   cs_chat : Chat.chat;
-  cs_rooms : (int, room_session) Hashtbl.t;
-  cs_presence_events : Chat.presence_content Chat.stanza React.E.t;
-  cs_message_events : Chat.message_content Chat.stanza React.E.t;
+  cs_rooms : (int, muc_session) Hashtbl.t;
+  cs_emit_presence : ?step: React.step ->
+		     Chat.presence_content Chat.stanza -> unit;
+  cs_presences : Chat.presence_content Chat.stanza React.E.t;
+  cs_emit_message : ?step: React.step -> Message.t -> unit;
+  cs_messages : Message.t React.E.t;
   mutable cs_retained_events : (unit -> unit) list;
 }
 
@@ -70,9 +78,35 @@ let string_of_message_type = function
   | Chat.Groupchat -> "groupchat"
   | Chat.Headline -> "headline"
 
-let message_events, emit_message = Lwt_react.E.create ()
+let messages, emit_message = Lwt_react.E.create ()
 
-let on_message cs stanza =
+let on_muc_message cs ms msg =
+  let muc_author =
+    let nick = Resource.resource_name (Message.sender msg) in
+    try Muc_user.resource (Hashtbl.find ms.ms_users_by_nick nick)
+    with Not_found -> None in
+  if Muc_room.transcribe ms.ms_room then
+    let author_id = Option.search Resource.cached_id muc_author in
+    lwt sender_id = Resource.store (Message.sender msg) in
+    lwt recipient_id = Resource.store (Message.recipient msg) in
+    Batyr_db.(use begin fun dbh ->
+      dbh#command
+	~params:[|timestamp_of_epoch (Message.seen_time msg);
+		  string_of_int sender_id;
+		  or_null (Option.map string_of_int author_id);
+		  string_of_int recipient_id;
+		  string_of_message_type (Message.message_type msg);
+		  or_null (Message.subject msg);
+		  or_null (Message.thread msg);
+		  or_null (Message.body msg)|]
+	"INSERT INTO batyr.messages (seen_time, \
+				     sender_id, author_id, recipient_id, \
+				     message_type, subject, thread, body) \
+	 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+    end)
+  else Lwt.return_unit
+
+let on_message cs chat stanza =
   let open Xml in
   List.iter
     (function
@@ -103,15 +137,6 @@ let on_message cs stanza =
 	  Unix.time () in
     let sender = Resource.of_jid sender in
     let muc_room = Muc_room.cached_of_node (Resource.node sender) in
-    let muc_author =
-      Option.search
-	(fun room ->
-	  let room_id = Option.get (Node.cached_id (Muc_room.node room)) in
-	  let rs = Hashtbl.find cs.cs_rooms room_id in
-	  let nick = Resource.resource_name sender in
-	  try Muc_user.resource (Hashtbl.find rs.rs_users_by_nick nick)
-	  with Not_found -> None)
-	muc_room in
     let recipient = Resource.of_jid (JID.of_string recipient) in
     let subject = stanza.Chat.content.Chat.subject in
     let thread = stanza.Chat.content.Chat.thread in
@@ -120,26 +145,19 @@ let on_message cs stanza =
     begin
       let msg = Message.make ~seen_time ~sender ~recipient ~message_type
 			     ?subject ?thread ?body () in
-      emit_message msg;
-      if Option.exists Muc_room.transcribe muc_room then
-	let author_id = Option.search Resource.cached_id muc_author in
-	lwt sender_id = Resource.store sender in
-	lwt recipient_id = Resource.store recipient in
-	Batyr_db.(use begin fun dbh ->
-	  dbh#command
-	    ~params:[|timestamp_of_epoch seen_time;
-		      string_of_int sender_id;
-		      or_null (Option.map string_of_int author_id);
-		      string_of_int recipient_id;
-		      string_of_message_type message_type;
-		      or_null subject; or_null thread; or_null body|]
-	    "INSERT INTO batyr.messages (seen_time, \
-					 sender_id, author_id, recipient_id, \
-					 message_type, subject, thread, body) \
-	     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
-	end)
-      else
+      let step = React.Step.create () in	(* NB! No yield until ... *)
+      cs.cs_emit_message ~step msg;
+      emit_message ~step msg;
+      match muc_room with
+      | None ->
+	React.Step.execute step;		(* ... here, and *)
 	Lwt.return_unit
+      | Some muc_room ->
+	let room_id = Option.get (Node.cached_id (Muc_room.node muc_room)) in
+	let ms = Hashtbl.find cs.cs_rooms room_id in
+	ms.ms_emit_message ~step msg;
+	React.Step.execute step;		(* ... here. *)
+	on_muc_message cs ms msg
     end
   | _ -> Lwt.return_unit
 
@@ -167,7 +185,7 @@ let entered_room_by_node cs node =
       with Not_found -> None)
     (Node.cached_id node)
 
-let on_presence cs stanza =
+let on_presence cs chat stanza =
   match stanza.Chat.jid_from with
   | None ->
     Lwt_log.warning ~section "Ignoring presence stanza lacking \"from\"."
@@ -183,22 +201,28 @@ let on_presence cs stanza =
     | _ -> Lwt.return_unit
     end >>
     let entered_room_node = Node.of_jid (JID.bare_jid sender_jid) in
+    let step = React.Step.create () in		(* NB! No yield until ... *)
+    cs.cs_emit_presence ~step stanza;
     begin match entered_room_by_node cs entered_room_node with
-    | None -> Lwt.return_unit
-    | Some rs ->
+    | None ->
+      React.Step.execute step;			(* ... here, and *)
+      Lwt.return_unit
+    | Some ms ->
+      ms.ms_emit_presence ~step stanza;
+      React.Step.execute step;			(* ... here. *)
       let nick = sender_jid.JID.lresource in
       let user_opt = extract_muc_user nick stanza.Chat.x in
       begin match Chat.(stanza.content.presence_type), user_opt with
       | None, Some user ->
-	Hashtbl.replace rs.rs_users_by_nick nick user;
+	Hashtbl.replace ms.ms_users_by_nick nick user;
 	Lwt_log.debug_f ~section "User %s is available in %s."
 			(Muc_user.to_string user)
-			(Muc_room.to_string rs.rs_room)
+			(Muc_room.to_string ms.ms_room)
       | Some Chat.Unavailable, Some user ->
-	Hashtbl.remove rs.rs_users_by_nick nick;
+	Hashtbl.remove ms.ms_users_by_nick nick;
 	Lwt_log.debug_f ~section "User %s is unavailable in %s."
 			(Muc_user.to_string user)
-			(Muc_room.to_string rs.rs_room)
+			(Muc_room.to_string ms.ms_room)
       | _ -> Lwt.return_unit
       end
     end
@@ -236,33 +260,35 @@ let muc_handler cs (resource_id, (nick, since)) =
 		    (Node.to_string room_node)
   | Some room ->
     lwt room_id = Node.stored_id room_node >|= Option.get in
-    let rs = {
-      rs_room = room;
-      rs_users_by_nick = Hashtbl.create 17;
-      rs_is_present = false;
+    let ms_presences, ms_emit_presence = React.E.create () in
+    let ms_messages, ms_emit_message = React.E.create () in
+    let ms = {
+      ms_room = room;
+      ms_users_by_nick = Hashtbl.create 17;
+      ms_is_present = false;
+      ms_presences; ms_emit_presence;
+      ms_messages; ms_emit_message;
     } in
-    Hashtbl.replace cs.cs_rooms room_id rs;
+    Hashtbl.replace cs.cs_rooms room_id ms;
     Chat_muc.enter_room ?seconds ?nick cs.cs_chat (Resource.jid resource)
 
 let chat_handler session_key account_resource account_id chat =
-  let presence_ev, emit_presence = React.E.create () in
-  let message_ev, emit_message = React.E.create () in
+  let cs_presences, cs_emit_presence = React.E.create () in
+  let cs_messages, cs_emit_message = React.E.create () in
   let cs = {
     cs_chat = chat;
     cs_rooms = Hashtbl.create 23;
-    cs_presence_events = presence_ev;
-    cs_message_events = message_ev;
+    cs_emit_presence; cs_presences;
+    cs_emit_message;  cs_messages;
     cs_retained_events = [];
   } in
   Hashtbl.add chat_sessions session_key cs;
   Chat.register_stanza_handler chat (Chat.ns_client, "message")
-    (Chat.parse_message ~callback:(fun _ -> Lwt.wrap1 emit_message)
+    (Chat.parse_message ~callback:(on_message cs)
 			~callback_error:(on_error ~kind:"message"));
   Chat.register_stanza_handler chat (Chat.ns_client, "presence")
-    (Chat.parse_presence ~callback:(fun _ -> Lwt.wrap1 emit_presence)
+    (Chat.parse_presence ~callback:(on_presence cs)
 			 ~callback_error:(on_error ~kind:"presence"));
-  retain_event cs (Lwt_react.E.map (on_presence cs) presence_ev);
-  retain_event cs (Lwt_react.E.map (on_message cs) message_ev);
   Chat_version.register chat;
   Chat_ping.register chat;
   Chat_disco.register_info chat;

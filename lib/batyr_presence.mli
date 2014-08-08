@@ -32,7 +32,7 @@ module Message : sig
   val body : t -> string option
 end
 
-val message_events : Message.t Lwt_react.E.t
+val messages : Message.t Lwt_react.E.t
 (** This emits an events as new message are detected. *)
 
 val start_chat_sessions : unit -> unit Lwt.t

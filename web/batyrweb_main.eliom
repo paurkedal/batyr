@@ -408,7 +408,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
       }
     end in
   let update_events =
-    Lwt_react.E.fmap_s relevant_message Batyr_presence.message_events in
+    Lwt_react.E.fmap_s relevant_message Batyr_presence.messages in
   let update_comet =
     Eliom_comet.Channel.create (Lwt_react.E.to_stream update_events) in
   let info_span = span ~a:[a_class ["error"]] [] in
