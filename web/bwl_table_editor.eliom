@@ -197,6 +197,8 @@
 }}
 
 {server{
+  let section = Lwt_log.Section.make "Bwl_table_editor"
+
   module type ELEMENT = sig
     include ELEMENT_SHARED
 
@@ -218,7 +220,7 @@
         try_lwt E.fetch_all () >|= fun entries -> Ok entries
         with xc ->
           let msg = sprintf "Failed to fetch %s list." E.which_type in
-          Lwt_log.error msg >> Lwt.return (Failed msg)
+          Lwt_log.error ~section msg >> Lwt.return (Failed msg)
       end
 
     let add = server_function Json.t<E.t option * E.t>
@@ -230,7 +232,7 @@
 	  Ok ()
         with xc ->
           let msg = sprintf "Failed to add %s." E.which_type in
-          Lwt_log.error msg >> Lwt.return (Failed msg)
+          Lwt_log.error ~section msg >> Lwt.return (Failed msg)
       end
 
     let remove = server_function Json.t<E.t>
@@ -239,7 +241,7 @@
           E.remove entry >|= fun () -> emit (Some (Remove entry)); Ok ()
         with xc ->
           let msg = sprintf "Failed to remove %s." E.which_type in
-          Lwt_log.error msg >> Lwt.return (Failed msg)
+          Lwt_log.error ~section msg >> Lwt.return (Failed msg)
       end
 
     let serverside = fetch_all, add, remove, update_comet
