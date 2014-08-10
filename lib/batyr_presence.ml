@@ -56,7 +56,7 @@ type muc_session = {
   ms_presences : Chat.presence_content Chat.stanza React.E.t;
   ms_emit_message : ?step: React.step -> Message.t -> unit;
   ms_messages : Message.t React.E.t;
-  mutable ms_is_present : bool;
+  ms_is_present : bool React.S.t;
 }
 
 type chat_session = {
@@ -239,38 +239,107 @@ let on_error ~kind cs ?id ?jid_from ?jid_to ?lang error =
 let retain_event cs ev =
   cs.cs_retained_events <- (fun () -> ev; ()) :: cs.cs_retained_events
 
+let track_presence_of my_jid is_present stanza =
+  match Chat.(stanza.jid_from, stanza.content.presence_type) with
+  | Some sender_jid, Some Chat.Unavailable when sender_jid = my_jid ->
+    begin match
+      List.filter_map
+	(fun e -> try Chat_muc.User.((Option.get ((decode e).item)).reason)
+		  with Not_found -> None)
+	Chat.(stanza.x)
+    with
+    | [] ->
+      Lwt_log.notice_f ~section "I was logged out as %s for unknown reason."
+		       (JID.string_of_jid my_jid) >>
+      Lwt.return_false
+    | reason :: _ ->
+      Lwt_log.notice_f ~section "I was logged out as %s because: %s"
+		       (JID.string_of_jid my_jid) reason >>
+      Lwt.return_false
+    end
+  | Some sender_jid, None when sender_jid = my_jid ->
+    Lwt_log.info_f ~section "I logged in as %s." (JID.string_of_jid my_jid) >>
+    Lwt.return_true
+  | _ ->
+    Lwt.return is_present
+
+let drive_signal
+      ?(what = "reconnect")
+      ?(fuzz = 0.1) ?(dt_edge = 1.0)
+      ?(dt_min = 5.0) ?(dt_sat = 3600.0) ?(dt_avg = 86400.0)
+      f s =
+  let cond = Lwt_condition.create () in
+  let driver () =
+    let c_sat = dt_avg /. dt_sat in
+    let lc_sat = log c_sat in
+    let lc_min = log (dt_avg /. dt_min) in
+    let t_norm = ref 0.0 in
+    let c_cur = ref 0.0 in
+    let next_delay () =
+      let t = Unix.time () in
+      let dt = t -. !t_norm in
+      t_norm := t;
+      c_cur := 1.0 +. !c_cur *. exp (-. dt /. dt_avg);
+      let p = !c_cur /. c_sat in
+      dt_avg *. exp ((p -. 1.0) *. lc_min -. p *. lc_sat) in
+    while_lwt true do
+      if React.S.value s
+      then Lwt_condition.wait cond >> Lwt_unix.sleep dt_edge
+      else
+	let dt = next_delay () *. (1.0 +. fuzz *. (1.0 -. Random.float 2.0)) in
+	f () >>
+	Lwt_log.info_f ~section "Will wait %.3g s before next %s." dt what >>
+	Lwt_unix.sleep dt
+    done in
+  Lwt.async driver;
+  React.S.trace (fun v -> if not v then Lwt_condition.signal cond ()) s
+
 let muc_handler cs (resource_id, (nick, since)) =
+  let nick = Option.get_or (Chat.get_myjid cs.cs_chat).JID.node nick in
   lwt resource = Resource.stored_of_id resource_id in
-  lwt seconds =
-    begin match since with
-    | None ->
-      Lwt_log.info_f ~section "Entering %s, no previous logs."
-		     (Resource.to_string resource) >>
-      Lwt.return_none
-    | Some t ->
-      let t = Unix.time () -. t -. 1.0 in (* FIXME: Need <delay/> *)
-      Lwt_log.info_f ~section "Entering %s, seconds = %f"
-		     (Resource.to_string resource) t >>
-      Lwt.return (Some (int_of_float t))
-    end in
   let room_node = Resource.node resource in
+  let room_jid = Resource.jid resource in
   match_lwt Muc_room.stored_of_node room_node with
   | None ->
     Lwt_log.error_f ~section "Presence in non-room %s."
 		    (Node.to_string room_node)
   | Some room ->
+    (* FIXME: Need <delay/> *)
+    let since_r = ref (Option.map ((+.) 0.05) since) in
+    let muc_login () =
+      lwt seconds =
+	begin match !since_r with
+	| None ->
+	  Lwt_log.info_f ~section "Entering %s, no previous logs."
+			 (Resource.to_string resource) >>
+	  Lwt.return_none
+	| Some t_disconn ->
+	  let t = Unix.time () -. t_disconn in
+	  Lwt_log.info_f ~section "Entering %s, seconds = %f"
+			 (Resource.to_string resource) t >>
+	  Lwt.return (Some (int_of_float t))
+	end in
+      Chat_muc.enter_room ?seconds ~nick cs.cs_chat room_jid in
     lwt room_id = Node.stored_id room_node >|= Option.get in
     let ms_presences, ms_emit_presence = React.E.create () in
     let ms_messages, ms_emit_message = React.E.create () in
+    let my_jid = JID.replace_resource (Resource.jid resource) nick in
+    let ms_is_present =
+      Lwt_react.S.fold_s (track_presence_of my_jid) false ms_presences in
+    let ms_is_present =
+      drive_signal ~what:"MUC login" muc_login ms_is_present in
+    let ms_is_present =
+      React.S.trace (function false -> since_r := Some (Unix.time ()) | _ -> ())
+		    ms_is_present in
     let ms = {
       ms_room = room;
       ms_users_by_nick = Hashtbl.create 17;
-      ms_is_present = false;
+      ms_is_present;
       ms_presences; ms_emit_presence;
       ms_messages; ms_emit_message;
     } in
     Hashtbl.replace cs.cs_rooms room_id ms;
-    Chat_muc.enter_room ?seconds ?nick cs.cs_chat (Resource.jid resource)
+    Lwt.return_unit
 
 let chat_handler session_key account_resource account_id chat =
   let cs_presences, cs_emit_presence = React.E.create () in
