@@ -395,6 +395,12 @@
   end
 }}
 {client{
+  open ReactiveData
+
+  (* TODO: Utilize the ReactiveData API. *)
+  let rlist_of_signal s =
+    RList.make_from (React.S.value s) (React.S.diff (fun v _ -> RList.Set v) s)
+
   module Presence = struct
     include Presence_shared
 
@@ -421,12 +427,11 @@
 
     let dummy_opt = ([], "*", None, false)
 
-    let account_optgroup : [`Option] Eliom_content.Html5.R.elt list React.S.t =
+    let account_optgroup : [`Option] Eliom_content.Html5.R.elt RList.t =
       let mkopt acct =
-	Html5.R.option
-	  (React.S.const (Html5.R.pcdata
-	    (React.S.const acct.Account.account_jid))) in
-      React.S.map
+	Html5.F.option (Html5.F.pcdata acct.Account.account_jid) in
+      rlist_of_signal @@
+      React.S.map ~eq:(==)
 	(fun accts ->
 	  Accounts_editor.Enset.fold (List.push *< mkopt) accts []
 	    |> List.rev)
