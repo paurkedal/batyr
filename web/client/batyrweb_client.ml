@@ -70,11 +70,11 @@ module Live_table (Elt : LIVE_TABLE_ELEMENT) = struct
   let add t elt =
     let row =
       match Enset.locate elt t.enset with
-      | None ->
+      | false, _ ->
 	t.enset <- Enset.add elt t.enset;
-	let i = Option.get (Enset.locate elt t.enset) in
+	let i = snd (Enset.locate elt t.enset) in
 	t.table##insertRow (t.static_row_count + i)
-      | Some i ->
+      | true, i ->
 	let row =
 	  Js.Opt.get (t.table##rows##item (t.static_row_count + i))
 		     (fun () -> failwith "Js.Opt.get") in
@@ -86,8 +86,8 @@ module Live_table (Elt : LIVE_TABLE_ELEMENT) = struct
 
   let remove t elt =
     match Enset.locate elt t.enset with
-    | None -> Eliom_lib.error "Element to delete not found."
-    | Some i ->
+    | false, _ -> Eliom_lib.error "Element to delete not found."
+    | true, i ->
       t.enset <- Enset.remove elt t.enset;
       t.table##deleteRow (t.static_row_count + i)
 end

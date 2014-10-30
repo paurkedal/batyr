@@ -150,12 +150,12 @@
       let add elt =
 	let i, row =
 	  match Enset.locate elt !enset with
-	  | None ->
+	  | false, _ ->
 	    enset := Enset.add elt !enset;
 	    set_content !enset;
-	    let i = Option.get (Enset.locate elt !enset) in
+	    let i = snd (Enset.locate elt !enset) in
 	    i, table_dom##insertRow (row_pos i)
-	  | Some i ->
+	  | true, i ->
 	    let row = Js.Opt.get (table_dom##rows##item(row_pos i))
 				 (fun () -> failwith "Js.Opt.get") in
 	    i, row in
@@ -163,8 +163,8 @@
 
       let remove elt =
 	match Enset.locate elt !enset with
-	| None -> Eliom_lib.error "No element matches delete request."
-	| Some i ->
+	| false, _ -> Eliom_lib.error "No element matches delete request."
+	| true, i ->
 	  enset := Enset.remove elt !enset;
 	  set_content !enset;
 	  begin match !editing with
