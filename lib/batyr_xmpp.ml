@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,27 +40,34 @@ let make_plain_socket fd =
   end in
   Lwt.return (module Socket : Chat.Socket)
 
-let make_tls_socket fd =
-  Ssl.init ();
-  let ssl_ctx = Ssl.create_context Ssl.TLSv1 Ssl.Client_context in
-  lwt ssl_socket = Lwt_ssl.ssl_connect fd ssl_ctx in
+let make_tls_socket host fd =
+  Tls_lwt.rng_init () >>
+  lwt authenticator = X509_lwt.authenticator `No_authentication_I'M_STUPID in
+  let config = Tls.Config.client ~authenticator () in
+  lwt tls_socket = Tls_lwt.Unix.client_of_fd config ~host fd in
+
   let module Socket = struct
-    type t = Lwt_ssl.socket
-    let socket = ssl_socket
+
+    type t = Tls_lwt.Unix.t
+
+    let socket = tls_socket
+
     let read socket buf start len =
-      lwt size = Lwt_ssl.read socket buf start len in
-      Lwt_log.debug_f ~section "In: %s\n" (String.sub buf start size) >>
-      Lwt.return size
-    let write socket buf =
-      let n = String.length buf in
-      let rec loop i =
-	if i = n then Lwt.return_unit else
-	lwt m = Lwt_ssl.write socket buf i (n - i) in
-	assert (m > 0);
-	loop (i + m) in
-      loop 0
-    let close socket = Lwt_ssl.close socket
+      let cs = Cstruct.create len in
+      lwt len' = Tls_lwt.Unix.read socket cs in
+      for i = 0 to len' - 1 do
+	Bytes.set buf (start + i) (Cstruct.get_char cs i)
+      done;
+      Lwt_log.debug_f ~section "In: [%s]" (Bytes.sub buf start len') >>
+      Lwt.return len'
+
+    let write socket s =
+      Tls_lwt.Unix.write socket (Cstruct.of_string s) >>
+      Lwt_log.debug_f ~section "Out: [%s]" s
+
+    let close = Tls_lwt.Unix.close
   end in
+
   Lwt.return (module Socket : Chat.Socket)
 
 module Chat_params = struct
@@ -88,7 +95,7 @@ let with_chat session {server; username; password; resource; port} =
   let fd = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
   Lwt_unix.connect fd sockaddr >>
   lwt plain_socket = make_plain_socket fd in
-  let tls_socket () = make_tls_socket fd in
+  let tls_socket () = make_tls_socket server fd in
   lwt session_data =
     Chat.setup_session ~user_data:() ~myjid ~plain_socket ~tls_socket
 		       ~password session in
