@@ -41,7 +41,7 @@ let make_plain_socket fd =
   Lwt.return (module Socket : Chat.Socket)
 
 let make_tls_socket host fd =
-  Tls_lwt.rng_init () >>
+  Nocrypto_entropy_lwt.initialize () >>
   lwt authenticator = X509_lwt.authenticator `No_authentication_I'M_STUPID in
   let config = Tls.Config.client ~authenticator () in
   lwt tls_socket = Tls_lwt.Unix.client_of_fd config ~host fd in
