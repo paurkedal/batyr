@@ -162,7 +162,7 @@ let client_transcript_service =
 	    C.Tuple.(fun t -> List.push (utc 0 t, int 1 t, option text 2 t,
 					 option text 3 t, option text 4 t))
 	    (Array.map C.Param.text params) []) >>=
-	Lwt_list.map_p
+	Lwt_list.rev_map_p
 	  (fun (time, sender_id, subject_opt, thread_opt, body_opt) ->
 	    Resource.stored_of_id sender_id >|= fun sender_resource ->
 	    { msg_time = CalendarLib.Calendar.to_unixfloat time;
