@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@
   open Batyr_data
   open Batyr_prereq
   open Batyrweb_server
+  open Caqti_lwt
 }}
 
 (* Accounts *)
@@ -108,15 +109,9 @@
     let which_type = "account"
 
     let fetch_all () =
-      lwt entries =
-	Batyr_db.use begin fun dbh ->
-	  dbh#query_list
-	    Batyr_db.Decode.(int ** string ** int ** bool)
-	    "SELECT resource_id, client_password, server_port, is_active \
-	     FROM batyr.accounts"
-	  end in
+      lwt entries = Batyr_db.use Batyr_sql.Admin.fetch_accounts in
       let account_of_entry
-	    (resource_id, (client_password, (server_port, is_active))) =
+	    (resource_id, client_password, server_port, is_active) =
 	lwt resource = Resource.stored_of_id resource_id in
 	let account_jid = Resource.to_string resource in
 	Lwt.return {account_jid; client_password; server_port; is_active} in
@@ -132,31 +127,17 @@
       lwt resource = Lwt.wrap1 Resource.of_string account.account_jid in
       lwt resource_id = Resource.store resource in
       let account = {account with account_jid = Resource.to_string resource} in
-      let params = [|
-	string_of_int resource_id;
-	string_of_int account.server_port;
-	account.client_password;
-	string_of_bool account.is_active;
-      |] in
-      let sql =
-	match old_resource_id_opt with
-	| Some old_resource_id when old_resource_id = resource_id ->
-	  "UPDATE batyr.accounts \
-	   SET server_port = $2, client_password = $3, is_active = $4 \
-	   WHERE resource_id = $1"
-	| _ ->
-	  "INSERT INTO batyr.accounts \
-	      (resource_id, server_port, client_password, is_active) \
-	   VALUES ($1, $2, $3, $4)" in
-      Batyr_db.use begin fun dbh ->
-	dbh#command ~params sql >>
+      Batyr_db.use @@ fun conn ->
+	Batyr_sql.Admin.upsert_account
+	  (old_resource_id_opt <> Some resource_id)
+	  resource_id account.server_port
+	  account.client_password account.is_active
+	  conn >>
 	begin match old_resource_id_opt with
 	| Some old_resource_id when old_resource_id <> resource_id ->
-	  dbh#command ~params:[|string_of_int old_resource_id|]
-	    "DELETE FROM batyr.accounts WHERE resource_id = $1"
+	  Batyr_sql.Admin.delete_account old_resource_id conn
 	| _ -> Lwt.return_unit
 	end
-      end
 
     let remove account =
       lwt resource = Lwt.wrap1 Resource.of_string account.account_jid in
@@ -164,11 +145,7 @@
 	match_lwt Resource.stored_id resource with
 	| None -> Lwt.fail Eliom_common.Eliom_404
 	| Some id -> Lwt.return id in
-      Batyr_db.use begin fun dbh ->
-	dbh#command
-	  ~params:[|string_of_int resource_id|]
-	  "DELETE FROM batyr.accounts WHERE resource_id = $1" >|= konst ()
-      end
+      Batyr_db.use (Batyr_sql.Admin.delete_account resource_id)
   end
 }}
 {shared{ module Accounts_editor = Bwl_table_editor.Make (Account) }}
@@ -198,19 +175,13 @@
     let which_type = "chat room"
 
     let fetch_all () =
-      lwt entries =
-	Batyr_db.use begin fun dbh ->
-	  dbh#query_list
-	    Batyr_db.Decode.(int ** option string ** option string ** bool)
-	    "SELECT node_id, room_alias, room_description, transcribe \
-	     FROM batyr.muc_rooms"
-	  end in
+      lwt entries = Batyr_db.use Batyr_sql.Admin.fetch_chatrooms in
       let chatroom_of_entry
-	    (node_id, (room_alias, (room_description, transcribe))) =
+	    (node_id, room_alias, room_description, transcribe) =
 	lwt node = Node.stored_of_id node_id in
 	let room_jid = Node.to_string node in
 	Lwt.return {room_jid; room_alias; room_description; transcribe} in
-      Lwt_list.map_p chatroom_of_entry entries
+      Lwt_list.rev_map_p chatroom_of_entry entries
 
     let add old_room_opt room =
       lwt old_node_id_opt =
@@ -222,30 +193,13 @@
       lwt node = Lwt.wrap1 Node.of_string room.room_jid in
       lwt node_id = Node.store node in
       let room = {room with room_jid = Node.to_string node} in
-      let params = [|
-	string_of_int node_id;
-	Batyr_db.or_null room.room_alias;
-	Batyr_db.or_null room.room_description;
-	string_of_bool room.transcribe;
-      |] in
-      let sql =
-	match old_node_id_opt with
-	| Some old_node_id when old_node_id = node_id ->
-	  "UPDATE batyr.muc_rooms \
-	   SET room_alias = $2, room_description = $3, transcribe = $4 \
-	   WHERE node_id = $1"
-	| _ ->
-	  "INSERT INTO batyr.muc_rooms \
-	      (node_id, room_alias, room_description, transcribe) \
-	   VALUES ($1, $2, $3, $4)" in
-      Batyr_db.use begin fun dbh ->
-	dbh#command ~params sql >>
+      Batyr_db.use @@ fun conn ->
+	Batyr_sql.Admin.upsert_chatroom (old_node_id_opt <> Some node_id)
+	  node_id room.room_alias room.room_description room.transcribe conn >>
 	match old_node_id_opt with
 	| Some old_node_id when old_node_id <> node_id ->
-	  dbh#command ~params:[|string_of_int old_node_id|]
-	    "DELETE FROM batyr.muc_rooms WHERE node_id = $1"
+	  Batyr_sql.Admin.delete_chatroom old_node_id conn
 	| _ -> Lwt.return_unit
-      end
 
     let remove room =
       lwt node = Lwt.wrap1 Node.of_string room.room_jid in
@@ -253,11 +207,7 @@
 	match_lwt Node.stored_id node with
 	| None -> Lwt.fail Eliom_common.Eliom_404
 	| Some id -> Lwt.return id in
-      Batyr_db.use begin fun dbh ->
-	dbh#command
-	  ~params:[|string_of_int node_id|]
-	  "DELETE FROM batyr.muc_rooms WHERE node_id = $1"
-      end
+      Batyr_db.use (Batyr_sql.Admin.delete_chatroom node_id)
   end
 }}
 {client{
@@ -340,19 +290,14 @@
 {server{
   module Presence = struct
     include Presence_shared
+
     let which_type = "presence"
+
     let fetch_all () =
-      Batyr_db.(use begin fun dbh ->
-	dbh#query_list Decode.(string ** string ** bool ** option string)
-	  "SELECT resource.jid, account.jid, is_present, nick \
-	   FROM batyr.muc_presence \
-	   NATURAL JOIN batyr.resource_jids AS resource \
-	   INNER JOIN batyr.resource_jids AS account \
-		   ON account_id = account.resource_id" >|=
-	List.map
-	  (fun (resource_jid, (account_jid, (is_present, nick))) ->
-	    {resource_jid; account_jid; is_present; nick})
-      end)
+      Batyr_db.use Batyr_sql.Admin.fetch_presences >|=
+	List.rev_map (fun (resource_jid, account_jid, is_present, nick) ->
+			  {resource_jid; account_jid; is_present; nick})
+
     let add old_pres_opt pres =
       lwt old_resource_id_opt =
 	match old_pres_opt with
@@ -363,35 +308,19 @@
       lwt account_id =
 	Resource.stored_id (Resource.of_string pres.account_jid)
 	  >|= Option.get in
-      let params =
-	[| string_of_int resource_id; string_of_int account_id;
-	   Batyr_db.or_null pres.nick; string_of_bool pres.is_present |] in
-      let sql =
-	match old_resource_id_opt with
-	| Some old_resource_id when old_resource_id = resource_id ->
-	  "UPDATE batyr.muc_presence \
-	   SET account_id = $2, nick = $3, is_present = $4 \
-	   WHERE resource_id = $1"
-	| _ ->
-	  "INSERT INTO batyr.muc_presence \
-	      (resource_id, account_id, nick, is_present) \
-	   VALUES ($1, $2, $3, $4)" in
-      Batyr_db.(use begin fun dbh ->
-	dbh#command ~params sql >>
+      Batyr_db.use @@ fun conn ->
+	Batyr_sql.Admin.upsert_presence
+	  (old_resource_id_opt <> Some resource_id)
+	  resource_id account_id pres.nick pres.is_present conn >>
 	match old_resource_id_opt with
 	| Some old_resource_id when old_resource_id <> resource_id ->
-	  dbh#command ~params:[|string_of_int old_resource_id|]
-	    "DELETE FROM batyr.muc_presence WHERE resource_id = $1"
+	  Batyr_sql.Admin.delete_presence old_resource_id conn
 	| _ -> Lwt.return_unit
-      end)
     let remove pres =
       lwt resource_id =
 	Resource.stored_id (Resource.of_string pres.resource_jid)
 	  >|= Option.get in
-      Batyr_db.(use begin fun dbh ->
-	dbh#command ~params:[|string_of_int resource_id|]
-		    "DELETE FROM batyr.muc_presence WHERE resource_id = $1"
-      end)
+      Batyr_db.use (Batyr_sql.Admin.delete_presence resource_id)
   end
 }}
 {client{

@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,8 +16,7 @@
 
 (** Concurrency, pooling, etc. for postgresql-ocaml using lwt. *)
 
-exception Runtime_error of string
-exception Response_error of string
+open Caqti_lwt
 
 val or_null : string option -> string
 
@@ -25,22 +24,6 @@ val escape_like : string -> string
 
 val epoch_of_timestamp : string -> float
 val timestamp_of_epoch : float -> string
-
-module Decode : sig
-  type 'a t
-
-  val ( ** ) : 'a t -> 'b t -> ('a * 'b) t
-
-  val unit : unit t
-  val string : string t
-  val bool : bool t
-  val int : int t
-  val float : float t
-  val epoch : float t
-  val option : 'a t -> 'a option t
-
-  val call : 'a t -> string array -> 'a
-end
 
 module Expr : sig
   type 'a t
@@ -92,45 +75,7 @@ module Expr : sig
   val at_tz : string -> [`timestamp] t -> [`timestamp] t
 end
 
-class connection :
-  ?host: string -> ?hostaddr: string -> ?port: string  ->
-  ?dbname: string -> ?user: string -> ?password: string ->
-  ?options: string -> ?tty: string -> ?requiressl: string ->
-  ?conninfo: string -> unit ->
-object
-  inherit Postgresql.connection
-
-  method start_accounting : unit
-  method stop_accounting : int
-
-  method fetch_result : Postgresql.result option Lwt.t
-
-  method fetch_last_result : Postgresql.result Lwt.t
-
-  method query :
-    ?params: string array -> ?binary_params: bool array -> string ->
-    Postgresql.result Lwt.t
-
-  method command :
-    ?params: string array -> ?binary_params: bool array -> string ->
-    unit Lwt.t
-
-  method query_single : 'a. 'a Decode.t ->
-    ?params: string array -> ?binary_params: bool array -> string ->
-    'a Lwt.t
-
-  method query_option : 'a. 'a Decode.t ->
-    ?params: string array -> ?binary_params: bool array -> string ->
-    'a option Lwt.t
-
-  method query_array : 'a. 'a Decode.t ->
-    ?params: string array -> ?binary_params: bool array -> string ->
-    'a array Lwt.t
-
-  method query_list : 'a. 'a Decode.t ->
-    ?params: string array -> ?binary_params: bool array -> string ->
-    'a list Lwt.t
-end
-
-val use : ?quick: bool -> (connection -> 'a Lwt.t) -> 'a Lwt.t
-val use_accounted : ?quick: bool -> (connection -> 'a Lwt.t) -> (int * 'a) Lwt.t
+val use : ?quick: bool ->
+      ((module CONNECTION) -> 'a Lwt.t) -> 'a Lwt.t
+val use_accounted : ?quick: bool ->
+      ((module CONNECTION) -> 'a Lwt.t) -> (int * 'a) Lwt.t

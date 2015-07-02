@@ -25,10 +25,11 @@ Library batyr
     Batyr_search_lexer,
     Batyr_search_parser,
     Batyr_search_types,
+    Batyr_sql,
     Batyr_version,
     Batyr_xmpp
   BuildDepends:
-    calendar, config-file, eliom, erm_xmpp, lwt, lwt.react,
+    caqti, calendar, config-file, eliom, erm_xmpp, lwt, lwt.react,
     postgresql, prime, prime.testing, tls.lwt
   ByteOpt: -thread
   NativeOpt: -thread

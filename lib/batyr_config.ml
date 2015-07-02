@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,18 +20,8 @@ open Config_file
 
 let group = new group
 
-let db_host_cp = new option_cp string_wrappers ~group ["db"; "host"]
-  None "Host name or socket directory of the PostgreSQL server."
-let db_hostaddr_cp = new option_cp string_wrappers ~group ["db"; "hostaddr"]
-  None "An IP number to use instead of resolving the host parameter."
-let db_port_cp = new option_cp string_wrappers ~group ["db"; "port"]
-  None "Port to which to connect or socket file name extension."
-let db_database_cp = new option_cp string_wrappers ~group ["db"; "database"]
-  None "The name of the database."
-let db_user_cp = new option_cp string_wrappers ~group ["db"; "user"]
-  None "The database user to authenticate as."
-let db_password_cp = new option_cp string_wrappers ~group ["db"; "password"]
-  None "The password by which to authenticate."
+let db_uri_cp = new string_cp ~group ["db_uri"] "postgresql://"
+  "Caqti URI for connecting to database."
 
 let () =
   let section = Lwt_log.Section.make "Batyr.config" in

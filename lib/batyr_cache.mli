@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,11 +24,11 @@
 
 type beacon
 (** The type of a field to embed in records in order to keep track of access
-    and prevent actively used data to be garbage collected. *)
+    and prevent actively used data from being garbage collected. *)
 
 val dummy_beacon : beacon
-(** A dummy {!beacon} object.  This can be usedful when creating temporary
-    objects which only is used as a key to make lookups in a weak map. *)
+(** A dummy {!beacon} object.  This is usedful for temporary objects used as
+    lookup keys for weak maps. *)
 
 val beacon_size : int
 (** The size of a the beacon field. *)
@@ -36,10 +36,10 @@ val beacon_size : int
 val cache : int -> (beacon -> 'a) -> 'a
 (** [cache grade f] passes a suitable beacon to [f], which is expected to
     construct an object which embeds the beacon, and return it.  Conversely
-    the returned object is made accessible from the beacon which is kept
-    visible to the garbage collector as long as the grade times the access
-    frequency is above a certain threshold.  The access frequency is only a
-    rought estimate, esp. until the first GC survival. *)
+    the returned object is made accessible from the beacon, which itself is
+    kept visible to the garbage collector as long as the grade times the
+    access frequency is above a certain threshold.  The access frequency is
+    only a rought estimate, esp. until the first GC survival. *)
 
 val enrich : int -> beacon -> unit
 (** [enrich grade b] adds [grade] to the recorded grade of computing [b]. *)

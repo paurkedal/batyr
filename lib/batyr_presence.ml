@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -119,21 +119,14 @@ let on_muc_message cs ms msg =
     let author_id = Option.search Resource.cached_id muc_author in
     lwt sender_id = Resource.store (Message.sender msg) in
     lwt recipient_id = Resource.store (Message.recipient msg) in
-    Batyr_db.(use begin fun dbh ->
-      dbh#command
-	~params:[|timestamp_of_epoch (Message.seen_time msg);
-		  string_of_int sender_id;
-		  or_null (Option.map string_of_int author_id);
-		  string_of_int recipient_id;
-		  string_of_message_type (Message.message_type msg);
-		  or_null (Message.subject msg);
-		  or_null (Message.thread msg);
-		  or_null (Message.body msg)|]
-	"INSERT INTO batyr.messages (seen_time, \
-				     sender_id, author_id, recipient_id, \
-				     message_type, subject, thread, body) \
-	 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
-    end)
+    Batyr_db.use @@
+      Batyr_sql.Presence.insert_muc_message
+	(CalendarLib.Calendar.from_unixfloat (Message.seen_time msg))
+	sender_id author_id recipient_id
+	(string_of_message_type (Message.message_type msg))
+	(Message.subject msg)
+	(Message.thread msg)
+	(Message.body msg)
   else Lwt.return_unit
 
 let on_message cs chat stanza =
@@ -313,7 +306,8 @@ let drive_signal
   Lwt.async driver;
   React.S.trace (fun v -> if not v then Lwt_condition.signal cond ()) s
 
-let muc_handler cs (resource_id, (nick, since)) =
+let muc_handler cs (resource_id, nick, since) =
+  let since = Option.map CalendarLib.Calendar.to_unixfloat since in
   let nick = Option.get_or (Chat.get_myjid cs.cs_chat).JID.node nick in
   lwt resource = Resource.stored_of_id resource_id in
   let room_node = Resource.node resource in
@@ -382,25 +376,12 @@ let chat_handler session_key account_resource account_id chat =
   Chat_disco.register_info chat;
   Chat.send_presence chat ~jid_from:(Resource.jid account_resource)
 		     ~show:Chat.ShowDND ~status:"logging" () >>
-  Batyr_db.(use (fun dbh ->
-    dbh#query_list Decode.(int ** option string ** option epoch)
-      ~params:[|string_of_int account_id|]
-      "SELECT resource_id, nick, \
-	      (SELECT max(seen_time) \
-	       FROM batyr.messages JOIN batyr.resources AS sender \
-		 ON sender_id = sender.resource_id \
-	       WHERE sender.node_id = node_id) \
-       FROM batyr.muc_presence NATURAL JOIN batyr.resources \
-       WHERE account_id = $1 AND is_present = true")) >>=
+  Batyr_db.use (Batyr_sql.Presence.room_presence account_id) >>=
   Lwt_list.iter_s (muc_handler cs)
 
 let start_chat_sessions () =
-  Batyr_db.use (fun dbh ->
-    dbh#query_list Batyr_db.Decode.(int ** int ** string)
-      "SELECT resource_id, server_port, client_password \
-       FROM batyr.accounts NATURAL JOIN batyr.resources \
-       WHERE is_active = true") >>=
-  Lwt_list.iter_s (fun (resource_id, (port, password)) ->
+  Batyr_db.use Batyr_sql.Presence.active_accounts >>=
+  Lwt_list.iter_s (fun (resource_id, port, password) ->
     Resource.stored_of_id resource_id >|= fun resource ->
     let {JID.lnode; JID.ldomain; JID.lresource} = Resource.jid resource in
     let params = Chat_params.make ~server:ldomain ~port ~username:lnode

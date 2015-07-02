@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -85,13 +85,8 @@ module Node = struct
   let stored_of_id id =
     try Lwt.return (Id_cache.find_key id_cache id)
     with Not_found ->
-      Batyr_db.use_accounted
-	(fun dbh ->
-	  dbh#query_single Batyr_db.Decode.(string ** string)
-	    ~params:[|string_of_int id|]
-	    "SELECT domain_name, node_name \
-	     FROM batyr.nodes NATURAL JOIN batyr.domains \
-	     WHERE node_id = $1") >|= fun (cost, (domain_name, node_name)) ->
+      Batyr_db.use_accounted (Batyr_sql.Node.get id)
+	>|= fun (cost, (domain_name, node_name)) ->
       let node =
 	Batyr_cache.cache cost
 	  (fun beacon -> {id; domain_name; node_name; beacon}) in
@@ -105,11 +100,8 @@ module Node = struct
     if node.id >= 0 then Lwt.return (Some node.id) else
     if node.id = id_missing then Lwt.return_none else
     Batyr_db.use_accounted
-      (fun dbh ->
-	dbh#query_option Batyr_db.Decode.int
-	  ~params:[|node.domain_name; node.node_name|]
-	  "SELECT node_id FROM batyr.nodes NATURAL JOIN batyr.domains \
-	   WHERE domain_name = $1 AND node_name = $2") >|= fun (cost, id_opt) ->
+      (Batyr_sql.Node.locate node.domain_name node.node_name)
+      >|= fun (cost, id_opt) ->
     Batyr_cache.enrich cost node.beacon;
     match id_opt with
     | None -> node.id <- id_missing; None
@@ -118,14 +110,12 @@ module Node = struct
   let store node =
     if node.id >= 0 then Lwt.return node.id else
     Batyr_db.use_accounted
-      (fun dbh ->
-	dbh#query_single Batyr_db.Decode.int
-	  ~params:[|node.domain_name; node.node_name|]
-	  "SELECT batyr.make_node($1, $2)") >|= fun (cost, id) ->
-      Batyr_cache.enrich cost node.beacon;
-      node.id <- id;
-      Id_cache.add id_cache node;
-      id
+      (Batyr_sql.Node.store node.domain_name node.node_name)
+      >|= fun (cost, id) ->
+    Batyr_cache.enrich cost node.beacon;
+    node.id <- id;
+    Id_cache.add id_cache node;
+    id
 end
 
 module Resource = struct
@@ -196,15 +186,8 @@ module Resource = struct
   let stored_of_id id =
     try Lwt.return (Id_cache.find_key id_cache id)
     with Not_found ->
-      Batyr_db.use_accounted
-	(fun dbh ->
-	  dbh#query_single Batyr_db.Decode.(string ** string ** string)
-	    ~params:[|string_of_int id|]
-	    "SELECT domain_name, node_name, resource_name \
-	     FROM batyr.resources NATURAL JOIN batyr.nodes \
-				  NATURAL JOIN batyr.domains \
-	     WHERE resource_id = $1")
-	>|= fun (cost, (domain_name, (node_name, resource_name))) ->
+      Batyr_db.use_accounted (Batyr_sql.Resource.get id)
+	>|= fun (cost, (domain_name, node_name, resource_name)) ->
       let resource =
 	Batyr_cache.cache cost
 	  (fun beacon -> {id; domain_name; node_name; resource_name; beacon}) in
@@ -218,13 +201,8 @@ module Resource = struct
     if resource.id >= 0 then Lwt.return (Some resource.id) else
     if resource.id = id_missing then Lwt.return_none else
     Batyr_db.use_accounted
-      (fun dbh ->
-	dbh#query_option Batyr_db.Decode.int
-	  ~params:[|resource.domain_name; resource.node_name;
-		    resource.resource_name|]
-	  "SELECT resource_id FROM batyr.resources NATURAL JOIN batyr.nodes \
-						   NATURAL JOIN batyr.domains \
-	   WHERE domain_name = $1 AND node_name = $2 AND resource_name = $3")
+      (Batyr_sql.Resource.locate resource.domain_name resource.node_name
+				 resource.resource_name)
       >|= fun (cost, id_opt) ->
     Batyr_cache.enrich cost resource.beacon;
     match id_opt with
@@ -234,11 +212,9 @@ module Resource = struct
   let store resource =
     if resource.id >= 0 then Lwt.return resource.id else
     Batyr_db.use_accounted
-      (fun dbh ->
-	dbh#query_single Batyr_db.Decode.int
-	  ~params:[|resource.domain_name; resource.node_name;
-		    resource.resource_name|]
-	  "SELECT batyr.make_resource($1, $2, $3)") >|= fun (cost, id) ->
+      (Batyr_sql.Resource.store resource.domain_name resource.node_name
+				resource.resource_name)
+      >|= fun (cost, id) ->
     Batyr_cache.enrich cost resource.beacon;
     resource.id <- id;
     Id_cache.add id_cache resource;
@@ -310,20 +286,12 @@ module Muc_room = struct
       begin match_lwt Node.stored_id node with
       | None -> Lwt.return_none
       | Some node_id ->
-	Batyr_db.use_accounted (fun dbh ->
-	  dbh#query_option
-	    Batyr_db.Decode.(option string ** option string ** bool **
-			     option epoch)
-	    ~params:[|string_of_int node_id|]
-	    "SELECT room_alias, room_description, transcribe, \
-		    (SELECT min(seen_time) \
-		     FROM batyr.messages \
-		     JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
-		     ON sender_id = sender.resource_id \
-		     WHERE node_id = $1) \
-	       FROM batyr.muc_rooms WHERE node_id = $1") >|= fun (cost, qr) ->
+	Batyr_db.use_accounted (Batyr_sql.Muc_room.stored_of_node node_id)
+	  >|= fun (cost, qr) ->
 	Option.map
-	  (fun (alias, (description, (transcribe, min_message_time))) ->
+	  (fun (alias, description, transcribe, mmt) ->
+	    let min_message_time =
+	      Option.map CalendarLib.Calendar.to_unixfloat mmt in
 	    let room =
 	      Batyr_cache.cache cost (fun beacon ->
 		{node; alias; description; transcribe; min_message_time;

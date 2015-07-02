@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
   open Batyr_data
   open Batyr_prereq
   open Batyrweb_server
+  open Caqti_lwt
 
   let section = Lwt_log.Section.make "batyrweb.main"
 }}
@@ -63,12 +64,7 @@
 }}
 
 let main_handler () () =
-  lwt rooms =
-    Batyr_db.use (fun dbh ->
-      dbh#query_list Batyr_db.Decode.int
-	"SELECT DISTINCT node_id \
-	 FROM batyr.muc_rooms NATURAL JOIN batyr.nodes \
-			      NATURAL JOIN batyr.domains") in
+  lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in
   let render_room_link node_id =
     lwt node = Node.stored_of_id node_id in
     let node_jid = Node.to_string node in
@@ -112,16 +108,20 @@ let client_message_counts_service =
 	var "sender.node_id" = int room_id
 	|> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt in
       let cond_str, params = Batyr_db.Expr.to_sql ~first_index:2 cond in
-      Batyr_db.(use (fun dbh ->
-	dbh#query_array Decode.(int ** int) ~params:(Array.append [|tz|] params)
-	  (sprintf
+      let q = Caqti_query.oneshot_fun @@ function
+	`Pgsql ->
+	  sprintf
 	    "SELECT batyr.intenc_date(seen_time AT TIME ZONE $1) AS t, \
 		    count(0) \
 	     FROM batyr.messages \
 	     JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
 	       ON sender_id = sender.resource_id \
 	     WHERE %s GROUP BY t"
-	     cond_str)))
+	     cond_str
+	| _ -> raise Caqti_query.Missing_query_string in
+      Batyr_db.use @@ fun (module C : CONNECTION) ->
+	C.fold q C.Tuple.(fun t -> List.push (int 0 t, int 1 t))
+	       (Array.map C.Param.text (Array.append [|tz|] params)) []
     end
 
 let client_transcript_service =
@@ -146,23 +146,26 @@ let client_transcript_service =
 	    |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt
 	  ) in
 	let cond_str, params = Batyr_db.Expr.to_sql cond in
-	Batyr_db.use
-	  (fun dbh ->
-	    dbh#query_list ~params
-	      Batyr_db.Decode.(epoch ** int ** option string **
-			       option string ** option string)
-	      (sprintf "SELECT seen_time, sender_id, subject, thread, body \
+	let q = Caqti_query.oneshot_fun @@ function
+	  | `Pgsql ->
+	    (sprintf "SELECT seen_time, sender_id, subject, thread, body \
 			FROM batyr.messages \
 			JOIN (batyr.resources NATURAL JOIN batyr.nodes) \
 			  AS sender \
 			  ON sender_id = sender.resource_id \
 			WHERE %s \
 			ORDER BY seen_time, message_id LIMIT %d"
-		       cond_str query_limit)) >>=
+		       cond_str query_limit)
+	  | _ -> raise Caqti_query.Missing_query_string in
+	(Batyr_db.use @@ fun (module C : CONNECTION) ->
+	  C.fold q
+	    C.Tuple.(fun t -> List.push (utc 0 t, int 1 t, option text 2 t,
+					 option text 3 t, option text 4 t))
+	    (Array.map C.Param.text params) []) >>=
 	Lwt_list.map_p
-	  (fun (time, (sender_id, (subject_opt, (thread_opt, body_opt)))) ->
+	  (fun (time, sender_id, subject_opt, thread_opt, body_opt) ->
 	    Resource.stored_of_id sender_id >|= fun sender_resource ->
-	    { msg_time = time;
+	    { msg_time = CalendarLib.Calendar.to_unixfloat time;
 	      msg_sender_cls = "jid";
 	      msg_sender = Resource.resource_name sender_resource;
 	      msg_subject = subject_opt;
@@ -282,7 +285,7 @@ let client_transcript_service =
       let init_year _ =
 	{ct_card = 0; ct_branches = Array.init 12 init_month} in
       shown_counts.ct_branches <- Array.init (y_now - y_min + 1) init_year;
-      Array.iter
+      List.iter
 	(fun (encdate, count) ->
 	  let y = encdate lsr 16 in
 	  let m = encdate lsr 8 land 0xff in

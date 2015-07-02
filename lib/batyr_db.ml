@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -56,53 +56,6 @@ let epoch_of_timestamp ts =
       ts, 0.0 in
   let caltime = Printer.Calendar.from_fstring "%F %T%z" (sec ^ "+0000") in
   Calendar.to_unixfloat caltime +. subsec
-
-module Decode = struct
-  type 'a t = string array -> int -> 'a * int
-
-  let ( ** ) f g row i =
-    let x, i = f row i in
-    let y, i = g row i in
-    (x, y), i
-
-  let unit row i =
-    match row.(i) with
-    | "" -> (), i + 1
-    | _ -> raise_resperr "Non-empty response %s for unit." row.(i)
-
-  let string row i = row.(i), i + 1
-
-  let bool row i =
-    match row.(i) with
-    | "t" | "true" -> true, i + 1
-    | "f" | "false" -> false, i + 1
-    | _ -> raise_resperr "Cannot convert %s to bool." row.(i)
-
-  let int row i =
-    try int_of_string row.(i), i + 1 with
-    | Failure _ -> raise_resperr "Cannot convert %s to int." row.(i)
-
-  let float row i =
-    try float_of_string row.(i), i + 1 with
-    | Failure _ -> raise_resperr "Cannot convert %s to float." row.(i)
-
-  let epoch row i =
-    try epoch_of_timestamp row.(i), i + 1 with
-    | Failure _ -> raise_resperr "Cannot interpret time %s." row.(i)
-
-  let option decode row i =
-    (if row.(i) = Postgresql.null then None else Some (fst (decode row i))),
-    i + 1
-
-  let call d row =
-    try
-      let x, i = d row 0 in
-      if i < Array.length row then
-	raise (Response_error "The returned row is too long.");
-      x
-    with Invalid_argument "index out of bounds" ->
-      raise (Response_error "The returned row is too short.")
-end
 
 module Expr = struct
 
@@ -256,164 +209,18 @@ module Expr = struct
 		  fun tz x -> call2 op (string tz) x
 end
 
-let check_command_ok r =
-  match r#status with
-  | Command_ok -> Lwt.return_unit
-  | Bad_response|Nonfatal_error|Fatal_error -> Lwt.fail (Runtime_error r#error)
-  | _ -> Lwt.fail (Response_error "Expected Command_ok or an error response.")
-
-let check_tuples_ok r =
-  match r#status with
-  | Tuples_ok -> Lwt.return_unit
-  | Bad_response|Nonfatal_error|Fatal_error -> Lwt.fail (Runtime_error r#error)
-  | _ -> Lwt.fail (Response_error "Expected Tuples_ok or an error response.")
-
-class connection
-  ?host ?hostaddr ?port ?dbname ?user ?password ?options ?tty
-  ?requiressl ?conninfo () =
-object (self)
-  inherit Postgresql.connection ?host ?hostaddr ?port ?dbname ?user ?password
-				?options ?tty ?requiressl ?conninfo ()
-
-  val mutable accounting = false
-  val mutable n_queries = 0
-  val mutable n_affected = 0
-  val mutable n_transferred = 0
-
-  method private cost =
-      10000 * n_queries
-    +   100 * n_affected
-    +  1000 * n_transferred
-  method start_accounting =
-    n_queries <- 0;
-    n_affected <- 0;
-    n_transferred <- 0;
-    accounting <- true
-  method stop_accounting =
-    accounting <- false;
-    self#cost
-
-  method private wait_for_result =
-    let socket_fd = Lwt_unix.of_unix_file_descr (Obj.magic self#socket) in
-    let rec hold () =
-      self#consume_input;
-      if self#is_busy then Lwt_unix.wait_read socket_fd >> hold ()
-		      else Lwt.return_unit in
-    hold ()
-
-  method fetch_result =
-    Lwt_log.debug_f ~section "Waiting for result." >>
-    self#wait_for_result >>
-    match_lwt Lwt.wrap (fun () -> self#get_result) with
-    | None -> Lwt.return_none
-    | Some r as r_opt ->
-      if accounting then begin
-	n_queries <- n_queries + 1;
-	n_affected <- n_affected
-		    + (match r#cmd_tuples with "" -> 0 | s -> int_of_string s);
-	n_transferred <- n_transferred + r#ntuples
-      end;
-      Lwt.return r_opt
-
-  method fetch_last_result =
-    match_lwt self#fetch_result with
-    | None -> fail_resperr "No response received from DB."
-    | Some r ->
-      Lwt_log.debug_f ~section "Received %d tuples.\n" r#ntuples >>
-      begin match_lwt self#fetch_result with
-      | None ->
-	Lwt.return r
-      | Some r ->
-	fail_resperr "Multiple results recived from DB, expected one."
-      end
-
-  method query ?params ?binary_params qs =
-    (if Lwt_log.Section.level section = Lwt_log.Debug then
-      match params with
-      | None -> Lwt_log.debug_f ~section "Sending query \"%s\"." qs
-      | Some params ->
-	let params = Array.to_list params in
-	Lwt_log.debug_f ~section "Sending query \"%s\" [|%s|]." qs
-			  (String.concat "; " (List.map String.escaped params))
-     else Lwt.return_unit) >>
-    Lwt.wrap (fun () -> self#send_query ?params ?binary_params qs) >>
-    self#fetch_last_result
-
-  method command ?params ?binary_params qs =
-    self#query ?params ?binary_params qs >>= check_command_ok
-
-  method query_single : 'a.
-	    'a Decode.t ->
-	    ?params: string array -> ?binary_params: bool array -> string ->
-	    'a Lwt.t =
-	fun decode ?params ?binary_params qs ->
-    self#query ?params ?binary_params qs >>= fun r ->
-    check_tuples_ok r >>= fun () ->
-    match r#get_all with
-    | [| tup |] -> Lwt.wrap (fun () -> Decode.call decode tup)
-    | _ -> Lwt.fail (Response_error "Expected a single row result.")
-
-  method query_option : 'a.
-	    'a Decode.t ->
-	    ?params: string array -> ?binary_params: bool array -> string ->
-	    'a option Lwt.t =
-	fun decode ?params ?binary_params qs ->
-    self#query ?params ?binary_params qs >>= fun r ->
-    check_tuples_ok r >>= fun () ->
-    match r#get_all with
-    | [| |] -> Lwt.return_none
-    | [| tup |] -> Lwt.wrap (fun () -> Some (Decode.call decode tup))
-    | _ -> Lwt.fail (Response_error "Expected at most one row in the result.")
-
-  method query_array : 'a.
-	    'a Decode.t ->
-	    ?params: string array -> ?binary_params: bool array -> string ->
-	    'a array Lwt.t =
-	fun decode ?params ?binary_params qs ->
-    self#query ?params ?binary_params qs >>= fun r ->
-    check_tuples_ok r >>
-    Lwt.wrap (fun () -> Array.map (Decode.call decode) r#get_all)
-
-  method query_list : 'a.
-	    'a Decode.t ->
-	    ?params: string array -> ?binary_params: bool array -> string ->
-	    'a list Lwt.t =
-	fun decode ?params ?binary_params qs ->
-    self#query ?params ?binary_params qs >>= fun r ->
-    check_tuples_ok r >>
-    Lwt.wrap (fun () ->
-      List.sample (fun i -> Decode.call decode (r#get_tuple i)) r#ntuples)
-
-end
-
-let connect () =
+let pool =
   let open Batyr_config in
-  let host = db_host_cp#get in
-  let hostaddr = db_host_cp#get in
-  let port = db_port_cp#get in
-  let dbname = db_database_cp#get in
-  let user = db_user_cp#get in
-  let password = db_password_cp#get in
-  Lwt.return (new connection ?host ?hostaddr ?port ?dbname ?user ?password ())
+  let uri = Uri.of_string db_uri_cp#get in
+  Caqti_lwt.connect_pool uri
 
-let validate dbh =
-  try dbh#try_reset; Lwt.return_true
-  with _ -> Lwt_log.warning ~section "Broken DB handle, reconnecting." >>
-	    Lwt.return_false
+let use ?(quick = false) f =
+  Caqti_lwt.Pool.use ~priority:(if quick then 1.0 else 0.0) f pool
 
-let pool = Lwt_pool.create ~validate 5 connect
-let quick_pool = Lwt_pool.create ~validate 3 connect
-
-let use ?(quick = false) = Lwt_pool.use (if quick then quick_pool else pool)
+let time_multiplier = 1e6
 
 let use_accounted ?quick f =
-  let g dbh =
-    dbh#start_accounting;
-    try_lwt
-      lwt r = f dbh in
-      let c = dbh#stop_accounting in
-      Lwt.return (c, r)
-    with xc ->
-      ignore (dbh#stop_accounting);
-      Lwt.fail xc in
-  use ?quick g
+  let tS = Unix.time () in
+  use ?quick f >|= fun r ->
+  let tE = Unix.time () in
+  (int_of_float ((tE -. tS) *. time_multiplier), r)
