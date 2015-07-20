@@ -116,23 +116,34 @@
 
     let fetch_all () = Batyr_data.Account.all () >|= List.map of_account
 
-    let add old_account_opt account =
-      lwt resource = Lwt.wrap1 Resource.of_string account.account_jid in
-      let port = account.server_port in
-      let password = account.client_password in
-      let is_active = account.is_active in
-      match old_account_opt with
+    let add old_account_opt a =
+      lwt resource = Lwt.wrap1 Resource.of_string a.account_jid in
+      let port = a.server_port in
+      let password = a.client_password in
+      let is_active = a.is_active in
+      begin match old_account_opt with
       | None ->
-	Batyr_data.Account.create ~resource ~port ~password ~is_active
-				  () >|= ignore
+	Batyr_data.Account.create ~resource ~port ~password ~is_active ()
+	  >|= fun account ->
+	if is_active then ignore (Batyr_presence.Session.start account)
       | Some old_account ->
 	let old_resource = Resource.of_string old_account.account_jid in
 	begin match_lwt Batyr_data.Account.of_resource old_resource with
 	| None -> Lwt.return_unit
-	| Some old_account' ->
-	  Batyr_data.Account.update ~resource ~port ~password ~is_active
-				    old_account'
+	| Some account ->
+	  begin if Account.is_active account then
+	    begin match Batyr_presence.Session.find account with
+	    | None -> Lwt.return_unit
+	    | Some old_session -> Batyr_presence.Session.shutdown old_session
+	    end
+	  else
+	    Lwt.return_unit
+	  end >>
+	  Batyr_data.Account.update ~resource ~port ~password ~is_active account
+	    >|= fun () ->
+	  if is_active then ignore (Batyr_presence.Session.start account)
 	end
+      end
 
     let remove a =
       let resource = Resource.of_string a.account_jid in

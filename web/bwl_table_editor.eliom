@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -231,7 +231,8 @@
 	  emit (Some (Add entry));
 	  Ok ()
         with xc ->
-          let msg = sprintf "Failed to add %s." E.which_type in
+          let msg = sprintf "Failed to add %s: %s"
+			    E.which_type (Printexc.to_string xc) in
           Lwt_log.error ~section msg >> Lwt.return (Failed msg)
       end
 
