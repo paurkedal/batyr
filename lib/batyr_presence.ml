@@ -25,6 +25,8 @@ open Unprime_option
 
 let section = Lwt_log.Section.make "batyr.presence"
 
+exception Session_shutdown
+
 module Backoff = struct
 
   type t = {
@@ -89,8 +91,14 @@ type muc_session = {
   ms_is_present : bool React.S.t;
 }
 
+type 'a connection_state =
+  | Shutdown
+  | Connected of 'a
+  | Disconnected of unit Lwt_condition.t
+
 type chat_session = {
-  cs_chat : Chat.chat;
+  cs_account : Account.t;
+  mutable cs_chat : Chat.chat connection_state;
   cs_rooms : (int, muc_session) Hashtbl.t;
   cs_emit_presence : ?step: React.step ->
 		     Chat.presence_content Chat.stanza -> unit;
@@ -220,7 +228,7 @@ let on_presence cs chat stanza =
       (JID.string_of_jid sender_jid) >>
     begin match Chat.(stanza.content.presence_type) with
     | Some Chat.Subscribe ->
-      Chat.send_presence cs.cs_chat ~jid_to:sender_jid ~kind:Chat.Subscribed ()
+      Chat.send_presence chat ~jid_to:sender_jid ~kind:Chat.Subscribed ()
     | _ -> Lwt.return_unit
     end >>
     let entered_room_node = Node.of_jid (JID.bare_jid sender_jid) in
@@ -306,105 +314,166 @@ let drive_signal
   Lwt.async driver;
   React.S.trace (fun v -> if not v then Lwt_condition.signal cond ()) s
 
-let muc_handler cs (resource_id, nick, since) =
-  let since = Option.map CalendarLib.Calendar.to_unixfloat since in
-  let nick = Option.get_or (Chat.get_myjid cs.cs_chat).JID.node nick in
-  lwt resource = Resource.stored_of_id resource_id in
-  let room_node = Resource.node resource in
-  let room_jid = Resource.jid resource in
-  match_lwt Muc_room.stored_of_node room_node with
-  | None ->
-    Lwt_log.error_f ~section "Presence in non-room %s."
-		    (Node.to_string room_node)
-  | Some room ->
-    (* FIXME: Need <delay/> *)
-    let since_r = ref (Option.map ((+.) 0.05) since) in
-    let muc_login () =
-      lwt seconds =
-	begin match !since_r with
-	| None ->
-	  Lwt_log.info_f ~section "Entering %s, no previous logs."
-			 (Resource.to_string resource) >>
-	  Lwt.return_none
-	| Some t_disconn ->
-	  let t = Unix.time () -. t_disconn in
-	  Lwt_log.info_f ~section "Entering %s, seconds = %f"
-			 (Resource.to_string resource) t >>
-	  Lwt.return (Some (int_of_float t))
-	end in
-      Chat_muc.enter_room ?seconds ~nick cs.cs_chat room_jid in
-    lwt room_id = Node.stored_id room_node >|= Option.get in
-    let ms_presences, ms_emit_presence = React.E.create () in
-    let ms_messages, ms_emit_message = React.E.create () in
-    let my_jid = JID.replace_resource (Resource.jid resource) nick in
-    let ms_is_present =
-      Lwt_react.S.fold_s (track_presence_of my_jid) false ms_presences in
-    let ms_is_present =
-      drive_signal ~what:"MUC login" muc_login ms_is_present in
-    let ms_is_present =
-      React.S.trace (function false -> since_r := Some (Unix.time ()) | _ -> ())
-		    ms_is_present in
-    let ms = {
-      ms_room = room;
-      ms_users_by_nick = Hashtbl.create 17;
-      ms_is_present;
-      ms_presences; ms_emit_presence;
-      ms_messages; ms_emit_message;
-    } in
-    Hashtbl.replace cs.cs_rooms room_id ms;
-    Lwt.return_unit
+module Session = struct
+  type t = chat_session
 
-let chat_handler session_key account_resource account_id chat =
-  let cs_presences, cs_emit_presence = React.E.create () in
-  let cs_messages, cs_emit_message = React.E.create () in
-  let cs = {
-    cs_chat = chat;
-    cs_rooms = Hashtbl.create 23;
-    cs_emit_presence; cs_presences;
-    cs_emit_message;  cs_messages;
-    cs_retained_events = [];
-  } in
-  Hashtbl.add chat_sessions session_key cs;
-  Chat.register_stanza_handler chat (Chat.ns_client, "message")
-    (Chat.parse_message ~callback:(on_message cs)
-			~callback_error:(on_error ~kind:"message"));
-  Chat.register_stanza_handler chat (Chat.ns_client, "presence")
-    (Chat.parse_presence ~callback:(on_presence cs)
-			 ~callback_error:(on_error ~kind:"presence"));
-  Chat_version.register chat;
-  Chat_ping.register chat;
-  Chat_disco.register_info chat;
-  Chat.send_presence chat ~jid_from:(Resource.jid account_resource)
-		     ~show:Chat.ShowDND ~status:"logging" () >>
-  Batyr_db.use (Batyr_sql.Presence.room_presence account_id) >>=
-  Lwt_list.iter_s (muc_handler cs)
+  let muc_handler cs (resource_id, nick, since) =
+    let chat =
+      match cs.cs_chat with
+      | Connected chat -> chat
+      | _ -> assert false in
+    let since = Option.map CalendarLib.Calendar.to_unixfloat since in
+    let nick = Option.get_or (Chat.get_myjid chat).JID.node nick in
+    lwt resource = Resource.stored_of_id resource_id in
+    let room_node = Resource.node resource in
+    let room_jid = Resource.jid resource in
+    match_lwt Muc_room.stored_of_node room_node with
+    | None ->
+      Lwt_log.error_f ~section "Presence in non-room %s."
+		      (Node.to_string room_node)
+    | Some room ->
+      (* FIXME: Need <delay/> *)
+      let since_r = ref (Option.map ((+.) 0.05) since) in
+      let muc_login () =
+	lwt seconds =
+	  begin match !since_r with
+	  | None ->
+	    Lwt_log.info_f ~section "Entering %s, no previous logs."
+			   (Resource.to_string resource) >>
+	    Lwt.return_none
+	  | Some t_disconn ->
+	    let t = Unix.time () -. t_disconn in
+	    Lwt_log.info_f ~section "Entering %s, seconds = %f"
+			   (Resource.to_string resource) t >>
+	    Lwt.return (Some (int_of_float t))
+	  end in
+	Chat_muc.enter_room ?seconds ~nick chat room_jid in
+      lwt room_id = Node.stored_id room_node >|= Option.get in
+      let ms_presences, ms_emit_presence = React.E.create () in
+      let ms_messages, ms_emit_message = React.E.create () in
+      let my_jid = JID.replace_resource (Resource.jid resource) nick in
+      let ms_is_present =
+	Lwt_react.S.fold_s (track_presence_of my_jid) false ms_presences in
+      let ms_is_present =
+	drive_signal ~what:"MUC login" muc_login ms_is_present in
+      let ms_is_present =
+	React.S.trace (function false -> since_r := Some (Unix.time ()) | _ -> ())
+		      ms_is_present in
+      let ms = {
+	ms_room = room;
+	ms_users_by_nick = Hashtbl.create 17;
+	ms_is_present;
+	ms_presences; ms_emit_presence;
+	ms_messages; ms_emit_message;
+      } in
+      Hashtbl.replace cs.cs_rooms room_id ms;
+      Lwt.return_unit
 
-let start_chat_sessions () =
-  Batyr_db.use Batyr_sql.Presence.active_accounts >>=
-  Lwt_list.iter_s (fun (resource_id, port, password) ->
-    Resource.stored_of_id resource_id >|= fun resource ->
+  let chat_handler cs chat =
+    Chat.register_stanza_handler chat (Chat.ns_client, "message")
+      (Chat.parse_message ~callback:(on_message cs)
+			  ~callback_error:(on_error ~kind:"message"));
+    Chat.register_stanza_handler chat (Chat.ns_client, "presence")
+      (Chat.parse_presence ~callback:(on_presence cs)
+			   ~callback_error:(on_error ~kind:"presence"));
+    Chat_version.register chat;
+    Chat_ping.register chat;
+    Chat_disco.register_info chat;
+    let account_resource = Account.resource cs.cs_account in
+    Chat.send_presence chat ~jid_from:(Resource.jid account_resource)
+		       ~show:Chat.ShowDND ~status:"logging" () >>
+    match cs.cs_chat with
+    | Connected chat -> assert false
+    | Shutdown -> Lwt.return_unit
+    | Disconnected chat_cond ->
+      cs.cs_chat <- Connected chat;
+      Lwt_condition.broadcast chat_cond ();
+      let account_id = Resource.cached_id account_resource |> Option.get in
+      Batyr_db.use (Batyr_sql.Presence.room_presence account_id) >>=
+      Lwt_list.iter_s (muc_handler cs)
+
+  let account_key account =
+    let resource = Account.resource account in
+    let port = Account.port account in
+    let {JID.lnode; JID.ldomain; JID.lresource} = Resource.jid resource in
+    (ldomain, port, lnode, lresource)
+
+  let run_once cs =
+    let resource = Account.resource cs.cs_account in
+    let port = Account.port cs.cs_account in
+    let password = Account.password cs.cs_account in
     let {JID.lnode; JID.ldomain; JID.lresource} = Resource.jid resource in
     let params = Chat_params.make ~server:ldomain ~port ~username:lnode
 				  ~password ~resource:lresource () in
-    let session_key = ldomain, port, lnode, lresource in
-    if not (Hashtbl.mem chat_sessions session_key) then begin
-      let backoff = Backoff.create () in
-      let rec connect_loop () =
-	let t_start = Unix.time () in
-	begin try_lwt
-	  with_chat (chat_handler session_key resource resource_id) params
-	with
-	| End_of_file ->
-	  Lwt_log.error_f ~section "Lost connection."
-	| xc ->
-	  Lwt_log.error_f ~section "Caught %s." (Printexc.to_string xc) >>
-	  Lwt_log.debug ~section (Printexc.get_backtrace ())
-	end >>= fun () ->
-	Hashtbl.remove chat_sessions session_key;
-	let t_dur = Unix.time () -. t_start in
+    let clear_cs () =
+      if cs.cs_chat <> Shutdown then
+	cs.cs_chat <- Disconnected (Lwt_condition.create ());
+      Hashtbl.clear cs.cs_rooms in
+    try_lwt Batyr_xmpp.with_chat (chat_handler cs) params with
+    | End_of_file ->
+      clear_cs ();
+      Lwt_log.error_f ~section "Lost connection."
+    | xc ->
+      clear_cs ();
+      Lwt_log.error_f ~section "Caught %s." (Printexc.to_string xc) >>
+      Lwt_log.debug ~section (Printexc.get_backtrace ())
+
+  let start account =
+    let key = account_key account in
+    if Hashtbl.mem chat_sessions key then
+      raise (Failure ("Already logged into this account."));
+    let cs_presences, cs_emit_presence = React.E.create () in
+    let cs_messages, cs_emit_message = React.E.create () in
+    let cs = {
+      cs_account = account;
+      cs_chat = Disconnected (Lwt_condition.create ());
+      cs_rooms = Hashtbl.create 23;
+      cs_emit_presence; cs_presences;
+      cs_emit_message;  cs_messages;
+      cs_retained_events = [];
+    } in
+    Hashtbl.add chat_sessions key cs;
+    let backoff = Backoff.create () in
+    let rec connect_loop () =
+      let t_start = Unix.time () in
+      run_once cs >>
+      let t_dur = Unix.time () -. t_start in
+      if cs.cs_chat = Shutdown then
+	Lwt_log.info_f ~section "Session shut down after %g s." t_dur
+      else
 	let t_sleep = Backoff.next backoff in
 	Lwt_log.info_f ~section "Session lasted %g s, will re-connect in %g s."
 		       t_dur t_sleep >>
-	Lwt_unix.sleep t_sleep >> connect_loop () in
-      Lwt.async connect_loop
-    end)
+	Lwt_unix.sleep t_sleep >>
+	connect_loop () in
+    Lwt.async connect_loop;
+    cs
+
+  let start_all () = Account.all_active () >|= List.iter (ignore *< start)
+
+  let find account =
+    try Some (Hashtbl.find chat_sessions (account_key account))
+    with Not_found -> None
+
+  let is_active cs = match cs.cs_chat with Connected _ -> true | _ -> false
+
+  let rec with_chat f cs =
+    match cs.cs_chat with
+    | Shutdown -> Lwt.fail Session_shutdown
+    | Disconnected cond -> Lwt_condition.wait cond >> with_chat f cs
+    | Connected chat -> f chat
+
+  let shutdown cs =
+    let key = account_key cs.cs_account in
+    Hashtbl.remove chat_sessions key;
+    match cs.cs_chat with
+    | Shutdown -> Lwt.return_unit
+    | Disconnected chat_cond ->
+      cs.cs_chat <- Shutdown;
+      Lwt_condition.broadcast chat_cond ();
+      Lwt.return_unit
+    | Connected chat ->
+      cs.cs_chat <- Shutdown;
+      Chat.close_stream chat
+
+end

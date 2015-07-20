@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,4 +29,4 @@ let transcript_service =
 let admin_service =
   Eliom_service.App.service ~path:["admin"] ~get_params:Eliom_parameter.unit ()
 
-let () = Lwt.async Batyr_presence.start_chat_sessions
+let () = Lwt.async Batyr_presence.Session.start_all

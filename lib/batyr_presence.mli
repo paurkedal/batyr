@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@
 open Batyr_data
 open Batyr_xmpp
 
+exception Session_shutdown
+
 (** High-level view of a row of the [messages] table. *)
 module Message : sig
   type t
@@ -35,6 +37,33 @@ end
 val messages : Message.t Lwt_react.E.t
 (** This emits an events as new message are detected. *)
 
-val start_chat_sessions : unit -> unit Lwt.t
-(** Log in to accounts and join chats according to the active entries in the
-    [accounts] and [muc_presence] tables. *)
+module Session : sig
+  type t
+
+  val start : Account.t -> t
+  (** [persist account] tries to maintain an active session logged in to
+      [account] and joining the rooms as described by the [muc_presence]
+      table. *)
+
+  val start_all : unit -> unit Lwt.t
+  (** Log in to accounts and join chats according to the active entries in the
+      [accounts] and [muc_presence] tables. *)
+
+  val find : Account.t -> t option
+  (** [find account] is the session handle of [account] if it has been started
+      and not shut down yet. *)
+
+  val is_active : t -> bool
+  (** [is_active session] is true if [session] is currently logged in to the
+      associated account. *)
+
+  val with_chat : (Chat.chat -> 'a Lwt.t) -> t -> 'a Lwt.t
+  (** [with_chat f session] calls [f] with the XMPP session handle when it
+      becomes available.
+      @raise Session_shutdown if {!shutdown} has been called on [session]. *)
+
+  val shutdown : t -> unit Lwt.t
+  (** [shutdown session] terminates the XMPP stream and closes resources
+      associated with [session]. *)
+
+end

@@ -308,16 +308,22 @@ module Account = struct
 		(fun beacon -> {resource; port; password; is_active; beacon}) in
 	  Lwt.return (Some account)
 
+  let merge cost (resource_id, port, password, is_active) =
+    try Lwt.return (Id_cache.find_key id_cache resource_id)
+    with Not_found ->
+      Resource.stored_of_id resource_id >|= fun resource ->
+      Batyr_cache.cache cost
+	(fun beacon -> {resource; port; password; is_active; beacon})
+
   let all () =
     lwt cost_all, rows = Batyr_db.use_accounted Batyr_sql.Account.all in
     let cost = cost_all / List.length rows + 1 in
-    let merge (resource_id, port, password, is_active) =
-      try Lwt.return (Id_cache.find_key id_cache resource_id)
-      with Not_found ->
-	Resource.stored_of_id resource_id >|= fun resource ->
-	Batyr_cache.cache cost
-	  (fun beacon -> {resource; port; password; is_active; beacon}) in
-    Lwt_list.map_s merge rows
+    Lwt_list.map_s (merge cost) rows
+
+  let all_active () =
+    lwt cost_all, rows = Batyr_db.use_accounted Batyr_sql.Account.all_active in
+    let cost = cost_all / List.length rows + 1 in
+    Lwt_list.map_s (merge cost) rows
 
   let resource {resource} = resource
   let host {resource} = Resource.domain_name resource

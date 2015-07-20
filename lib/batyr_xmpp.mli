@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,6 +51,8 @@ module Chat : sig
 			 ?jid_from: JID.t -> ?jid_to: string -> ?lang: string ->
 			 StanzaError.t -> 'a) ->
 	chat -> Xml.attribute list -> Xml.element list -> 'a
+
+  val close_stream : chat -> unit Lwt.t
 end
 
 type chat = unit Chat.session_data

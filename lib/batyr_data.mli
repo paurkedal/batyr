@@ -71,6 +71,7 @@ module Account : sig
   val delete_id : int -> unit Lwt.t
   val of_resource : Resource.t -> t option Lwt.t
   val all : unit -> t list Lwt.t
+  val all_active : unit -> t list Lwt.t
 
   val resource : t -> Resource.t
   val host : t -> string

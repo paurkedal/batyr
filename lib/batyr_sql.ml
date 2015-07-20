@@ -94,10 +94,16 @@ module Account = struct
     "SELECT resource_id, server_port, client_password, is_active \
      FROM batyr.accounts"
 
-  let all (module C : CONNECTION) =
-    C.fold all'
+  let all_active' = prepare_sql
+    "SELECT resource_id, server_port, client_password, is_active \
+     FROM batyr.accounts WHERE is_active = true"
+
+  let fetch_list query (module C : CONNECTION) =
+    C.fold query
 	   C.Tuple.(fun t acc -> (int 0 t, int 1 t, text 2 t, bool 3 t) :: acc)
 	   [||] []
+  let all = fetch_list all'
+  let all_active = fetch_list all_active'
 
   let create' = prepare_fun @@ function
     | `Pgsql -> "INSERT INTO batyr.accounts \

@@ -4,7 +4,7 @@ Version: 0.4
 Synopsis: A jabber logger and web interface
 Authors: Petter A. Urkedal
 License: GPL-3
-AlphaFeatures: ocamlbuild_more_args, compiled_setup_ml
+AlphaFeatures: ocamlbuild_more_args
 Plugins: DevFiles (0.4), META (0.4)
 BuildTools: ocamlbuild
 XOCamlbuildPluginTags: package(eliom.ocamlbuild)
