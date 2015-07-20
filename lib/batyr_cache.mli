@@ -84,6 +84,9 @@ module type HASHED_CACHE = sig
   (** [add ht x] records an access of [x] and adds it to [ht] if it does not
       exist. *)
 
+  val remove : t -> data -> unit
+  (** [remove ht x] removes [x] from ht. *)
+
   val merge : t -> data -> data
   (** [merge ht x] adds [x] to [ht] if it does not exist, returns either the
       newly inserted element or an existing one, and records one access to

@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -111,6 +111,7 @@ module type HASHED_CACHE = sig
   type t
   val create : int -> t
   val add : t -> data -> unit
+  val remove : t -> data -> unit
   val merge : t -> data -> data
   val find : t -> data -> data
   val mem : t -> data -> bool

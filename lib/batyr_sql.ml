@@ -80,6 +80,69 @@ module Resource = struct
 	   C.Param.[|text domain_name; text node_name; text resource_name|]
 end
 
+module Account = struct
+  let get' = prepare_fun @@ function
+    | `Pgsql -> "SELECT server_port, client_password, is_active \
+		 FROM batyr.accounts WHERE resource_id = $1"
+    | _ -> raise Missing_query_string
+
+  let get resource_id (module C : CONNECTION) =
+    C.find_opt get' C.Tuple.(fun t -> (int 0 t, text 1 t, bool 2 t))
+	       C.Param.[|int resource_id|]
+
+  let all' = prepare_sql
+    "SELECT resource_id, server_port, client_password, is_active \
+     FROM batyr.accounts"
+
+  let all (module C : CONNECTION) =
+    C.fold all'
+	   C.Tuple.(fun t acc -> (int 0 t, int 1 t, text 2 t, bool 3 t) :: acc)
+	   [||] []
+
+  let create' = prepare_fun @@ function
+    | `Pgsql -> "INSERT INTO batyr.accounts \
+		  (resource_id, server_port, client_password, is_active) \
+		 VALUES ($1, $2, $3, $4)"
+    | _ -> raise Missing_query_string
+
+  let create ~resource_id ~port ~password ~is_active (module C : CONNECTION) =
+    C.exec create'
+	   C.Param.[|int resource_id; int port; text password; bool is_active|]
+
+  let delete' = prepare_fun @@ function
+    | `Pgsql -> "DELETE FROM batyr.accounts WHERE resource_id = $1"
+    | _ -> raise Missing_query_string
+
+  let delete resource_id (module C : CONNECTION) =
+    C.exec delete' C.Param.[|int resource_id|]
+
+  let set_resource' = prepare_fun @@ function
+    | `Pgsql ->
+      "UPDATE batyr.accounts SET resource_id = $1 WHERE resource_id = $2"
+    | _ -> raise Missing_query_string
+  let set_port' = prepare_fun @@ function
+    | `Pgsql ->
+      "UPDATE batyr.accounts SET server_port = $1 WHERE resource_id = $2"
+    | _ -> raise Missing_query_string
+  let set_password' = prepare_fun @@ function
+    | `Pgsql ->
+      "UPDATE batyr.accounts SET client_password = $1 WHERE resource_id = $2"
+    | _ -> raise Missing_query_string
+  let set_is_active' = prepare_fun @@ function
+    | `Pgsql ->
+      "UPDATE batyr.accounts SET is_active = $1 WHERE resource_id = $2"
+    | _ -> raise Missing_query_string
+
+  let set_resource id x (module C : CONNECTION) =
+    C.exec set_resource' C.Param.[|int x; int id|]
+  let set_port id x (module C : CONNECTION) =
+    C.exec set_port' C.Param.[|int x; int id|]
+  let set_password id x (module C : CONNECTION) =
+    C.exec set_password' C.Param.[|text x; int id|]
+  let set_is_active id x (module C : CONNECTION) =
+    C.exec set_is_active' C.Param.[|bool x; int id|]
+end
+
 module Muc_room = struct
   let stored_of_node' = prepare_fun @@ function
     | `Pgsql ->
@@ -159,41 +222,6 @@ module Web = struct
 end
 
 module Admin = struct
-  let fetch_accounts' = prepare_fun @@ function
-    | `Pgsql ->
-      "SELECT resource_id, client_password, server_port, is_active \
-	      FROM batyr.accounts"
-    | _ -> raise Missing_query_string
-
-  let fetch_accounts (module C : CONNECTION) =
-    C.fold fetch_accounts'
-	   C.Tuple.(fun t -> List.push (int 0 t, text 1 t, int 2 t, bool 3 t))
-	   [||] []
-
-  let update_account' = prepare_fun @@ function
-    | `Pgsql ->
-      "UPDATE batyr.accounts \
-       SET server_port = $2, client_password = $3, is_active = $4 \
-       WHERE resource_id = $1"
-    | _ -> raise Missing_query_string
-  let insert_account' = prepare_fun @@ function
-    | `Pgsql ->
-      "INSERT INTO batyr.accounts \
-	(resource_id, server_port, client_password, is_active) \
-       VALUES ($1, $2, $3, $4)"
-    | _ -> raise Missing_query_string
-  let upsert_account do_ins resource_id server_port client_password is_active
-                     (module C : CONNECTION) =
-    C.exec (if do_ins then insert_account' else update_account')
-	   C.Param.[|int resource_id; int server_port; text client_password;
-		     bool is_active|]
-
-  let delete_account' = prepare_fun @@ function
-    | `Pgsql -> "DELETE FROM batyr.accounts WHERE resource_id = $1"
-    | _ -> raise Missing_query_string
-  let delete_account resource_id (module C : CONNECTION) =
-    C.exec delete_account' C.Param.[|int resource_id|]
-
   let fetch_chatrooms' = prepare_fun @@ function
     | `Pgsql ->
       "SELECT node_id, room_alias, room_description, transcribe \

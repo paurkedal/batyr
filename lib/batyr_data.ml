@@ -127,6 +127,14 @@ module Resource = struct
     beacon : Batyr_cache.beacon;
   }
 
+  let dummy = {
+    id = id_unknown;
+    domain_name = "";
+    node_name = "";
+    resource_name = "";
+    beacon = Batyr_cache.dummy_beacon;
+  }
+
   module Data_bijection = struct
     type domain = t
     type codomain = string * string * string
@@ -143,10 +151,7 @@ module Resource = struct
     type domain = t
     type codomain = int
     let f {id} = assert (id >= 0); id
-    let f_inv id = {
-      id; domain_name = ""; node_name = ""; resource_name = "";
-      beacon = Batyr_cache.dummy_beacon;
-    }
+    let f_inv id = {dummy with id}
     let beacon {beacon} = beacon
   end
 
@@ -179,6 +184,7 @@ module Resource = struct
   let hash {domain_name; node_name; resource_name} =
     Hashtbl.hash (domain_name, node_name, resource_name)
 
+  let dummy_of_id id = {dummy with id}
   let cached_of_id id =
     try Some (Id_cache.find_key id_cache id) with Not_found -> None
   let cached_id {id} = if id >= 0 then Some id else None
@@ -219,6 +225,108 @@ module Resource = struct
     resource.id <- id;
     Id_cache.add id_cache resource;
     id
+end
+
+module Account = struct
+  type t = {
+    mutable resource : Resource.t;
+    mutable port : int;
+    mutable password : string;
+    mutable is_active : bool;
+    beacon : Batyr_cache.beacon;
+  }
+
+  module Id_bijection = struct
+    type domain = t
+    type codomain = int
+    let f {resource} = Resource.cached_id resource |> Option.get
+    let f_inv resource_id = {
+      resource = Resource.dummy_of_id resource_id;
+      port = 0; password = ""; is_active = false;
+      beacon = Batyr_cache.dummy_beacon;
+    }
+    let beacon {beacon} = beacon
+  end
+  module Id_cache = Batyr_cache.Cache_of_bijection (Id_bijection)
+  let id_cache = Id_cache.create 11
+
+  let create ~resource ?(port = 5222) ~password ?(is_active = false) () =
+    lwt resource_id = Resource.store resource in
+    lwt cost, () = (* OBS: Should be load cost. *)
+      Batyr_db.use_accounted
+	(Batyr_sql.Account.create ~resource_id ~port ~password ~is_active) in
+    Lwt.return @@ Batyr_cache.cache cost
+      (fun beacon -> {resource; port; password; is_active; beacon})
+
+  let update ?resource ?port ?password ?is_active account =
+    let id = Resource.cached_id account.resource |> Option.get in
+    Batyr_db.use @@ fun c ->
+    (match resource with
+      | None -> Lwt.return_unit
+      | Some x when Resource.equal x account.resource -> Lwt.return_unit
+      | Some x -> Id_cache.remove id_cache account;
+		  lwt new_id = Resource.store x in
+		  account.resource <- x;
+		  Batyr_sql.Account.set_resource id new_id c >|= fun () ->
+		  Id_cache.add id_cache account) >>
+    (match port with
+      | None -> Lwt.return_unit
+      | Some x when x = account.port -> Lwt.return_unit
+      | Some x -> account.port <- x;
+		  Batyr_sql.Account.set_port id x c) >>
+    (match password with
+      | None -> Lwt.return_unit
+      | Some x when x = account.password -> Lwt.return_unit
+      | Some x -> account.password <- x;
+		  Batyr_sql.Account.set_password id x c) >>
+    (match is_active with
+      | None -> Lwt.return_unit
+      | Some x when x = account.is_active -> Lwt.return_unit
+      | Some x -> account.is_active <- x;
+		  Batyr_sql.Account.set_is_active id x c)
+
+  let delete_id resource_id =
+    Batyr_db.use (Batyr_sql.Account.delete resource_id)
+
+  let delete account =
+    (* TODO: deplete beacon *)
+    let resource_id = Resource.cached_id account.resource |> Option.get in
+    delete_id resource_id
+
+  let of_resource resource =
+    match_lwt Resource.stored_id resource with
+    | None -> Lwt.return None
+    | Some resource_id ->
+      try Lwt.return (Some (Id_cache.find_key id_cache resource_id))
+      with Not_found ->
+	match_lwt
+	  Batyr_db.use_accounted (Batyr_sql.Account.get resource_id) with
+	| _, None -> Lwt.return_none
+	| cost, Some (port, password, is_active) ->
+	  lwt resource = Resource.stored_of_id resource_id in
+	  let account = Batyr_cache.cache cost
+		(fun beacon -> {resource; port; password; is_active; beacon}) in
+	  Lwt.return (Some account)
+
+  let all () =
+    lwt cost_all, rows = Batyr_db.use_accounted Batyr_sql.Account.all in
+    let cost = cost_all / List.length rows + 1 in
+    let merge (resource_id, port, password, is_active) =
+      try Lwt.return (Id_cache.find_key id_cache resource_id)
+      with Not_found ->
+	Resource.stored_of_id resource_id >|= fun resource ->
+	Batyr_cache.cache cost
+	  (fun beacon -> {resource; port; password; is_active; beacon}) in
+    Lwt_list.map_s merge rows
+
+  let resource {resource} = resource
+  let host {resource} = Resource.domain_name resource
+  let port {port} = port
+  let password {password} = password
+  let is_active {is_active} = is_active
+
+  let equal {resource = r0} {resource = r1} = Resource.equal r0 r1
+  let hash {resource} = Resource.hash resource
 end
 
 module Muc_user = struct

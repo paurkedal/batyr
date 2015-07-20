@@ -108,44 +108,36 @@
 
     let which_type = "account"
 
-    let fetch_all () =
-      lwt entries = Batyr_db.use Batyr_sql.Admin.fetch_accounts in
-      let account_of_entry
-	    (resource_id, client_password, server_port, is_active) =
-	lwt resource = Resource.stored_of_id resource_id in
-	let account_jid = Resource.to_string resource in
-	Lwt.return {account_jid; client_password; server_port; is_active} in
-      Lwt_list.map_p account_of_entry entries
+    let of_account a =
+      { account_jid = Resource.to_string (Account.resource a);
+	client_password = Account.password a;
+	server_port = Account.port a;
+	is_active = Account.is_active a; }
+
+    let fetch_all () = Batyr_data.Account.all () >|= List.map of_account
 
     let add old_account_opt account =
-      lwt old_resource_id_opt =
-	match old_account_opt with
-	| None -> Lwt.return_none
-	| Some old_account ->
-	  lwt resource = Lwt.wrap1 Resource.of_string old_account.account_jid in
-	  Resource.stored_id resource in
       lwt resource = Lwt.wrap1 Resource.of_string account.account_jid in
-      lwt resource_id = Resource.store resource in
-      let account = {account with account_jid = Resource.to_string resource} in
-      Batyr_db.use @@ fun conn ->
-	Batyr_sql.Admin.upsert_account
-	  (old_resource_id_opt <> Some resource_id)
-	  resource_id account.server_port
-	  account.client_password account.is_active
-	  conn >>
-	begin match old_resource_id_opt with
-	| Some old_resource_id when old_resource_id <> resource_id ->
-	  Batyr_sql.Admin.delete_account old_resource_id conn
-	| _ -> Lwt.return_unit
+      let port = account.server_port in
+      let password = account.client_password in
+      let is_active = account.is_active in
+      match old_account_opt with
+      | None ->
+	Batyr_data.Account.create ~resource ~port ~password ~is_active
+				  () >|= ignore
+      | Some old_account ->
+	let old_resource = Resource.of_string old_account.account_jid in
+	begin match_lwt Batyr_data.Account.of_resource old_resource with
+	| None -> Lwt.return_unit
+	| Some old_account' ->
+	  Batyr_data.Account.update ~resource ~port ~password ~is_active
+				    old_account'
 	end
 
-    let remove account =
-      lwt resource = Lwt.wrap1 Resource.of_string account.account_jid in
-      lwt resource_id =
-	match_lwt Resource.stored_id resource with
-	| None -> Lwt.fail Eliom_common.Eliom_404
-	| Some id -> Lwt.return id in
-      Batyr_db.use (Batyr_sql.Admin.delete_account resource_id)
+    let remove a =
+      let resource = Resource.of_string a.account_jid in
+      lwt resource_id = Resource.stored_id resource >|= Option.get in
+      Batyr_data.Account.delete_id resource_id
   end
 }}
 {shared{ module Accounts_editor = Bwl_table_editor.Make (Account) }}

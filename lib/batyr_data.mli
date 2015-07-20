@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -59,6 +59,27 @@ module Resource : sig
   val stored_id : t -> int option Lwt.t
   val stored_of_id : int -> t Lwt.t
   val store : t -> int Lwt.t
+end
+
+module Account : sig
+  type t
+  val create : resource: Resource.t -> ?port: int ->
+	       password: string -> ?is_active: bool -> unit -> t Lwt.t
+  val update : ?resource: Resource.t -> ?port: int -> ?password: string ->
+	       ?is_active: bool -> t -> unit Lwt.t
+  val delete : t -> unit Lwt.t
+  val delete_id : int -> unit Lwt.t
+  val of_resource : Resource.t -> t option Lwt.t
+  val all : unit -> t list Lwt.t
+
+  val resource : t -> Resource.t
+  val host : t -> string
+  val port : t -> int
+  val password : t -> string
+  val is_active : t -> bool
+
+  val equal : t -> t -> bool
+  val hash : t -> int
 end
 
 module Muc_user : sig
