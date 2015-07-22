@@ -22,44 +22,19 @@
     It is provided upon construction with {!cache} and can be increased with
     {!enrich} in case more resources are used to enhance the object. *)
 
-type beacon
-(** The type of a field to embed in records in order to keep track of access
-    and prevent actively used data from being garbage collected. *)
-
-val dummy_beacon : beacon
-(** A dummy {!beacon} object.  This is usedful for temporary objects used as
-    lookup keys for weak maps. *)
-
-val beacon_size : int
-(** The size of a the beacon field. *)
-
-val cache : int -> (beacon -> 'a) -> 'a
-(** [cache grade f] passes a suitable beacon to [f], which is expected to
-    construct an object which embeds the beacon, and return it.  Conversely
-    the returned object is made accessible from the beacon, which itself is
-    kept visible to the garbage collector as long as the grade times the
-    access frequency is above a certain threshold.  The access frequency is
-    only a rought estimate, esp. until the first GC survival. *)
-
-val enrich : int -> beacon -> unit
-(** [enrich grade b] adds [grade] to the recorded grade of computing [b]. *)
-
-val charge : beacon -> unit
-(** [charge b] records the fact that [b] has been accessed.  This is typically
-    called each time an object is acquired from a weak data structure.  The
-    specialized weak hash tables below will do it for you. *)
+module Beacon : Prime_beacon.S
 
 (** Helper module to make grade estimates. *)
 module Grade : sig
 
-  val basic : int
+  val basic : float
   (** [basic] is used for a small constant-time sections of code. *)
 
-  val basic_reduce : int -> int
+  val basic_reduce : int -> float
   (** [basic_reduce n] is used for a small section of code which includes a
       linear-time loop of [n] iterations. *)
 
-  val from_size_and_cost : int -> int -> int
+  val from_size_and_cost : int -> int -> float
   (** [from_size_and_cost n c] returns [basic + c / (n + beacon_size)]. *)
 end
 
@@ -68,7 +43,7 @@ module type HASHABLE_WITH_BEACON = sig
   type t
   val equal : t -> t -> bool
   val hash : t -> int
-  val beacon : t -> beacon
+  val beacon : t -> Beacon.t
 end
 
 (** Signature for a weak hash table. *)
@@ -130,7 +105,7 @@ module type BIJECTION_WITH_BEACON = sig
   val f_inv : codomain -> domain
   (** The inverse of {!f}. *)
 
-  val beacon : domain -> beacon
+  val beacon : domain -> Beacon.t
   (** [beacon x] must return the beacon embedded in [x]. *)
 end
 

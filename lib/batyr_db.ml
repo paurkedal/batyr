@@ -223,4 +223,4 @@ let use_accounted ?quick f =
   let tS = Unix.time () in
   use ?quick f >|= fun r ->
   let tE = Unix.time () in
-  (int_of_float ((tE -. tS) *. time_multiplier), r)
+  ((tE -. tS) *. time_multiplier, r)

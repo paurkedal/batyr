@@ -78,4 +78,4 @@ end
 val use : ?quick: bool ->
       ((module CONNECTION) -> 'a Lwt.t) -> 'a Lwt.t
 val use_accounted : ?quick: bool ->
-      ((module CONNECTION) -> 'a Lwt.t) -> (int * 'a) Lwt.t
+      ((module CONNECTION) -> 'a Lwt.t) -> (float * 'a) Lwt.t

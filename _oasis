@@ -29,7 +29,7 @@ Library batyr
     Batyr_version,
     Batyr_xmpp
   BuildDepends:
-    caqti, calendar, config-file, eliom, erm_xmpp, lwt, lwt.react,
+    caqti, calendar, config-file, eliom, erm_xmpp, extunix, lwt, lwt.react,
     postgresql, prime, prime.testing, tls.lwt
   ByteOpt: -thread
   NativeOpt: -thread

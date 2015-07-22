@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Batyr_cache
 open Batyr_prereq
 open Batyr_xmpp
 open Unprime_option
@@ -26,7 +27,7 @@ module Node = struct
     mutable id : int;
     domain_name : string;
     node_name : string;
-    beacon : Batyr_cache.beacon;
+    beacon : Beacon.t;
   }
 
   module Data_bijection = struct
@@ -35,7 +36,7 @@ module Node = struct
     let f {domain_name; node_name} = (domain_name, node_name)
     let f_inv (domain_name, node_name) =
       {id = id_unknown; domain_name; node_name;
-       beacon = Batyr_cache.dummy_beacon}
+       beacon = Beacon.dummy}
     let beacon {beacon} = beacon
   end
 
@@ -44,7 +45,7 @@ module Node = struct
     type codomain = int
     let f {id} = assert (id >= 0); id
     let f_inv id =
-      {id; domain_name = ""; node_name = ""; beacon = Batyr_cache.dummy_beacon}
+      {id; domain_name = ""; node_name = ""; beacon = Beacon.dummy}
     let beacon {beacon} = beacon
   end
 
@@ -55,11 +56,11 @@ module Node = struct
 
   let dummy =
     {id = id_unknown; domain_name = ""; node_name = "";
-     beacon = Batyr_cache.dummy_beacon}
+     beacon = Beacon.dummy}
 
   let create ~domain_name ?(node_name = "") () =
     Data_cache.merge data_cache
-      (Batyr_cache.cache Batyr_cache.Grade.basic
+      (Beacon.embed Batyr_cache.Grade.basic
 	(fun beacon -> {id = id_unknown; domain_name; node_name; beacon}))
 
   let domain_name {domain_name} = domain_name
@@ -88,7 +89,7 @@ module Node = struct
       Batyr_db.use_accounted (Batyr_sql.Node.get id)
 	>|= fun (cost, (domain_name, node_name)) ->
       let node =
-	Batyr_cache.cache cost
+	Beacon.embed cost
 	  (fun beacon -> {id; domain_name; node_name; beacon}) in
       try Id_cache.find id_cache node
       with Not_found ->
@@ -102,7 +103,7 @@ module Node = struct
     Batyr_db.use_accounted
       (Batyr_sql.Node.locate node.domain_name node.node_name)
       >|= fun (cost, id_opt) ->
-    Batyr_cache.enrich cost node.beacon;
+    Beacon.set_grade cost node.beacon;
     match id_opt with
     | None -> node.id <- id_missing; None
     | Some id -> node.id <- id; Id_cache.add id_cache node; Some id
@@ -112,7 +113,7 @@ module Node = struct
     Batyr_db.use_accounted
       (Batyr_sql.Node.store node.domain_name node.node_name)
       >|= fun (cost, id) ->
-    Batyr_cache.enrich cost node.beacon;
+    Beacon.set_grade cost node.beacon;
     node.id <- id;
     Id_cache.add id_cache node;
     id
@@ -124,7 +125,7 @@ module Resource = struct
     domain_name : string;
     node_name : string;
     resource_name : string;
-    beacon : Batyr_cache.beacon;
+    beacon : Beacon.t;
   }
 
   let dummy = {
@@ -132,7 +133,7 @@ module Resource = struct
     domain_name = "";
     node_name = "";
     resource_name = "";
-    beacon = Batyr_cache.dummy_beacon;
+    beacon = Beacon.dummy;
   }
 
   module Data_bijection = struct
@@ -142,7 +143,7 @@ module Resource = struct
       (domain_name, node_name, resource_name)
     let f_inv (domain_name, node_name, resource_name) = {
       id = id_unknown; domain_name; node_name; resource_name;
-      beacon = Batyr_cache.dummy_beacon;
+      beacon = Beacon.dummy;
     }
     let beacon {beacon} = beacon
   end
@@ -162,7 +163,7 @@ module Resource = struct
 
   let create ~domain_name ?(node_name = "") ?(resource_name = "") () =
     Data_cache.merge data_cache
-      (Batyr_cache.cache Batyr_cache.Grade.basic
+      (Beacon.embed Batyr_cache.Grade.basic
 	(fun beacon ->
 	 {id = id_unknown; domain_name; node_name; resource_name; beacon}))
 
@@ -195,7 +196,7 @@ module Resource = struct
       Batyr_db.use_accounted (Batyr_sql.Resource.get id)
 	>|= fun (cost, (domain_name, node_name, resource_name)) ->
       let resource =
-	Batyr_cache.cache cost
+	Beacon.embed cost
 	  (fun beacon -> {id; domain_name; node_name; resource_name; beacon}) in
       try Id_cache.find id_cache resource
       with Not_found ->
@@ -210,7 +211,7 @@ module Resource = struct
       (Batyr_sql.Resource.locate resource.domain_name resource.node_name
 				 resource.resource_name)
       >|= fun (cost, id_opt) ->
-    Batyr_cache.enrich cost resource.beacon;
+    Beacon.set_grade cost resource.beacon;
     match id_opt with
     | None -> resource.id <- id_missing; None
     | Some id -> resource.id <- id; Id_cache.add id_cache resource; Some id
@@ -221,7 +222,7 @@ module Resource = struct
       (Batyr_sql.Resource.store resource.domain_name resource.node_name
 				resource.resource_name)
       >|= fun (cost, id) ->
-    Batyr_cache.enrich cost resource.beacon;
+    Beacon.set_grade cost resource.beacon;
     resource.id <- id;
     Id_cache.add id_cache resource;
     id
@@ -233,7 +234,7 @@ module Account = struct
     mutable port : int;
     mutable password : string;
     mutable is_active : bool;
-    beacon : Batyr_cache.beacon;
+    beacon : Beacon.t;
   }
 
   module Id_bijection = struct
@@ -243,7 +244,7 @@ module Account = struct
     let f_inv resource_id = {
       resource = Resource.dummy_of_id resource_id;
       port = 0; password = ""; is_active = false;
-      beacon = Batyr_cache.dummy_beacon;
+      beacon = Beacon.dummy;
     }
     let beacon {beacon} = beacon
   end
@@ -255,7 +256,7 @@ module Account = struct
     lwt cost, () = (* OBS: Should be load cost. *)
       Batyr_db.use_accounted
 	(Batyr_sql.Account.create ~resource_id ~port ~password ~is_active) in
-    Lwt.return @@ Batyr_cache.cache cost
+    Lwt.return @@ Beacon.embed cost
       (fun beacon -> {resource; port; password; is_active; beacon})
 
   let update ?resource ?port ?password ?is_active account =
@@ -304,7 +305,7 @@ module Account = struct
 	| _, None -> Lwt.return_none
 	| cost, Some (port, password, is_active) ->
 	  lwt resource = Resource.stored_of_id resource_id in
-	  let account = Batyr_cache.cache cost
+	  let account = Beacon.embed cost
 		(fun beacon -> {resource; port; password; is_active; beacon}) in
 	  Lwt.return (Some account)
 
@@ -312,17 +313,17 @@ module Account = struct
     try Lwt.return (Id_cache.find_key id_cache resource_id)
     with Not_found ->
       Resource.stored_of_id resource_id >|= fun resource ->
-      Batyr_cache.cache cost
+      Beacon.embed cost
 	(fun beacon -> {resource; port; password; is_active; beacon})
 
   let all () =
     lwt cost_all, rows = Batyr_db.use_accounted Batyr_sql.Account.all in
-    let cost = cost_all / List.length rows + 1 in
+    let cost = cost_all /. float_of_int (List.length rows) in
     Lwt_list.map_s (merge cost) rows
 
   let all_active () =
     lwt cost_all, rows = Batyr_db.use_accounted Batyr_sql.Account.all_active in
-    let cost = cost_all / List.length rows + 1 in
+    let cost = cost_all /. float_of_int (List.length rows) in
     Lwt_list.map_s (merge cost) rows
 
   let resource {resource} = resource
@@ -363,7 +364,7 @@ module Muc_room = struct
     description : string option;
     transcribe : bool;
     min_message_time : float option;
-    beacon : Batyr_cache.beacon;
+    beacon : Beacon.t;
   }
   type t' = t
 
@@ -387,7 +388,7 @@ module Muc_room = struct
   let make_dummy node = {
     node; alias = None; description = None; transcribe = false;
     min_message_time = None;
-    beacon = Batyr_cache.dummy_beacon;
+    beacon = Beacon.dummy;
   }
 
   let cached_of_node node =
@@ -407,7 +408,7 @@ module Muc_room = struct
 	    let min_message_time =
 	      Option.map CalendarLib.Calendar.to_unixfloat mmt in
 	    let room =
-	      Batyr_cache.cache cost (fun beacon ->
+	      Beacon.embed cost (fun beacon ->
 		{node; alias; description; transcribe; min_message_time;
 		 beacon}) in
 	    Node_cache.merge node_cache room)
