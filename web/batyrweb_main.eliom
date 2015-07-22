@@ -111,7 +111,8 @@ let client_message_counts_service =
       let q = Caqti_query.oneshot_fun @@ function
 	`Pgsql ->
 	  sprintf
-	    "SELECT batyr.intenc_date(seen_time AT TIME ZONE $1) AS t, \
+	    "SELECT batyr.intenc_date(seen_time AT TIME ZONE 'UTC' \
+						AT TIME ZONE $1) AS t, \
 		    count(0) \
 	     FROM batyr.messages \
 	     JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
