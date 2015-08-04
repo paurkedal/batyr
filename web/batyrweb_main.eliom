@@ -122,7 +122,7 @@ let client_message_counts_service =
 	| _ -> raise Caqti_query.Missing_query_string in
       Batyr_db.use @@ fun (module C : CONNECTION) ->
 	C.fold q C.Tuple.(fun t -> List.push (int 0 t, int 1 t))
-	       (Array.map C.Param.text (Array.append [|tz|] params)) []
+	       (Array.map C.Param.string (Array.append [|tz|] params)) []
     end
 
 let client_transcript_service =
@@ -160,9 +160,9 @@ let client_transcript_service =
 	  | _ -> raise Caqti_query.Missing_query_string in
 	(Batyr_db.use @@ fun (module C : CONNECTION) ->
 	  C.fold q
-	    C.Tuple.(fun t -> List.push (utc 0 t, int 1 t, option text 2 t,
-					 option text 3 t, option text 4 t))
-	    (Array.map C.Param.text params) []) >>=
+	    C.Tuple.(fun t -> List.push (utc 0 t, int 1 t, option string 2 t,
+					 option string 3 t, option string 4 t))
+	    (Array.map C.Param.string params) []) >>=
 	Lwt_list.rev_map_p
 	  (fun (time, sender_id, subject_opt, thread_opt, body_opt) ->
 	    Resource.stored_of_id sender_id >|= fun sender_resource ->

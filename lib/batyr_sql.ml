@@ -41,14 +41,14 @@ module Node = struct
     | _ -> raise Missing_query_string
 
   let get id (module C : CONNECTION) =
-    C.find get' C.Tuple.(fun t -> (text 0 t, text 1 t))
+    C.find get' C.Tuple.(fun t -> (string 0 t, string 1 t))
 	   C.Param.[|int id|]
   let locate domain_name node_name (module C : CONNECTION) =
     C.find_opt locate' C.Tuple.(fun t -> int 0 t)
-	       C.Param.[|text domain_name; text node_name|]
+	       C.Param.[|string domain_name; string node_name|]
   let store domain_name node_name (module C : CONNECTION) =
     C.find store' C.Tuple.(fun t -> int 0 t)
-	   C.Param.[|text domain_name; text node_name|]
+	   C.Param.[|string domain_name; string node_name|]
 end
 
 module Resource = struct
@@ -70,14 +70,14 @@ module Resource = struct
     | _ -> raise Missing_query_string
 
   let get id (module C : CONNECTION) =
-    C.find get' C.Tuple.(fun t -> (text 0 t, text 1 t, text 2 t))
+    C.find get' C.Tuple.(fun t -> (string 0 t, string 1 t, string 2 t))
 	   C.Param.[|int id|]
   let locate domain_name node_name resource_name (module C : CONNECTION) =
     C.find_opt locate' C.Tuple.(int 0)
-	       C.Param.[|text domain_name; text node_name; text resource_name|]
+	C.Param.[|string domain_name; string node_name; string resource_name|]
   let store domain_name node_name resource_name (module C : CONNECTION) =
     C.find store' C.Tuple.(int 0)
-	   C.Param.[|text domain_name; text node_name; text resource_name|]
+	C.Param.[|string domain_name; string node_name; string resource_name|]
 end
 
 module Account = struct
@@ -87,7 +87,7 @@ module Account = struct
     | _ -> raise Missing_query_string
 
   let get resource_id (module C : CONNECTION) =
-    C.find_opt get' C.Tuple.(fun t -> (int 0 t, text 1 t, bool 2 t))
+    C.find_opt get' C.Tuple.(fun t -> (int 0 t, string 1 t, bool 2 t))
 	       C.Param.[|int resource_id|]
 
   let all' = prepare_sql
@@ -100,8 +100,8 @@ module Account = struct
 
   let fetch_list query (module C : CONNECTION) =
     C.fold query
-	   C.Tuple.(fun t acc -> (int 0 t, int 1 t, text 2 t, bool 3 t) :: acc)
-	   [||] []
+	C.Tuple.(fun t acc -> (int 0 t, int 1 t, string 2 t, bool 3 t) :: acc)
+	[||] []
   let all = fetch_list all'
   let all_active = fetch_list all_active'
 
@@ -113,7 +113,7 @@ module Account = struct
 
   let create ~resource_id ~port ~password ~is_active (module C : CONNECTION) =
     C.exec create'
-	   C.Param.[|int resource_id; int port; text password; bool is_active|]
+	C.Param.[|int resource_id; int port; string password; bool is_active|]
 
   let delete' = prepare_fun @@ function
     | `Pgsql -> "DELETE FROM batyr.accounts WHERE resource_id = $1"
@@ -144,7 +144,7 @@ module Account = struct
   let set_port id x (module C : CONNECTION) =
     C.exec set_port' C.Param.[|int x; int id|]
   let set_password id x (module C : CONNECTION) =
-    C.exec set_password' C.Param.[|text x; int id|]
+    C.exec set_password' C.Param.[|string x; int id|]
   let set_is_active id x (module C : CONNECTION) =
     C.exec set_is_active' C.Param.[|bool x; int id|]
 end
@@ -162,7 +162,7 @@ module Muc_room = struct
     | _ -> raise Missing_query_string
   let stored_of_node node_id (module C : CONNECTION) =
     C.find_opt stored_of_node'
-      C.Tuple.(fun t -> option text 0 t, option text 1 t,
+      C.Tuple.(fun t -> option string 0 t, option string 1 t,
 			bool 2 t, option utc 3 t)
       C.Param.[|int node_id|]
 end
@@ -183,10 +183,10 @@ module Presence = struct
       int sender_id;
       option int author_id;
       int recipient_id;
-      text message_type;
-      option text subject;
-      option text thread;
-      option text body;
+      string message_type;
+      option string subject;
+      option string thread;
+      option string body;
     |]
 
   let room_presence' = prepare_fun @@ function
@@ -201,7 +201,7 @@ module Presence = struct
     | _ -> raise Missing_query_string
   let room_presence account_id (module C : CONNECTION) =
     C.fold room_presence'
-	   C.Tuple.(fun t -> List.push (int 0 t, option text 1 t,
+	   C.Tuple.(fun t -> List.push (int 0 t, option string 1 t,
 					option utc 2 t))
 	   C.Param.[|int account_id|] []
 
@@ -212,7 +212,7 @@ module Presence = struct
     | _ -> raise Missing_query_string
   let active_accounts (module C : CONNECTION) =
     C.fold active_accounts'
-	   C.Tuple.(fun t -> List.push (int 0 t, int 1 t, text 2 t))
+	   C.Tuple.(fun t -> List.push (int 0 t, int 1 t, string 2 t))
 	   [||] []
 end
 
@@ -235,8 +235,8 @@ module Admin = struct
     | _ -> raise Missing_query_string
   let fetch_chatrooms (module C : CONNECTION) =
     C.fold fetch_chatrooms'
-	   C.Tuple.(fun t -> List.push (int 0 t, option text 1 t,
-					option text 2 t, bool 3 t))
+	   C.Tuple.(fun t -> List.push (int 0 t, option string 1 t,
+					option string 2 t, bool 3 t))
 	   [||] []
 
   let update_chatroom' = prepare_fun @@ function
@@ -254,8 +254,8 @@ module Admin = struct
   let upsert_chatroom do_ins node_id room_alias room_description transcribe
 		      (module C : CONNECTION) =
     C.exec (if do_ins then insert_chatroom' else update_chatroom')
-	   C.Param.[|int node_id; option text room_alias;
-		     option text room_description; bool transcribe|]
+	   C.Param.[|int node_id; option string room_alias;
+		     option string room_description; bool transcribe|]
   let delete_chatroom' = prepare_fun @@ function
     | `Pgsql -> "DELETE FROM batyr.muc_rooms WHERE node_id = $1"
     | _ -> raise Missing_query_string
@@ -271,8 +271,8 @@ module Admin = struct
     | _ -> raise Missing_query_string
   let fetch_presences (module C : CONNECTION) =
     C.fold fetch_presences'
-	   C.Tuple.(fun t -> List.push (text 0 t, text 1 t, bool 2 t,
-					option text 3 t))
+	   C.Tuple.(fun t -> List.push (string 0 t, string 1 t, bool 2 t,
+					option string 3 t))
 	   [||] []
 
   let update_presence' = prepare_fun @@ function
@@ -291,7 +291,7 @@ module Admin = struct
 		      (module C : CONNECTION) =
     C.exec (if do_ins then insert_presence' else update_presence')
 	   C.Param.[|int resource_id; int account_id;
-		     option text nick; bool is_present|]
+		     option string nick; bool is_present|]
 
   let delete_presence' = prepare_fun @@ function
     | `Pgsql ->
