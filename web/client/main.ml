@@ -1,1 +1,1 @@
-include Batyrweb_main
+module Dep = Batyrweb_index

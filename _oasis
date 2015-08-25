@@ -40,8 +40,9 @@ Library batyrweb
   Path: web
   Modules:
     server/Batyrweb_admin,
-    server/Batyrweb_main,
+    server/Batyrweb_index,
     server/Batyrweb_tools,
+    server/Batyrweb_transcript,
     Batyrweb_prereq,
     server/Batyrweb_server,
     server/Bwl_table_editor

@@ -14,22 +14,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Eliom_content
+open Batyr_data
+open Batyrweb_server
+open Eliom_content.Html5
 
-module Main_app =
-  Eliom_registration.App (struct let application_name = "main" end)
+let index_handler () () =
+  lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in
+  let render_room_link node_id =
+    lwt node = Node.stored_of_id node_id in
+    let node_jid = Node.to_string node in
+    Lwt.return D.(li [a ~service:transcript_service [pcdata node_jid]
+			(node_jid, (None, (None, None)))]) in
+  lwt room_lis = Lwt_list.map_p render_room_link rooms in
+  let rooms_ul = D.ul room_lis in
+  Lwt.return (Batyrweb_tools.D.page "Chatrooms" [rooms_ul])
 
-let index_service =
-  Eliom_service.App.service ~path:[] ~get_params:Eliom_parameter.unit ()
-
-let transcript_service =
-  Eliom_service.App.service ~path:["rooms"]
-    ~get_params:Eliom_parameter.
-      (suffix_prod (string "chatroom") (opt (float "tI") ** opt (float "tF") **
-					opt (string "pat")))
-    ()
-
-let admin_service =
-  Eliom_service.App.service ~path:["admin"] ~get_params:Eliom_parameter.unit ()
-
-let () = Lwt.async Batyr_presence.Session.start_all
+let () = Main_app.register ~service:index_service index_handler

@@ -63,17 +63,6 @@
     fragment
 }}
 
-let main_handler () () =
-  lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in
-  let render_room_link node_id =
-    lwt node = Node.stored_of_id node_id in
-    let node_jid = Node.to_string node in
-    Lwt.return Html5.D.(li [a ~service:transcript_service [pcdata node_jid]
-			      (node_jid, (None, (None, None)))]) in
-  lwt room_lis = Lwt_list.map_p render_room_link rooms in
-  let rooms_ul = Html5.D.ul room_lis in
-  Lwt.return (Batyrweb_tools.D.page "Chatrooms" [rooms_ul])
-
 {shared{
   type message = {
     msg_time : float;
@@ -496,8 +485,4 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
       transcript_div ]
   )
 
-module Main_app =
-  Eliom_registration.App (struct let application_name = "main" end)
-let () =
-  Main_app.register ~service:main_service main_handler;
-  Main_app.register ~service:transcript_service transcript_handler
+let () = Main_app.register ~service:transcript_service transcript_handler
