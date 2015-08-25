@@ -219,12 +219,13 @@ end
 module Web = struct
   let rooms' = prepare_fun @@ function
     | `Pgsql ->
-      "SELECT DISTINCT node_id \
+      "SELECT DISTINCT node_id, room_alias \
        FROM batyr.muc_rooms NATURAL JOIN batyr.nodes \
 			    NATURAL JOIN batyr.domains"
     | _ -> raise Missing_query_string
   let rooms (module C : CONNECTION) =
-    C.fold rooms' C.Tuple.(fun t -> List.push (int 0 t)) [||] []
+    C.fold rooms' C.Tuple.(fun t -> List.push (int 0 t, option string 1 t))
+	   [||] []
 end
 
 module Admin = struct
