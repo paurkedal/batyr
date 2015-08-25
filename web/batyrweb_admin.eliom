@@ -16,7 +16,7 @@
 
 {shared{
   open Batyrweb_prereq
-  open Eliom_content
+  open Eliom_content.Html5
   open Eliom_pervasives
   open Unprime
   open Unprime_list
@@ -59,27 +59,24 @@
     }
 
     let render_headers () =
-      let open Html5.D in
-      [ th [pcdata "JID"]; th [pcdata "Password"];
-	th [pcdata "Server Port"]; th [pcdata "Active"] ]
+      [ D.th [D.pcdata "JID"]; D.th [D.pcdata "Password"];
+	D.th [D.pcdata "Server Port"]; D.th [D.pcdata "Active"] ]
 
     let render_row ac =
-      let open Html5.D in
-      [ td [pcdata ac.account_jid]; td [pcdata ac.client_password];
-	td [pcdata (string_of_int ac.server_port)];
-	td [pcdata (string_of_bool ac.is_active)] ]
+      [ D.td [D.pcdata ac.account_jid]; D.td [D.pcdata ac.client_password];
+	D.td [D.pcdata (string_of_int ac.server_port)];
+	D.td [D.pcdata (string_of_bool ac.is_active)] ]
 
     let render_edit_row ac_opt =
-      let open Html5.D in
-      let jid_input = input ~a:[a_size 12] ~input_type:`Text () in
-      let password_input = input ~a:[a_size 12] ~input_type:`Text () in
-      let server_port_input = input ~a:[a_size 4] ~input_type:`Text () in
-      let is_active_input = input ~input_type:`Checkbox () in
+      let jid_input = D.input ~a:[D.a_size 12] ~input_type:`Text () in
+      let password_input = D.input ~a:[D.a_size 12] ~input_type:`Text () in
+      let server_port_input = D.input ~a:[D.a_size 4] ~input_type:`Text () in
+      let is_active_input = D.input ~input_type:`Checkbox () in
       let ed = {
-	ed_jid = Html5.To_dom.of_input jid_input;
-	ed_password = Html5.To_dom.of_input password_input;
-	ed_server_port = Html5.To_dom.of_input server_port_input;
-	ed_is_active = Html5.To_dom.of_input is_active_input;
+	ed_jid = To_dom.of_input jid_input;
+	ed_password = To_dom.of_input password_input;
+	ed_server_port = To_dom.of_input server_port_input;
+	ed_is_active = To_dom.of_input is_active_input;
       } in
       Option.iter
 	(fun ac ->
@@ -89,10 +86,10 @@
 	  ed.ed_is_active##checked <- Js.bool ac.is_active)
 	ac_opt;
       let tds =
-	[ td [jid_input];
-	  td [password_input];
-	  td [server_port_input];
-	  td [is_active_input] ] in
+	[ D.td [jid_input];
+	  D.td [password_input];
+	  D.td [server_port_input];
+	  D.td [is_active_input] ] in
       (ed, tds)
 
     let decode_row _ ed =
@@ -230,29 +227,27 @@
     }
 
     let render_headers () =
-      let open Html5.D in
-      [th [pcdata "JID"]; th [pcdata "Alias"]; th [pcdata "Description"];
-       th [pcdata "Transcribe"]]
+      [ D.th [D.pcdata "JID"];
+	D.th [D.pcdata "Alias"];
+	D.th [D.pcdata "Description"];
+	D.th [D.pcdata "Transcribe"] ]
 
     let render_row r =
-      Html5.D.([
-	td [pcdata r.room_jid];
-	td [pcdata (Option.get_or "-" r.room_alias)];
-	td [pcdata (Option.get_or "-" r.room_description)];
-	td [pcdata (string_of_bool r.transcribe)];
-      ])
+      [ D.td [D.pcdata r.room_jid];
+	D.td [D.pcdata (Option.get_or "-" r.room_alias)];
+	D.td [D.pcdata (Option.get_or "-" r.room_description)];
+	D.td [D.pcdata (string_of_bool r.transcribe)] ]
 
     let render_edit_row r_opt =
-      let open Html5.D in
-      let jid_inp = input ~a:[a_size 12] ~input_type:`Text () in
-      let alias_inp = input ~a:[a_size 12] ~input_type:`Text () in
-      let description_inp = input ~a:[a_size 12] ~input_type:`Text () in
-      let transcribe_inp = input ~input_type:`Checkbox () in
+      let jid_inp = D.input ~a:[D.a_size 12] ~input_type:`Text () in
+      let alias_inp = D.input ~a:[D.a_size 12] ~input_type:`Text () in
+      let description_inp = D.input ~a:[D.a_size 12] ~input_type:`Text () in
+      let transcribe_inp = D.input ~input_type:`Checkbox () in
       let ed = {
-	ed_jid = Html5.To_dom.of_input jid_inp;
-	ed_alias = Html5.To_dom.of_input alias_inp;
-	ed_description = Html5.To_dom.of_input description_inp;
-	ed_transcribe = Html5.To_dom.of_input transcribe_inp;
+	ed_jid = To_dom.of_input jid_inp;
+	ed_alias = To_dom.of_input alias_inp;
+	ed_description = To_dom.of_input description_inp;
+	ed_transcribe = To_dom.of_input transcribe_inp;
       } in
       Option.iter
 	(fun r ->
@@ -262,8 +257,8 @@
 	    Js.string (Option.get_or "" r.room_description);
 	  ed.ed_transcribe##checked <- Js.bool r.transcribe)
 	r_opt;
-      ed, [td [jid_inp]; td [alias_inp];
-	   td [description_inp]; td [transcribe_inp]]
+      ed, [D.td [jid_inp]; D.td [alias_inp];
+	   D.td [description_inp]; D.td [transcribe_inp]]
 
     let decode_row r_opt ed = {
       room_jid = Js.to_string ed.ed_jid##value;
@@ -344,15 +339,13 @@
     }
 
     let render_headers () =
-      let open Html5.D in
-      [th [pcdata "Resource"]; th [pcdata "Account"];
-       th [pcdata "Nick"]; th [pcdata "Present"]]
+      [D.th [D.pcdata "Resource"]; D.th [D.pcdata "Account"];
+       D.th [D.pcdata "Nick"]; D.th [D.pcdata "Present"]]
 
     let render_row pres =
-      let open Html5.D in
-      [td [pcdata pres.resource_jid]; td [pcdata pres.account_jid];
-       td [pcdata (Option.get_or "-" pres.nick)];
-       td [pcdata (string_of_bool pres.is_present)]]
+      [D.td [D.pcdata pres.resource_jid]; D.td [D.pcdata pres.account_jid];
+       D.td [D.pcdata (Option.get_or "-" pres.nick)];
+       D.td [D.pcdata (string_of_bool pres.is_present)]]
 
     let simple_select = Eliom_content_core.Html5.D.select
     let simple_option l = Eliom_content_core.Html5.D.(option (pcdata l))
@@ -360,8 +353,7 @@
     let dummy_opt = ([], "*", None, false)
 
     let account_optgroup : [`Option] Eliom_content.Html5.R.elt RList.t =
-      let mkopt acct =
-	Html5.F.option (Html5.F.pcdata acct.Account.account_jid) in
+      let mkopt acct = F.option (F.pcdata acct.Account.account_jid) in
       rlist_of_signal @@
       React.S.map ~eq:(==)
 	(fun accts ->
@@ -370,16 +362,15 @@
 	Accounts_editor.content
 
     let render_edit_row pres_opt =
-      let open Html5.D in
-      let inp_resource_jid = input ~a:[a_size 12] ~input_type:`Text () in
-      let inp_account_jid = Html5.R.select account_optgroup in
-      let inp_nick = input ~a:[a_size 8] ~input_type:`Text () in
-      let inp_is_present = input ~input_type:`Checkbox () in
+      let inp_resource_jid = D.input ~a:[D.a_size 12] ~input_type:`Text () in
+      let inp_account_jid = R.select account_optgroup in
+      let inp_nick = D.input ~a:[D.a_size 8] ~input_type:`Text () in
+      let inp_is_present = D.input ~input_type:`Checkbox () in
       let ed = {
-	ed_resource_jid = Html5.To_dom.of_input inp_resource_jid;
-	ed_account_jid = Html5.To_dom.of_select inp_account_jid;
-	ed_nick = Html5.To_dom.of_input inp_nick;
-	ed_is_present = Html5.To_dom.of_input inp_is_present;
+	ed_resource_jid = To_dom.of_input inp_resource_jid;
+	ed_account_jid = To_dom.of_select inp_account_jid;
+	ed_nick = To_dom.of_input inp_nick;
+	ed_is_present = To_dom.of_input inp_is_present;
       } in
       Option.iter
 	(fun pres ->
@@ -388,8 +379,8 @@
 	  ed.ed_nick##value <- Js.string (Option.get_or "" pres.nick);
 	  ed.ed_is_present##checked <- Js.bool pres.is_present)
 	pres_opt;
-      ed, [td [inp_resource_jid]; td [inp_account_jid];
-	   td [inp_nick]; td [inp_is_present]]
+      ed, [D.td [inp_resource_jid]; D.td [inp_account_jid];
+	   D.td [inp_nick]; D.td [inp_is_present]]
 
     let decode_row pres_opt ed =
       let resource_jid = Js.to_string ed.ed_resource_jid##value in
@@ -410,29 +401,29 @@ module Admin_app = Eliom_registration.App
 
 let admin_handler () () =
 
-  let accounts_editor = Html5.D.div [] in
+  let accounts_editor = D.div [] in
   ignore {unit{
     Accounts_editor.clientside %accounts_editor %Accounts_editor.serverside
   }};
 
-  let chatrooms_editor = Html5.D.div [] in
+  let chatrooms_editor = D.div [] in
   ignore {unit{
     Chatrooms_editor.clientside %chatrooms_editor %Chatrooms_editor.serverside
   }};
 
-  let presence_editor = Html5.D.div [] in
+  let presence_editor = D.div [] in
   ignore {unit{
     Presence_editor.clientside %presence_editor %Presence_editor.serverside
   }};
 
-  Lwt.return Html5.D.(Batyrweb_tools.D.page "Administration" [
-    h2 [pcdata "Accounts"];
+  Lwt.return @@ Batyrweb_tools.D.page "Administration" [
+    D.h2 [D.pcdata "Accounts"];
     accounts_editor;
-    h2 [pcdata "Presence"];
+    D.h2 [D.pcdata "Presence"];
     presence_editor;
-    h2 [pcdata "Chatrooms"];
+    D.h2 [D.pcdata "Chatrooms"];
     chatrooms_editor;
-  ])
+  ]
 
 let () =
   Admin_app.register ~service:admin_service admin_handler

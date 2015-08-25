@@ -15,7 +15,7 @@
  *)
 
 {shared{
-  open Eliom_content
+  open Eliom_content.Html5
   open Printf
   open Scanf
   open Unprime
@@ -40,7 +40,7 @@
   module Chatroom = struct
     type t = chatroom
     let compare = String.compare
-    let render_row room = Html5.D.([td [pcdata room]])
+    let render_row room = D.([td [pcdata room]])
   end
   module Chatrooms_live = Live_table (Chatroom)
 
@@ -185,21 +185,20 @@ let client_transcript_service =
   }
 
   let append_message ts msg =
-    let open Html5.F in
     let msg_frag =
       match msg.msg_body with
       | None -> []
-      | Some body -> [span ~a:[a_class ["body"]] [pcdata body]] in
+      | Some body -> [F.span ~a:[F.a_class ["body"]] [F.pcdata body]] in
     let msg_frag =
       match
 	match msg.msg_subject, msg.msg_thread with
 	| None, None -> None
 	| None, Some thread ->
-	  Some [pcdata (sprintf "[- %s] " thread)]
+	  Some [F.pcdata (sprintf "[- %s] " thread)]
 	| Some subject, None ->
-	  Some [pcdata (sprintf "[%s] " subject)]
+	  Some [F.pcdata (sprintf "[%s] " subject)]
 	| Some subject, Some thread ->
-	  Some [pcdata (sprintf "[%s - %s] " subject thread)]
+	  Some [F.pcdata (sprintf "[%s - %s] " subject thread)]
       with
       | None -> msg_frag
       | Some st_frag ->
@@ -211,7 +210,7 @@ let client_transcript_service =
       let (y, m, d), wd = day, Caltime.day_names.(jstime##getDay()) in
       let day_str = sprintf "%04d-%02d-%02d" y m d in
       let header_h2 = h2 [pcdata (wd ^ " " ^ day_str)] in
-      Dom.appendChild ts.ts_dom (Html5.To_dom.of_h2 header_h2);
+      Dom.appendChild ts.ts_dom (To_dom.of_h2 header_h2);
       ts.ts_day <- day;
       ts.ts_day_str <- day_str
     end;
@@ -221,12 +220,12 @@ let client_transcript_service =
     let frag = sprintf "%sT%02d%02d%02d" ts.ts_day_str h m s in
     let message_p =
       (p ~a:[a_class ["message"]; a_id frag]
-	(span ~a:[a_class ["hour"]] [pcdata hour] :: pcdata " " ::
-	 span ~a:[a_class ["sender"; msg.msg_sender_cls]]
-	      [pcdata msg.msg_sender] ::
-	 pcdata ": " ::
+	(F.span ~a:[F.a_class ["hour"]] [F.pcdata hour] :: F.pcdata " " ::
+	 F.span ~a:[F.a_class ["sender"; msg.msg_sender_cls]]
+		[F.pcdata msg.msg_sender] ::
+	 F.pcdata ": " ::
 	 msg_frag)) in
-    Dom.appendChild ts.ts_dom (Html5.To_dom.of_p message_p)
+    Dom.appendChild ts.ts_dom (To_dom.of_p message_p)
 
   let update_thread = ref None
 
@@ -297,19 +296,19 @@ let client_transcript_service =
     Eliom_client.call_ocaml_service ~service:%client_transcript_service
 				    (room, (tI, (tF, pat))) ()
       >|= fun messages ->
-    let transcript_div = Html5.D.div [] in
+    let transcript_div = D.div [] in
     let ts = {
       ts_day = (0, 0, 0);
       ts_day_str = "";
-      ts_dom = Html5.To_dom.of_div transcript_div;
+      ts_dom = To_dom.of_div transcript_div;
     } in
     let message_count = List.length messages in
     List.iter (append_message ts) messages;
     if message_count = query_limit then begin
       let limit_s =
 	sprintf "This result has been limited to %d messages." query_limit in
-      let limit_p = Html5.D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
-      Dom.appendChild ts.ts_dom (Html5.To_dom.of_p limit_p)
+      let limit_p = D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
+      Dom.appendChild ts.ts_dom (To_dom.of_p limit_p)
     end;
     let jt_now = jsnew Js.date_now() in
     if Caltime.day_start shown_date = Caltime.day_start jt_now then
@@ -375,11 +374,11 @@ let client_transcript_service =
 
     transcript_dom##innerHTML <- Js.string "";
     render_years () >|=
-      List.iter (Dom.appendChild transcript_dom *< Html5.To_dom.of_element)
+      List.iter (Dom.appendChild transcript_dom *< To_dom.of_element)
 }}
 
 let transcript_handler (room_jid, (tI, (tF, pat))) () =
-  let open Html5.D in
+  let open D in
   let transcript_div = div ~a:[a_class ["transcript"]] [] in
   let room_node = Node.of_string room_jid in
   lwt room =
@@ -407,7 +406,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   let info_span = span ~a:[a_class ["error"]] [] in
   let clear_handler =
     {{fun ev ->
-      let info_dom = Html5.To_dom.of_span %info_span in
+      let info_dom = To_dom.of_span %info_span in
       let search_dom =
 	Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
       info_dom##className <- Js.string "";
@@ -418,7 +417,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
       clear_dom##disabled <- Js._true;
       Lwt.ignore_result begin
 	update_transcript_view ~room:%room_jid ~min_time:%min_time
-			       (Html5.To_dom.of_div %transcript_div)
+			       (To_dom.of_div %transcript_div)
 			       %update_comet
       end
     }} in
@@ -428,17 +427,17 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
 	   ~button_type:`Button [pcdata "all"] in
   let search_handler =
     {{fun ev ->
-      let info_dom = Html5.To_dom.of_span %info_span in
+      let info_dom = To_dom.of_span %info_span in
       let search_dom =
 	Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
       let pat = match Js.to_string search_dom##value
 		with "" -> None | s -> Some s in
-      (Html5.To_dom.of_button %clear_button)##disabled <- Js.bool (pat = None);
+      (To_dom.of_button %clear_button)##disabled <- Js.bool (pat = None);
       info_dom##className <- Js.string "";
       info_dom##innerHTML <- Js.string "";
       Lwt.ignore_result begin try_lwt
 	update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat
-			       (Html5.To_dom.of_div %transcript_div)
+			       (To_dom.of_div %transcript_div)
 			       %update_comet
       with Eliom_lib.Exception_on_server msg ->
 	info_dom##className <- Js.string "error";
@@ -453,7 +452,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   let search_input = input ~a:[a_id "search_text"; a_onchange search_handler]
 			   ~input_type:`Text () in
   ignore {unit{
-    let transcript_dom = Html5.To_dom.of_div %transcript_div in
+    let transcript_dom = To_dom.of_div %transcript_div in
     let tI = ref %tI in
     let tF = ref %tF in
     let pat = ref %pat in
