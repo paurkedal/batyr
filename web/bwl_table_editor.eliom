@@ -204,7 +204,7 @@
 
     val which_type : string
     val fetch_all : unit -> t list Lwt.t
-    val add : t option -> t -> unit Lwt.t
+    val add : t option -> t -> t Lwt.t
     val remove : t -> unit Lwt.t
   end
 
@@ -226,7 +226,7 @@
     let add = server_function Json.t<E.t option * E.t>
       begin fun (old_entry_opt, entry) ->
         try_lwt
-          E.add old_entry_opt entry >|= fun () ->
+          E.add old_entry_opt entry >|= fun entry ->
 	  Option.iter (fun entry -> emit (Some (Remove entry))) old_entry_opt;
 	  emit (Some (Add entry));
 	  Ok ()

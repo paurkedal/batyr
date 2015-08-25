@@ -52,7 +52,7 @@
 
     val which_type : string
     val fetch_all : unit -> t list Lwt.t
-    val add : t option -> t -> unit Lwt.t
+    val add : t option -> t -> t Lwt.t
     val remove : t -> unit Lwt.t
   end
 

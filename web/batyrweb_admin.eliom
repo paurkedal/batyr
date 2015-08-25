@@ -40,7 +40,7 @@
     type t = {
       account_jid : string;
       server_port : int;
-      client_password : string;
+      client_password : string option;
       is_active : bool;
     } deriving (Json)
 
@@ -48,6 +48,8 @@
   end
 }}
 {client{
+  let hidden = "********"
+
   module Account = struct
     include Account_shared
 
@@ -59,11 +61,14 @@
     }
 
     let render_headers () =
-      [ D.th [D.pcdata "JID"]; D.th [D.pcdata "Password"];
-	D.th [D.pcdata "Server Port"]; D.th [D.pcdata "Active"] ]
+      [ D.th [D.pcdata "JID"];
+	D.th [D.pcdata "Password"];
+	D.th [D.pcdata "Server Port"];
+	D.th [D.pcdata "Active"] ]
 
     let render_row ac =
-      [ D.td [D.pcdata ac.account_jid]; D.td [D.pcdata ac.client_password];
+      [ D.td [D.pcdata ac.account_jid];
+	D.td [D.pcdata (Option.get_or hidden ac.client_password)];
 	D.td [D.pcdata (string_of_int ac.server_port)];
 	D.td [D.pcdata (string_of_bool ac.is_active)] ]
 
@@ -81,7 +86,8 @@
       Option.iter
 	(fun ac ->
 	  ed.ed_jid##value <- Js.string ac.account_jid;
-	  ed.ed_password##value <- Js.string ac.client_password;
+	  Option.iter (fun pw -> ed.ed_password##value <- Js.string pw)
+		      ac.client_password;
 	  ed.ed_server_port##value <- Js.string (string_of_int ac.server_port);
 	  ed.ed_is_active##checked <- Js.bool ac.is_active)
 	ac_opt;
@@ -94,7 +100,9 @@
 
     let decode_row _ ed =
       { account_jid = Js.to_string ed.ed_jid##value;
-	client_password = Js.to_string ed.ed_password##value;
+	client_password = (match Js.to_string ed.ed_password##value with
+			    | "" -> None
+			    | pw -> Some pw);
 	server_port = int_of_string (Js.to_string ed.ed_server_port##value);
 	is_active = Js.to_bool ed.ed_is_active##checked; }
   end
@@ -105,9 +113,13 @@
 
     let which_type = "account"
 
+    let hide_passwords = Batyr_config.hide_passwords_cp#get
+
     let of_account a =
+      let client_password =
+	if hide_passwords then None else Some (Account.password a) in
       { account_jid = Resource.to_string (Account.resource a);
-	client_password = Account.password a;
+	client_password;
 	server_port = Account.port a;
 	is_active = Account.is_active a; }
 
@@ -120,6 +132,10 @@
       let is_active = a.is_active in
       begin match old_account_opt with
       | None ->
+	lwt password =
+	  match password with
+	  | None -> Lwt.fail (Failure "Password is needed for new account.")
+	  | Some pw -> Lwt.return pw in
 	Batyr_data.Account.create ~resource ~port ~password ~is_active ()
 	  >|= fun account ->
 	if is_active then ignore (Batyr_presence.Session.start account)
@@ -136,11 +152,12 @@
 	  else
 	    Lwt.return_unit
 	  end >>
-	  Batyr_data.Account.update ~resource ~port ~password ~is_active account
+	  Batyr_data.Account.update ~resource ~port ?password ~is_active account
 	    >|= fun () ->
 	  if is_active then ignore (Batyr_presence.Session.start account)
 	end
-      end
+      end >>
+      Lwt.return (if hide_passwords then {a with client_password = None} else a)
 
     let remove a =
       let resource = Resource.of_string a.account_jid in
@@ -193,13 +210,15 @@
       lwt node = Lwt.wrap1 Node.of_string room.room_jid in
       lwt node_id = Node.store node in
       let room = {room with room_jid = Node.to_string node} in
-      Batyr_db.use @@ fun conn ->
+      Batyr_db.use begin fun conn ->
 	Batyr_sql.Admin.upsert_chatroom (old_node_id_opt <> Some node_id)
 	  node_id room.room_alias room.room_description room.transcribe conn >>
 	match old_node_id_opt with
 	| Some old_node_id when old_node_id <> node_id ->
 	  Batyr_sql.Admin.delete_chatroom old_node_id conn
 	| _ -> Lwt.return_unit
+      end >>
+      Lwt.return room
 
     let remove room =
       lwt node = Lwt.wrap1 Node.of_string room.room_jid in
@@ -306,7 +325,7 @@
       lwt account_id =
 	Resource.stored_id (Resource.of_string pres.account_jid)
 	  >|= Option.get in
-      Batyr_db.use @@ fun conn ->
+      Batyr_db.use begin fun conn ->
 	Batyr_sql.Admin.upsert_presence
 	  (old_resource_id_opt <> Some resource_id)
 	  resource_id account_id pres.nick pres.is_present conn >>
@@ -314,6 +333,8 @@
 	| Some old_resource_id when old_resource_id <> resource_id ->
 	  Batyr_sql.Admin.delete_presence old_resource_id conn
 	| _ -> Lwt.return_unit
+      end >>
+      Lwt.return pres
     let remove pres =
       lwt resource_id =
 	Resource.stored_id (Resource.of_string pres.resource_jid)

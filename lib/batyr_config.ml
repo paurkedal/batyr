@@ -23,6 +23,9 @@ let group = new group
 let db_uri_cp = new string_cp ~group ["db_uri"] "postgresql://"
   "Caqti URI for connecting to database."
 
+let hide_passwords_cp = new bool_cp ~group ["admin"] true
+  "Hide the account passwords in the admin interface."
+
 let () =
   let section = Lwt_log.Section.make "Batyr.config" in
   let fp =
