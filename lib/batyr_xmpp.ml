@@ -42,9 +42,10 @@ let make_plain_socket fd =
 
 let make_tls_socket host fd =
   Nocrypto_entropy_lwt.initialize () >>
-  lwt authenticator = X509_lwt.authenticator `No_authentication_I'M_STUPID in
+  let%lwt authenticator =
+    X509_lwt.authenticator `No_authentication_I'M_STUPID in
   let config = Tls.Config.client ~authenticator () in
-  lwt tls_socket = Tls_lwt.Unix.client_of_fd config ~host fd in
+  let%lwt tls_socket = Tls_lwt.Unix.client_of_fd config ~host fd in
 
   let module Socket = struct
 
@@ -54,7 +55,7 @@ let make_tls_socket host fd =
 
     let read socket buf start len =
       let cs = Cstruct.create len in
-      lwt len' = Tls_lwt.Unix.read socket cs in
+      let%lwt len' = Tls_lwt.Unix.read socket cs in
       for i = 0 to len' - 1 do
 	Bytes.set buf (start + i) (Cstruct.get_char cs i)
       done;
@@ -94,9 +95,9 @@ let with_chat session {server; username; password; resource; port} =
   let sockaddr = Unix.ADDR_INET (inetaddr, port) in
   let fd = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
   Lwt_unix.connect fd sockaddr >>
-  lwt plain_socket = make_plain_socket fd in
+  let%lwt plain_socket = make_plain_socket fd in
   let tls_socket () = make_tls_socket server fd in
-  lwt session_data =
+  let%lwt session_data =
     Chat.setup_session ~user_data:() ~myjid ~plain_socket ~tls_socket
 		       ~password session in
   Chat.parse session_data >>

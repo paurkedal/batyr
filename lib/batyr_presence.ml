@@ -125,8 +125,8 @@ let on_muc_message cs ms msg =
     with Not_found -> None in
   if Muc_room.transcribe ms.ms_room then
     let author_id = Option.search Resource.cached_id muc_author in
-    lwt sender_id = Resource.store (Message.sender msg) in
-    lwt recipient_id = Resource.store (Message.recipient msg) in
+    let%lwt sender_id = Resource.store (Message.sender msg) in
+    let%lwt recipient_id = Resource.store (Message.recipient msg) in
     Batyr_db.use @@
       Batyr_sql.Presence.insert_muc_message
 	(CalendarLib.Calendar.from_unixfloat (Message.seen_time msg))
@@ -302,7 +302,7 @@ let drive_signal
   let cond = Lwt_condition.create () in
   let driver () =
     let backoff = Backoff.create () in
-    while_lwt true do
+    while%lwt true do
       if React.S.value s
       then Lwt_condition.wait cond >> Lwt_unix.sleep dt_edge
       else
@@ -324,10 +324,10 @@ module Session = struct
       | _ -> assert false in
     let since = Option.map CalendarLib.Calendar.to_unixfloat since in
     let nick = Option.get_or (Chat.get_myjid chat).JID.node nick in
-    lwt resource = Resource.stored_of_id resource_id in
+    let%lwt resource = Resource.stored_of_id resource_id in
     let room_node = Resource.node resource in
     let room_jid = Resource.jid resource in
-    match_lwt Muc_room.stored_of_node room_node with
+    match%lwt Muc_room.stored_of_node room_node with
     | None ->
       Lwt_log.error_f ~section "Presence in non-room %s."
 		      (Node.to_string room_node)
@@ -335,7 +335,7 @@ module Session = struct
       (* FIXME: Need <delay/> *)
       let since_r = ref (Option.map ((+.) 0.05) since) in
       let muc_login () =
-	lwt seconds =
+	let%lwt seconds =
 	  begin match !since_r with
 	  | None ->
 	    Lwt_log.info_f ~section "Entering %s, no previous logs."
@@ -348,7 +348,7 @@ module Session = struct
 	    Lwt.return (Some (int_of_float t))
 	  end in
 	Chat_muc.enter_room ?seconds ~nick chat room_jid in
-      lwt room_id = Node.stored_id room_node >|= Option.get in
+      let%lwt room_id = Node.stored_id room_node >|= Option.get in
       let ms_presences, ms_emit_presence = React.E.create () in
       let ms_messages, ms_emit_message = React.E.create () in
       let my_jid = JID.replace_resource (Resource.jid resource) nick in
@@ -409,7 +409,7 @@ module Session = struct
       if cs.cs_chat <> Shutdown then
 	cs.cs_chat <- Disconnected (Lwt_condition.create ());
       Hashtbl.clear cs.cs_rooms in
-    try_lwt Batyr_xmpp.with_chat (chat_handler cs) params with
+    try%lwt Batyr_xmpp.with_chat (chat_handler cs) params with
     | End_of_file ->
       clear_cs ();
       Lwt_log.error_f ~section "Lost connection."
