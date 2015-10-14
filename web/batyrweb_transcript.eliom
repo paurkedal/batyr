@@ -202,14 +202,14 @@ let client_transcript_service =
       with
       | None -> msg_frag
       | Some st_frag ->
-	span ~a:[a_class ["subject"]] st_frag :: msg_frag in
+	F.span ~a:[F.a_class ["subject"]] st_frag :: msg_frag in
     let jstime = jsnew Js.date_fromTimeValue(msg.msg_time *. 1000.0) in
     let day = jstime##getFullYear(), jstime##getMonth() + 1,
 	      jstime##getDate() in
     if day <> ts.ts_day then begin
       let (y, m, d), wd = day, Caltime.day_names.(jstime##getDay()) in
       let day_str = sprintf "%04d-%02d-%02d" y m d in
-      let header_h2 = h2 [pcdata (wd ^ " " ^ day_str)] in
+      let header_h2 = F.h2 [F.pcdata (wd ^ " " ^ day_str)] in
       Dom.appendChild ts.ts_dom (To_dom.of_h2 header_h2);
       ts.ts_day <- day;
       ts.ts_day_str <- day_str
@@ -219,7 +219,7 @@ let client_transcript_service =
     let hour = sprintf "%02d:%02d:%02d" h m s in
     let frag = sprintf "%sT%02d%02d%02d" ts.ts_day_str h m s in
     let message_p =
-      (p ~a:[a_class ["message"]; a_id frag]
+      (F.p ~a:[F.a_class ["message"]; F.a_id frag]
 	(F.span ~a:[F.a_class ["hour"]] [F.pcdata hour] :: F.pcdata " " ::
 	 F.span ~a:[F.a_class ["sender"; msg.msg_sender_cls]]
 		[F.pcdata msg.msg_sender] ::
