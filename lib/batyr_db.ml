@@ -189,6 +189,7 @@ module Expr = struct
   let (>)	= let op = infixB 15 ">" in call2 op
   let (=~)	= let op = infixB 15 "~" in fun x re -> call2 op x (string re)
   let ( =~* )	= let op = infixB 15 "~*" in fun x re -> call2 op x (string re)
+  let (=~@)	= let op = infixB 15 "@@" in fun x p -> call2 op x (string p)
   let like	= let op = infixB 15 "like" in fun x p -> call2 op x (string p)
   let ilike	= let op = infixB 15 "ilike" in fun x p -> call2 op x (string p)
 

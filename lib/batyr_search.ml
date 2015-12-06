@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,8 @@ let rec denote_pattern pat =
   let open Batyr_db.Expr in
   match pat with
   | Sp_regex s -> var "body" =~* s
-  | Sp_substring s | Sp_word s -> ilike (var "body") ("%" ^ s ^ "%")
+  | Sp_substring s -> ilike (var "body") ("%" ^ s ^ "%")
+  | Sp_word s -> var "body" =~@ s
   | Sp_not pat -> not (denote_pattern pat)
   | Sp_and (patA, patB) -> denote_pattern patA && denote_pattern patB
   | Sp_or (patA, patB) -> denote_pattern patA || denote_pattern patB

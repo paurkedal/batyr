@@ -1,4 +1,4 @@
--- Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+-- Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -69,3 +69,7 @@ CREATE TABLE batyr.messages (
     thread text,
     body text
 );
+
+CREATE INDEX messages_fts ON batyr.messages
+  USING gin(to_tsvector('english',
+	  coalesce(subject, '') || coalesce(thread, '') || coalesce(body, '')));

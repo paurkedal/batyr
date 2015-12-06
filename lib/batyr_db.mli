@@ -55,6 +55,7 @@ module Expr : sig
   val (>) : 'a t -> 'a t -> bool t
   val (=~) : 'a t -> string -> bool t
   val ( =~* ) : 'a t -> string -> bool t
+  val (=~@) : 'a t -> string -> bool t
   val like : 'a t -> string -> bool t
   val ilike : 'a t -> string -> bool t
 
