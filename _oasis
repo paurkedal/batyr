@@ -30,7 +30,7 @@ Library batyr
     Batyr_xmpp
   BuildDepends:
     caqti, calendar, config-file, eliom, erm_xmpp, extunix, lwt, lwt.react,
-    postgresql, prime, prime.testing, tls.lwt
+    postgresql, prime, prime.unstable, tls.lwt
   ByteOpt: -thread
   NativeOpt: -thread
 
@@ -56,14 +56,14 @@ Library batyrweb
 
 Executable batyrweb_main
   Path: web/client
-  BuildDepends: eliom.client, prime, prime.testing
+  BuildDepends: eliom.client, prime, prime.unstable
   MainIs: main.ml
   ByteOpt: -thread
   Install: false
 
 Executable batyrweb_admin
   Path: web/client
-  BuildDepends: eliom.client, prime, prime.testing
+  BuildDepends: eliom.client, prime, prime.unstable
   MainIs: admin.ml
   ByteOpt: -thread
   Install: false
