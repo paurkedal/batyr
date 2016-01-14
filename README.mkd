@@ -8,6 +8,21 @@ and provides a web interface for browsing and searching the them.  The web
 interface runs under [Ocsigen][ocsigen].
 
 
+## Installation
+
+Prepare an OPAM installation as described in http://opam.ocaml.org/, then
+
+    opam repo add paurkedal https://github.com/paurkedal/opam-repo-paurkedal.git
+    opam install batyr
+
+If you wish to try it in a local Git clone, add [--deps-only] to the last
+command, then in the top source directory:
+
+    oasis setup -setup-update dynamic
+    ocaml setup.ml -configure
+    make
+
+
 ## Deployment
 
 See the [Ocsigen manual][ocsigen] for how to setup up the web server.  A
