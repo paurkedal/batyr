@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ let group = new group
 let db_uri_cp = new string_cp ~group ["db_uri"] "postgresql://"
   "Caqti URI for connecting to database."
 
-let hide_passwords_cp = new bool_cp ~group ["admin"] true
+let hide_passwords_cp = new bool_cp ~group ["admin"; "hide_passwords"] true
   "Hide the account passwords in the admin interface."
 
 let () =
