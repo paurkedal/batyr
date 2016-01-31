@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -422,9 +422,9 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
       end
     }} in
   let clear_button =
-    button ~a:[a_onclick clear_handler; a_id "clear_search";
-	       a_disabled `Disabled]
-	   ~button_type:`Button [pcdata "all"] in
+    button ~a:[a_button_type `Button; a_onclick clear_handler;
+	       a_id "clear_search"; a_disabled `Disabled]
+	   [pcdata "all"] in
   let search_handler =
     {{fun ev ->
       let info_dom = To_dom.of_span %info_span in
@@ -447,10 +447,12 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     }} in
   let search_handler_mouse =
     {{fun ev -> %search_handler (ev :> Dom_html.event Js.t)}} in
-  let search_button = button ~a:[a_onclick search_handler_mouse]
-			     ~button_type:`Button [pcdata "matching"] in
-  let search_input = input ~a:[a_id "search_text"; a_onchange search_handler]
-			   ~input_type:`Text () in
+  let search_button =
+    button ~a:[a_button_type `Button; a_onclick search_handler_mouse]
+	   [pcdata "matching"] in
+  let search_input =
+    input ~a:[a_input_type `Text; a_id "search_text"; a_onchange search_handler]
+	  () in
   ignore {unit{
     let transcript_dom = To_dom.of_div %transcript_div in
     let tI = ref %tI in

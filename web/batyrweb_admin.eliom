@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -73,10 +73,14 @@
 	D.td [D.pcdata (string_of_bool ac.is_active)] ]
 
     let render_edit_row ac_opt =
-      let jid_input = D.input ~a:[D.a_size 12] ~input_type:`Text () in
-      let password_input = D.input ~a:[D.a_size 12] ~input_type:`Text () in
-      let server_port_input = D.input ~a:[D.a_size 4] ~input_type:`Text () in
-      let is_active_input = D.input ~input_type:`Checkbox () in
+      let jid_input =
+	D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
+      let password_input =
+	D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
+      let server_port_input =
+	D.input ~a:[D.a_input_type `Text; D.a_size 4] () in
+      let is_active_input =
+	D.input ~a:[D.a_input_type `Checkbox] () in
       let ed = {
 	ed_jid = To_dom.of_input jid_input;
 	ed_password = To_dom.of_input password_input;
@@ -258,10 +262,10 @@
 	D.td [D.pcdata (string_of_bool r.transcribe)] ]
 
     let render_edit_row r_opt =
-      let jid_inp = D.input ~a:[D.a_size 12] ~input_type:`Text () in
-      let alias_inp = D.input ~a:[D.a_size 12] ~input_type:`Text () in
-      let description_inp = D.input ~a:[D.a_size 12] ~input_type:`Text () in
-      let transcribe_inp = D.input ~input_type:`Checkbox () in
+      let jid_inp = D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
+      let alias_inp = D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
+      let description_inp = D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
+      let transcribe_inp = D.input ~a:[D.a_input_type `Checkbox] () in
       let ed = {
 	ed_jid = To_dom.of_input jid_inp;
 	ed_alias = To_dom.of_input alias_inp;
@@ -345,10 +349,6 @@
 {client{
   open ReactiveData
 
-  (* TODO: Utilize the ReactiveData API. *)
-  let rlist_of_signal s =
-    RList.make_from (React.S.value s) (React.S.diff (fun v _ -> RList.Set v) s)
-
   module Presence = struct
     include Presence_shared
 
@@ -375,7 +375,7 @@
 
     let account_optgroup : [`Option] Eliom_content.Html5.R.elt RList.t =
       let mkopt acct = F.option (F.pcdata acct.Account.account_jid) in
-      rlist_of_signal @@
+      RList.from_signal @@
       React.S.map ~eq:(==)
 	(fun accts ->
 	  Accounts_editor.Enset.fold (List.push *< mkopt) accts []
@@ -383,10 +383,14 @@
 	Accounts_editor.content
 
     let render_edit_row pres_opt =
-      let inp_resource_jid = D.input ~a:[D.a_size 12] ~input_type:`Text () in
-      let inp_account_jid = R.select account_optgroup in
-      let inp_nick = D.input ~a:[D.a_size 8] ~input_type:`Text () in
-      let inp_is_present = D.input ~input_type:`Checkbox () in
+      let inp_resource_jid =
+	D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
+      let inp_account_jid =
+	R.select account_optgroup in
+      let inp_nick =
+	D.input ~a:[D.a_input_type `Text; D.a_size 8] () in
+      let inp_is_present =
+	D.input ~a:[D.a_input_type `Checkbox] () in
       let ed = {
 	ed_resource_jid = To_dom.of_input inp_resource_jid;
 	ed_account_jid = To_dom.of_select inp_account_jid;

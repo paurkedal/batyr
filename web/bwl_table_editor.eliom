@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
  *)
 
 {shared{
-  open Eliom_content
+  open Eliom_content.Html5
   open Unprime_option
   open Batyrweb_prereq
   open Printf
@@ -38,7 +38,7 @@
       * (E.t, unit fallible) server_function
       * update Eliom_comet.Channel.t
 
-    type clientside = [`Div] Html5.elt -> serverside -> unit
+    type clientside = [`Div] elt -> serverside -> unit
 
   end
 }}
@@ -49,9 +49,9 @@
 
     type edit_dom
 
-    val render_headers : unit -> [> `Th] Html5.elt list
-    val render_row : t -> [`Td] Html5.elt list
-    val render_edit_row : t option -> edit_dom * [`Td] Html5.elt list
+    val render_headers : unit -> [> `Th] elt list
+    val render_row : t -> [`Td] elt list
+    val render_edit_row : t option -> edit_dom * [`Td] elt list
     val decode_row : t option -> edit_dom -> t
   end
 
@@ -67,11 +67,11 @@
       let enset = ref Enset.empty in
       let editing = ref None (* or Some (pos, row, elt_opt) *) in
 
-      let new_button = Html5.D.(button ~button_type:`Button [pcdata "new"]) in
-      let top_outside_td = Html5.D.(td ~a:[a_class ["outside"]] [new_button]) in
-      let top_tr = Html5.D.tr (E.render_headers () @ [top_outside_td]) in
-      let table = Html5.D.(table ~a:[a_class ["edit"]] [top_tr]) in
-      let table_dom = Html5.To_dom.of_table table in
+      let new_button = D.(button ~a:[D.a_button_type `Button] [pcdata "new"]) in
+      let top_outside_td = D.(td ~a:[a_class ["outside"]] [new_button]) in
+      let top_tr = D.tr (E.render_headers () @ [top_outside_td]) in
+      let table = D.(table ~a:[a_class ["edit"]] [top_tr]) in
+      let table_dom = To_dom.of_table table in
 
       let row_pos i =
 	match !editing with
@@ -82,7 +82,7 @@
 	row##innerHTML <- Js.string "";
 	List.iter
 	  (fun cell ->
-	    let cell_dom = Html5.To_dom.of_td cell in
+	    let cell_dom = To_dom.of_td cell in
 	    ignore (Dom.appendChild row cell_dom))
 	  (E.render_row elt);
 	let on_edit ev = enable_edit pos row (Some elt) in
@@ -92,14 +92,14 @@
 	    | Ok () -> ()
 	    | Failed msg -> Dom_html.window##alert(Js.string msg)
 	  end in
-	let outside_td = Html5.D.(
-	  td ~a:[a_class ["outside"]] [
-	    button ~a:[a_onclick on_edit]
-		   ~button_type:`Button [pcdata "edit"];
-	    button ~a:[a_onclick on_remove]
-		   ~button_type:`Button [pcdata "remove"]
-	  ]) in
-	Dom.appendChild row (Html5.To_dom.of_td outside_td)
+	let outside_td =
+	  D.td ~a:[D.a_class ["outside"]] [
+	    D.button ~a:[D.a_button_type `Button; D.a_onclick on_edit]
+		     [D.pcdata "edit"];
+	    D.button ~a:[D.a_button_type `Button; D.a_onclick on_remove]
+		     [D.pcdata "remove"]
+	  ] in
+	Dom.appendChild row (To_dom.of_td outside_td)
 
       and render_edit_row_outside ?(is_removed = false) row elt_opt edit_dom =
 	let on_cancel ev = disable_edit () in
@@ -113,18 +113,18 @@
 	  if is_removed then "re-add" else
 	  if elt_opt = None then "add" else
 	  "update" in
-	let outside_td = Html5.D.(td ~a:[a_class ["outside"]] [
-	  button ~a:[a_onclick on_cancel] ~button_type:`Button
-		 [pcdata "cancel"];
-	  button ~a:[a_onclick on_add] ~button_type:`Button
-		 [pcdata commit_label];
-	]) in
-	Dom.appendChild row (Html5.To_dom.of_td outside_td)
+	let outside_td = D.td ~a:[D.a_class ["outside"]] [
+	  D.button ~a:[D.a_button_type `Button; D.a_onclick on_cancel]
+		   [D.pcdata "cancel"];
+	  D.button ~a:[D.a_button_type `Button; D.a_onclick on_add]
+		   [D.pcdata commit_label];
+	] in
+	Dom.appendChild row (To_dom.of_td outside_td)
 
       and render_edit_row row elt_opt =
 	row##innerHTML <- Js.string "";
 	let edit_dom, edit_tds = E.render_edit_row elt_opt in
-	List.iter (fun cell -> Dom.appendChild row (Html5.To_dom.of_td cell))
+	List.iter (fun cell -> Dom.appendChild row (To_dom.of_td cell))
 		  edit_tds;
 	render_edit_row_outside row elt_opt edit_dom;
 	edit_dom
@@ -145,7 +145,7 @@
       let on_new _ _ =
 	enable_edit 1 table_dom##insertRow(1) None; Lwt.return_unit in
       Lwt_js_events.(async
-	(fun () -> clicks (Html5.To_dom.of_element new_button) on_new));
+	(fun () -> clicks (To_dom.of_element new_button) on_new));
 
       let add elt =
 	let i, row =
@@ -191,7 +191,7 @@
 	  | Ok entries -> List.iter add entries
 	  | Failed msg -> Dom_html.window##alert(Js.string msg));
 
-      Html5.Manip.appendChild outer_div table
+      Manip.appendChild outer_div table
   end
 
 }}
