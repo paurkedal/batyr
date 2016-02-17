@@ -53,12 +53,12 @@
   let fragment_date = React.S.map
     (fun frag ->
       let frag_date =
-	match String.cut_affix "T" frag with Some (s, _) -> s | None -> frag in
+        match String.cut_affix "T" frag with Some (s, _) -> s | None -> frag in
       match String.chop_affix "-" frag_date with
       | [sY; sM; sD] ->
-	(try Some (jsnew Js.date_day(int_of_string sY, int_of_string sM - 1,
-				     int_of_string sD))
-	 with Failure _ -> None)
+        (try Some (jsnew Js.date_day(int_of_string sY, int_of_string sM - 1,
+                                     int_of_string sD))
+         with Failure _ -> None)
       | _ -> None)
     fragment
 }}
@@ -85,33 +85,33 @@ let sql_of_pattern pat_s =
 let client_message_counts_service =
   Eliom_registration.Ocaml.register_coservice'
     ~get_params:Eliom_parameter.(string "room" ** opt (string "pat") **
-				 string "tz")
+                                 string "tz")
     begin fun (room_jid, (pat_opt, tz)) () ->
       lwt room = Lwt.wrap1 Node.of_string room_jid in
       lwt room_id =
-	match_lwt Node.stored_id room with
-	| None -> Lwt.fail Eliom_common.Eliom_404
-	| Some id -> Lwt.return id in
+        match_lwt Node.stored_id room with
+        | None -> Lwt.fail Eliom_common.Eliom_404
+        | Some id -> Lwt.return id in
       let cond =
-	let open Batyr_db.Expr in
-	var "sender.node_id" = int room_id
-	|> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt in
+        let open Batyr_db.Expr in
+        var "sender.node_id" = int room_id
+        |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt in
       let cond_str, params = Batyr_db.Expr.to_sql ~first_index:2 cond in
       let q = Caqti_query.oneshot_fun @@ function
-	`Pgsql ->
-	  sprintf
-	    "SELECT batyr.intenc_date(seen_time AT TIME ZONE 'UTC' \
-						AT TIME ZONE $1) AS t, \
-		    count(0) \
-	     FROM batyr.messages \
-	     JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
-	       ON sender_id = sender.resource_id \
-	     WHERE %s GROUP BY t"
-	     cond_str
-	| _ -> raise Caqti_query.Missing_query_string in
+        `Pgsql ->
+          sprintf
+            "SELECT batyr.intenc_date(seen_time AT TIME ZONE 'UTC' \
+                                                AT TIME ZONE $1) AS t, \
+                    count(0) \
+             FROM batyr.messages \
+             JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
+               ON sender_id = sender.resource_id \
+             WHERE %s GROUP BY t"
+             cond_str
+        | _ -> raise Caqti_query.Missing_query_string in
       Batyr_db.use @@ fun (module C : CONNECTION) ->
-	C.fold q C.Tuple.(fun t -> List.push (int 0 t, int 1 t))
-	       (Array.map C.Param.string (Array.append [|tz|] params)) []
+        C.fold q C.Tuple.(fun t -> List.push (int 0 t, int 1 t))
+               (Array.map C.Param.string (Array.append [|tz|] params)) []
     end
 
 let client_transcript_service =
@@ -121,58 +121,58 @@ let client_transcript_service =
        opt (string "pat"))
     begin fun (room_jid, (tI_opt, (tF_opt, pat_opt))) () -> Lwt.catch
       begin fun () ->
-	Lwt_log.debug_f ~section "Sending %s transcript%s."
-			room_jid (phrase_query pat_opt tI_opt tF_opt) >>
-	lwt room = Lwt.wrap1 Node.of_string room_jid in
-	lwt room_id =
-	  match_lwt Node.stored_id room with
-	  | None -> Lwt.fail Eliom_common.Eliom_404
-	  | Some id -> Lwt.return id in
-	let cond =
-	  Batyr_db.Expr.(
-	    (var "sender.node_id" = int room_id)
-	    |> Option.fold (fun tI -> (&&) (var "seen_time" >= epoch tI)) tI_opt
-	    |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
-	    |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt
-	  ) in
-	let cond_str, params = Batyr_db.Expr.to_sql cond in
-	let q = Caqti_query.oneshot_fun @@ function
-	  | `Pgsql ->
-	    (sprintf "SELECT seen_time, sender_id, subject, thread, body \
-			FROM batyr.messages \
-			JOIN (batyr.resources NATURAL JOIN batyr.nodes) \
-			  AS sender \
-			  ON sender_id = sender.resource_id \
-			WHERE %s \
-			ORDER BY seen_time, message_id LIMIT %d"
-		       cond_str query_limit)
-	  | _ -> raise Caqti_query.Missing_query_string in
-	(Batyr_db.use @@ fun (module C : CONNECTION) ->
-	  C.fold q
-	    C.Tuple.(fun t -> List.push (utc 0 t, int 1 t, option string 2 t,
-					 option string 3 t, option string 4 t))
-	    (Array.map C.Param.string params) []) >>=
-	Lwt_list.rev_map_p
-	  (fun (time, sender_id, subject_opt, thread_opt, body_opt) ->
-	    Resource.stored_of_id sender_id >|= fun sender_resource ->
-	    { msg_time = CalendarLib.Calendar.to_unixfloat time;
-	      msg_sender_cls = "jid";
-	      msg_sender = Resource.resource_name sender_resource;
-	      msg_subject = subject_opt;
-	      msg_thread = thread_opt;
-	      msg_body = body_opt })
+        Lwt_log.debug_f ~section "Sending %s transcript%s."
+                        room_jid (phrase_query pat_opt tI_opt tF_opt) >>
+        lwt room = Lwt.wrap1 Node.of_string room_jid in
+        lwt room_id =
+          match_lwt Node.stored_id room with
+          | None -> Lwt.fail Eliom_common.Eliom_404
+          | Some id -> Lwt.return id in
+        let cond =
+          Batyr_db.Expr.(
+            (var "sender.node_id" = int room_id)
+            |> Option.fold (fun tI -> (&&) (var "seen_time" >= epoch tI)) tI_opt
+            |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
+            |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt
+          ) in
+        let cond_str, params = Batyr_db.Expr.to_sql cond in
+        let q = Caqti_query.oneshot_fun @@ function
+          | `Pgsql ->
+            (sprintf "SELECT seen_time, sender_id, subject, thread, body \
+                        FROM batyr.messages \
+                        JOIN (batyr.resources NATURAL JOIN batyr.nodes) \
+                          AS sender \
+                          ON sender_id = sender.resource_id \
+                        WHERE %s \
+                        ORDER BY seen_time, message_id LIMIT %d"
+                       cond_str query_limit)
+          | _ -> raise Caqti_query.Missing_query_string in
+        (Batyr_db.use @@ fun (module C : CONNECTION) ->
+          C.fold q
+            C.Tuple.(fun t -> List.push (utc 0 t, int 1 t, option string 2 t,
+                                         option string 3 t, option string 4 t))
+            (Array.map C.Param.string params) []) >>=
+        Lwt_list.rev_map_p
+          (fun (time, sender_id, subject_opt, thread_opt, body_opt) ->
+            Resource.stored_of_id sender_id >|= fun sender_resource ->
+            { msg_time = CalendarLib.Calendar.to_unixfloat time;
+              msg_sender_cls = "jid";
+              msg_sender = Resource.resource_name sender_resource;
+              msg_subject = subject_opt;
+              msg_thread = thread_opt;
+              msg_body = body_opt })
       end
       begin fun xc ->
-	let msg = Printexc.to_string xc in
-	Lwt_log.error_f "Failed query of transcript list: %s" msg >>
-	Lwt.return [{
-	  msg_time = Unix.time ();
-	  msg_sender_cls = "meta";
-	  msg_sender = "system";
-	  msg_subject = Some "System Error";
-	  msg_thread = None;
-	  msg_body = Some (sprintf "Query failed: %s" msg);
-	}]
+        let msg = Printexc.to_string xc in
+        Lwt_log.error_f "Failed query of transcript list: %s" msg >>
+        Lwt.return [{
+          msg_time = Unix.time ();
+          msg_sender_cls = "meta";
+          msg_sender = "system";
+          msg_subject = Some "System Error";
+          msg_thread = None;
+          msg_body = Some (sprintf "Query failed: %s" msg);
+        }]
       end
     end
 
@@ -191,21 +191,21 @@ let client_transcript_service =
       | Some body -> [F.span ~a:[F.a_class ["body"]] [F.pcdata body]] in
     let msg_frag =
       match
-	match msg.msg_subject, msg.msg_thread with
-	| None, None -> None
-	| None, Some thread ->
-	  Some [F.pcdata (sprintf "[- %s] " thread)]
-	| Some subject, None ->
-	  Some [F.pcdata (sprintf "[%s] " subject)]
-	| Some subject, Some thread ->
-	  Some [F.pcdata (sprintf "[%s - %s] " subject thread)]
+        match msg.msg_subject, msg.msg_thread with
+        | None, None -> None
+        | None, Some thread ->
+          Some [F.pcdata (sprintf "[- %s] " thread)]
+        | Some subject, None ->
+          Some [F.pcdata (sprintf "[%s] " subject)]
+        | Some subject, Some thread ->
+          Some [F.pcdata (sprintf "[%s - %s] " subject thread)]
       with
       | None -> msg_frag
       | Some st_frag ->
-	F.span ~a:[F.a_class ["subject"]] st_frag :: msg_frag in
+        F.span ~a:[F.a_class ["subject"]] st_frag :: msg_frag in
     let jstime = jsnew Js.date_fromTimeValue(msg.msg_time *. 1000.0) in
     let day = jstime##getFullYear(), jstime##getMonth() + 1,
-	      jstime##getDate() in
+              jstime##getDate() in
     if day <> ts.ts_day then begin
       let (y, m, d), wd = day, Caltime.day_names.(jstime##getDay()) in
       let day_str = sprintf "%04d-%02d-%02d" y m d in
@@ -220,11 +220,11 @@ let client_transcript_service =
     let frag = sprintf "%sT%02d%02d%02d" ts.ts_day_str h m s in
     let message_p =
       (F.p ~a:[F.a_class ["message"]; F.a_id frag]
-	(F.span ~a:[F.a_class ["hour"]] [F.pcdata hour] :: F.pcdata " " ::
-	 F.span ~a:[F.a_class ["sender"; msg.msg_sender_cls]]
-		[F.pcdata msg.msg_sender] ::
-	 F.pcdata ": " ::
-	 msg_frag)) in
+        (F.span ~a:[F.a_class ["hour"]] [F.pcdata hour] :: F.pcdata " " ::
+         F.span ~a:[F.a_class ["sender"; msg.msg_sender_cls]]
+                [F.pcdata msg.msg_sender] ::
+         F.pcdata ": " ::
+         msg_frag)) in
     Dom.appendChild ts.ts_dom (To_dom.of_p message_p)
 
   let update_thread = ref None
@@ -238,9 +238,9 @@ let client_transcript_service =
   let disable_updates () =
     Option.iter
       begin fun thread ->
-	Eliom_lib.debug "Disabling updates.";
-	update_thread := None;
-	Lwt.cancel thread
+        Eliom_lib.debug "Disabling updates.";
+        update_thread := None;
+        Lwt.cancel thread
       end
       !update_thread
 
@@ -251,41 +251,41 @@ let client_transcript_service =
 
   let shown_prec = ref 3
   let shown_date = Option.get_else (fun () -> jsnew Js.date_now())
-				   (React.S.value fragment_date)
+                                   (React.S.value fragment_date)
   let shown_room = ref ""
   let shown_pat = ref None
   let shown_counts = {ct_card = 0; ct_branches = [||]}
 
   let update_message_counts room pat y_min y_now =
     if !shown_room = room && !shown_pat = pat
-	  && Array.length shown_counts.ct_branches >= (y_now - y_min + 1)
+          && Array.length shown_counts.ct_branches >= (y_now - y_min + 1)
     then
       Lwt.return_unit
     else begin
       (* FIXME: Need the real timezone for this to work across DST. *)
       let tz = sprintf "%d" (shown_date##getTimezoneOffset() / 60) in
       lwt counts =
-	Eliom_client.call_ocaml_service ~service:%client_message_counts_service
-	  (room, (pat, tz)) () in
+        Eliom_client.call_ocaml_service ~service:%client_message_counts_service
+          (room, (pat, tz)) () in
       let init_mday d =
-	{ct_card = 0; ct_branches = [||]} in
+        {ct_card = 0; ct_branches = [||]} in
       let init_month m =
-	{ct_card = 0; ct_branches = Array.init 31 init_mday} in
+        {ct_card = 0; ct_branches = Array.init 31 init_mday} in
       let init_year _ =
-	{ct_card = 0; ct_branches = Array.init 12 init_month} in
+        {ct_card = 0; ct_branches = Array.init 12 init_month} in
       shown_counts.ct_branches <- Array.init (y_now - y_min + 1) init_year;
       List.iter
-	(fun (encdate, count) ->
-	  let y = encdate lsr 16 in
-	  let m = encdate lsr 8 land 0xff in
-	  let d = encdate land 0xff in
-	  let ct_year = shown_counts.ct_branches.(y - y_min) in
-	  let ct_month = ct_year.ct_branches.(m - 1) in
-	  let ct_day = ct_month.ct_branches.(d - 1) in
-	  ct_day.ct_card   <- count;
-	  ct_month.ct_card <- ct_month.ct_card + count;
-	  ct_year.ct_card  <- ct_year.ct_card + count)
-	counts;
+        (fun (encdate, count) ->
+          let y = encdate lsr 16 in
+          let m = encdate lsr 8 land 0xff in
+          let d = encdate land 0xff in
+          let ct_year = shown_counts.ct_branches.(y - y_min) in
+          let ct_month = ct_year.ct_branches.(m - 1) in
+          let ct_day = ct_month.ct_branches.(d - 1) in
+          ct_day.ct_card   <- count;
+          ct_month.ct_card <- ct_month.ct_card + count;
+          ct_year.ct_card  <- ct_year.ct_card + count)
+        counts;
       shown_room := room;
       shown_pat := pat;
       Lwt.return_unit
@@ -294,7 +294,7 @@ let client_transcript_service =
   let render_messages ~room ?tI ?tF ?pat update_comet =
     disable_updates ();
     Eliom_client.call_ocaml_service ~service:%client_transcript_service
-				    (room, (tI, (tF, pat))) ()
+                                    (room, (tI, (tF, pat))) ()
       >|= fun messages ->
     let transcript_div = D.div [] in
     let ts = {
@@ -306,7 +306,7 @@ let client_transcript_service =
     List.iter (append_message ts) messages;
     if message_count = query_limit then begin
       let limit_s =
-	sprintf "This result has been limited to %d messages." query_limit in
+        sprintf "This result has been limited to %d messages." query_limit in
       let limit_p = D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
       Dom.appendChild ts.ts_dom (To_dom.of_p limit_p)
     end;
@@ -335,42 +335,42 @@ let client_transcript_service =
       let m = 1 + dm in
       ignore shown_date##setMonth(m - 1);
       if !shown_prec = 2 then
-	let tI = Caltime.to_epoch (Caltime.month_start shown_date) in
-	let tF = Caltime.to_epoch (Caltime.month_end shown_date) in
-	render_messages ~room ~tI ~tF ?pat update_comet
+        let tI = Caltime.to_epoch (Caltime.month_start shown_date) in
+        let tF = Caltime.to_epoch (Caltime.month_end shown_date) in
+        render_messages ~room ~tI ~tF ?pat update_comet
       else
-	let d_dfl = shown_date##getDate() in
-	let mdays = Array.init (Caltime.days_in_month shown_date)
-			       (fun i -> sprintf "%d" (i + 1)) in
-	Batyrweb_tools.D.pager
-	  ~default_index:(d_dfl - 1)
-	  ~count:(fun dd -> ct_month.ct_branches.(dd).ct_card)
-	  mdays render_content in
+        let d_dfl = shown_date##getDate() in
+        let mdays = Array.init (Caltime.days_in_month shown_date)
+                               (fun i -> sprintf "%d" (i + 1)) in
+        Batyrweb_tools.D.pager
+          ~default_index:(d_dfl - 1)
+          ~count:(fun dd -> ct_month.ct_branches.(dd).ct_card)
+          mdays render_content in
     let render_months dy =
       let ct_year = shown_counts.ct_branches.(dy) in
       let y = y_min + dy in
       ignore shown_date##setFullYear(y);
       if !shown_prec = 1 then
-	let tI = Caltime.to_epoch (Caltime.year_start shown_date) in
-	let tF = Caltime.to_epoch (Caltime.year_end shown_date) in
-	render_messages ~room ~tI ~tF ?pat update_comet
+        let tI = Caltime.to_epoch (Caltime.year_start shown_date) in
+        let tF = Caltime.to_epoch (Caltime.year_end shown_date) in
+        render_messages ~room ~tI ~tF ?pat update_comet
       else
-	let m_dfl = shown_date##getMonth() + 1 in
-	Batyrweb_tools.D.pager
-	  ~default_index:(m_dfl - 1)
-	  ~count:(fun dm -> ct_year.ct_branches.(dm).ct_card)
-	  Caltime.month_names (render_mdays ct_year) in
+        let m_dfl = shown_date##getMonth() + 1 in
+        Batyrweb_tools.D.pager
+          ~default_index:(m_dfl - 1)
+          ~count:(fun dm -> ct_year.ct_branches.(dm).ct_card)
+          Caltime.month_names (render_mdays ct_year) in
     let render_years () =
       if !shown_prec = 0 then
-	render_messages ~room ?pat update_comet
+        render_messages ~room ?pat update_comet
       else
-	let y_dfl = shown_date##getFullYear() in
-	let years = Array.init (y_now - y_min + 1)
-			       (fun dy -> sprintf "%04d" (y_min + dy)) in
-	Batyrweb_tools.D.pager
-	  ~default_index:(y_dfl - y_min)
-	  ~count:(fun dy -> shown_counts.ct_branches.(dy).ct_card)
-	  years render_months in
+        let y_dfl = shown_date##getFullYear() in
+        let years = Array.init (y_now - y_min + 1)
+                               (fun dy -> sprintf "%04d" (y_min + dy)) in
+        Batyrweb_tools.D.pager
+          ~default_index:(y_dfl - y_min)
+          ~count:(fun dy -> shown_counts.ct_branches.(dy).ct_card)
+          years render_months in
 
     transcript_dom##innerHTML <- Js.string "";
     render_years () >|=
@@ -391,12 +391,12 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     Lwt.return begin
       if Resource.node (Message.sender msg) != room_node then None else
       Some {
-	msg_time = Message.seen_time msg;
-	msg_sender_cls = "jid";
-	msg_sender = Resource.resource_name (Message.sender msg);
-	msg_subject = Message.subject msg;
-	msg_thread = Message.thread msg;
-	msg_body = Message.body msg;
+        msg_time = Message.seen_time msg;
+        msg_sender_cls = "jid";
+        msg_sender = Resource.resource_name (Message.sender msg);
+        msg_subject = Message.subject msg;
+        msg_thread = Message.thread msg;
+        msg_body = Message.body msg;
       }
     end in
   let update_events =
@@ -408,51 +408,51 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     {{fun ev ->
       let info_dom = To_dom.of_span %info_span in
       let search_dom =
-	Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
+        Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
       info_dom##className <- Js.string "";
       info_dom##innerHTML <- Js.string "";
       search_dom##value <- Js.string "";
       let clear_dom =
-	Domx_html.element_by_id Dom_html.CoerceTo.button "clear_search" in
+        Domx_html.element_by_id Dom_html.CoerceTo.button "clear_search" in
       clear_dom##disabled <- Js._true;
       Lwt.ignore_result begin
-	update_transcript_view ~room:%room_jid ~min_time:%min_time
-			       (To_dom.of_div %transcript_div)
-			       %update_comet
+        update_transcript_view ~room:%room_jid ~min_time:%min_time
+                               (To_dom.of_div %transcript_div)
+                               %update_comet
       end
     }} in
   let clear_button =
     button ~a:[a_button_type `Button; a_onclick clear_handler;
-	       a_id "clear_search"; a_disabled `Disabled]
-	   [pcdata "all"] in
+               a_id "clear_search"; a_disabled `Disabled]
+           [pcdata "all"] in
   let search_handler =
     {{fun ev ->
       let info_dom = To_dom.of_span %info_span in
       let search_dom =
-	Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
+        Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
       let pat = match Js.to_string search_dom##value
-		with "" -> None | s -> Some s in
+                with "" -> None | s -> Some s in
       (To_dom.of_button %clear_button)##disabled <- Js.bool (pat = None);
       info_dom##className <- Js.string "";
       info_dom##innerHTML <- Js.string "";
       Lwt.ignore_result begin try_lwt
-	update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat
-			       (To_dom.of_div %transcript_div)
-			       %update_comet
+        update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat
+                               (To_dom.of_div %transcript_div)
+                               %update_comet
       with Eliom_lib.Exception_on_server msg ->
-	info_dom##className <- Js.string "error";
-	info_dom##innerHTML <- Js.string msg;
-	Lwt.return_unit
+        info_dom##className <- Js.string "error";
+        info_dom##innerHTML <- Js.string msg;
+        Lwt.return_unit
       end
     }} in
   let search_handler_mouse =
     {{fun ev -> %search_handler (ev :> Dom_html.event Js.t)}} in
   let search_button =
     button ~a:[a_button_type `Button; a_onclick search_handler_mouse]
-	   [pcdata "matching"] in
+           [pcdata "matching"] in
   let search_input =
     input ~a:[a_input_type `Text; a_id "search_text"; a_onchange search_handler]
-	  () in
+          () in
   ignore {unit{
     let transcript_dom = To_dom.of_div %transcript_div in
     let tI = ref %tI in
@@ -460,7 +460,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     let pat = ref %pat in
     Lwt.ignore_result begin
       update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat:!pat
-			     transcript_dom %update_comet
+                             transcript_dom %update_comet
     end
   }};
   let help_span =
@@ -481,8 +481,8 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     (sprintf "Transcript of %s" room_jid)
     [ div
       [ pcdata "Show "; clear_button;
-	pcdata " or "; search_button; search_input; pcdata " ";
-	info_span; pcdata " "; help_span ];
+        pcdata " or "; search_button; search_input; pcdata " ";
+        info_span; pcdata " "; help_span ];
       transcript_div ]
   )
 

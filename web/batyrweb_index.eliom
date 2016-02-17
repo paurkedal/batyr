@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,11 +25,11 @@ let index_handler () () =
     let label =
       match alias with
       | None ->
-	[D.pcdata node_jid]
+        [D.pcdata node_jid]
       | Some alias ->
-	[D.pcdata alias; D.pcdata " <"; D.pcdata node_jid; D.pcdata ">"] in
+        [D.pcdata alias; D.pcdata " <"; D.pcdata node_jid; D.pcdata ">"] in
     Lwt.return @@ D.li [D.a ~service:transcript_service label
-			    (node_jid, (None, (None, None)))] in
+                            (node_jid, (None, (None, None)))] in
   lwt room_lis = Lwt_list.map_p render_room_link rooms in
   let rooms_ul = D.ul room_lis in
   Lwt.return (Batyrweb_tools.D.page "Chatrooms" [rooms_ul])

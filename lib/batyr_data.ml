@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -61,7 +61,7 @@ module Node = struct
   let create ~domain_name ?(node_name = "") () =
     Data_cache.merge data_cache
       (Beacon.embed Batyr_cache.Grade.basic
-	(fun beacon -> {id = id_unknown; domain_name; node_name; beacon}))
+        (fun beacon -> {id = id_unknown; domain_name; node_name; beacon}))
 
   let domain_name {domain_name} = domain_name
   let node_name {node_name} = node_name
@@ -87,15 +87,15 @@ module Node = struct
     try Lwt.return (Id_cache.find_key id_cache id)
     with Not_found ->
       Batyr_db.use_accounted (Batyr_sql.Node.get id)
-	>|= fun (cost, (domain_name, node_name)) ->
+        >|= fun (cost, (domain_name, node_name)) ->
       let node =
-	Beacon.embed cost
-	  (fun beacon -> {id; domain_name; node_name; beacon}) in
+        Beacon.embed cost
+          (fun beacon -> {id; domain_name; node_name; beacon}) in
       try Id_cache.find id_cache node
       with Not_found ->
-	Data_cache.add data_cache node;
-	Id_cache.add id_cache node;
-	node
+        Data_cache.add data_cache node;
+        Id_cache.add id_cache node;
+        node
 
   let stored_id node =
     if node.id >= 0 then Lwt.return (Some node.id) else
@@ -164,8 +164,8 @@ module Resource = struct
   let create ~domain_name ?(node_name = "") ?(resource_name = "") () =
     Data_cache.merge data_cache
       (Beacon.embed Batyr_cache.Grade.basic
-	(fun beacon ->
-	 {id = id_unknown; domain_name; node_name; resource_name; beacon}))
+        (fun beacon ->
+         {id = id_unknown; domain_name; node_name; resource_name; beacon}))
 
   let domain_name {domain_name} = domain_name
   let node_name {node_name} = node_name
@@ -194,22 +194,22 @@ module Resource = struct
     try Lwt.return (Id_cache.find_key id_cache id)
     with Not_found ->
       Batyr_db.use_accounted (Batyr_sql.Resource.get id)
-	>|= fun (cost, (domain_name, node_name, resource_name)) ->
+        >|= fun (cost, (domain_name, node_name, resource_name)) ->
       let resource =
-	Beacon.embed cost
-	  (fun beacon -> {id; domain_name; node_name; resource_name; beacon}) in
+        Beacon.embed cost
+          (fun beacon -> {id; domain_name; node_name; resource_name; beacon}) in
       try Id_cache.find id_cache resource
       with Not_found ->
-	Data_cache.add data_cache resource;
-	Id_cache.add id_cache resource;
-	resource
+        Data_cache.add data_cache resource;
+        Id_cache.add id_cache resource;
+        resource
 
   let stored_id resource =
     if resource.id >= 0 then Lwt.return (Some resource.id) else
     if resource.id = id_missing then Lwt.return_none else
     Batyr_db.use_accounted
       (Batyr_sql.Resource.locate resource.domain_name resource.node_name
-				 resource.resource_name)
+                                 resource.resource_name)
       >|= fun (cost, id_opt) ->
     Beacon.set_grade cost resource.beacon;
     match id_opt with
@@ -220,7 +220,7 @@ module Resource = struct
     if resource.id >= 0 then Lwt.return resource.id else
     Batyr_db.use_accounted
       (Batyr_sql.Resource.store resource.domain_name resource.node_name
-				resource.resource_name)
+                                resource.resource_name)
       >|= fun (cost, id) ->
     Beacon.set_grade cost resource.beacon;
     resource.id <- id;
@@ -255,7 +255,7 @@ module Account = struct
     let%lwt resource_id = Resource.store resource in
     let%lwt cost, () = (* OBS: Should be load cost. *)
       Batyr_db.use_accounted
-	(Batyr_sql.Account.create ~resource_id ~port ~password ~is_active) in
+        (Batyr_sql.Account.create ~resource_id ~port ~password ~is_active) in
     Lwt.return @@ Beacon.embed cost
       (fun beacon -> {resource; port; password; is_active; beacon})
 
@@ -266,25 +266,25 @@ module Account = struct
       | None -> Lwt.return_unit
       | Some x when Resource.equal x account.resource -> Lwt.return_unit
       | Some x -> Id_cache.remove id_cache account;
-		  let%lwt new_id = Resource.store x in
-		  account.resource <- x;
-		  Batyr_sql.Account.set_resource id new_id c >|= fun () ->
-		  Id_cache.add id_cache account) >>
+                  let%lwt new_id = Resource.store x in
+                  account.resource <- x;
+                  Batyr_sql.Account.set_resource id new_id c >|= fun () ->
+                  Id_cache.add id_cache account) >>
     (match port with
       | None -> Lwt.return_unit
       | Some x when x = account.port -> Lwt.return_unit
       | Some x -> account.port <- x;
-		  Batyr_sql.Account.set_port id x c) >>
+                  Batyr_sql.Account.set_port id x c) >>
     (match password with
       | None -> Lwt.return_unit
       | Some x when x = account.password -> Lwt.return_unit
       | Some x -> account.password <- x;
-		  Batyr_sql.Account.set_password id x c) >>
+                  Batyr_sql.Account.set_password id x c) >>
     (match is_active with
       | None -> Lwt.return_unit
       | Some x when x = account.is_active -> Lwt.return_unit
       | Some x -> account.is_active <- x;
-		  Batyr_sql.Account.set_is_active id x c)
+                  Batyr_sql.Account.set_is_active id x c)
 
   let delete_id resource_id =
     Batyr_db.use (Batyr_sql.Account.delete resource_id)
@@ -300,21 +300,21 @@ module Account = struct
     | Some resource_id ->
       try Lwt.return (Some (Id_cache.find_key id_cache resource_id))
       with Not_found ->
-	match%lwt
-	  Batyr_db.use_accounted (Batyr_sql.Account.get resource_id) with
-	| _, None -> Lwt.return_none
-	| cost, Some (port, password, is_active) ->
-	  let%lwt resource = Resource.stored_of_id resource_id in
-	  let account = Beacon.embed cost
-		(fun beacon -> {resource; port; password; is_active; beacon}) in
-	  Lwt.return (Some account)
+        match%lwt
+          Batyr_db.use_accounted (Batyr_sql.Account.get resource_id) with
+        | _, None -> Lwt.return_none
+        | cost, Some (port, password, is_active) ->
+          let%lwt resource = Resource.stored_of_id resource_id in
+          let account = Beacon.embed cost
+                (fun beacon -> {resource; port; password; is_active; beacon}) in
+          Lwt.return (Some account)
 
   let merge cost (resource_id, port, password, is_active) =
     try Lwt.return (Id_cache.find_key id_cache resource_id)
     with Not_found ->
       Resource.stored_of_id resource_id >|= fun resource ->
       Beacon.embed cost
-	(fun beacon -> {resource; port; password; is_active; beacon})
+        (fun beacon -> {resource; port; password; is_active; beacon})
 
   let all () =
     let%lwt cost_all, rows = Batyr_db.use_accounted Batyr_sql.Account.all in
@@ -402,17 +402,17 @@ module Muc_room = struct
       begin match%lwt Node.stored_id node with
       | None -> Lwt.return_none
       | Some node_id ->
-	Batyr_db.use_accounted (Batyr_sql.Muc_room.stored_of_node node_id)
-	  >|= fun (cost, qr) ->
-	Option.map
-	  (fun (alias, description, transcribe, mmt) ->
-	    let min_message_time =
-	      Option.map CalendarLib.Calendar.to_unixfloat mmt in
-	    let room =
-	      Beacon.embed cost (fun beacon ->
-		{node; alias; description; transcribe; min_message_time;
-		 beacon}) in
-	    Node_cache.merge node_cache room)
-	  qr
+        Batyr_db.use_accounted (Batyr_sql.Muc_room.stored_of_node node_id)
+          >|= fun (cost, qr) ->
+        Option.map
+          (fun (alias, description, transcribe, mmt) ->
+            let min_message_time =
+              Option.map CalendarLib.Calendar.to_unixfloat mmt in
+            let room =
+              Beacon.embed cost (fun beacon ->
+                {node; alias; description; transcribe; min_message_time;
+                 beacon}) in
+            Node_cache.merge node_cache room)
+          qr
       end
 end

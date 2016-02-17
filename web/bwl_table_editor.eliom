@@ -33,7 +33,7 @@
     type update = Add of E.t | Remove of E.t | Replace of E.t * E.t
 
     type serverside =
-	(unit, E.t list fallible) server_function
+        (unit, E.t list fallible) server_function
       * (E.t option * E.t, unit fallible) server_function
       * (E.t, unit fallible) server_function
       * update Eliom_comet.Channel.t
@@ -74,122 +74,122 @@
       let table_dom = To_dom.of_table table in
 
       let row_pos i =
-	match !editing with
-	| Some (pos, _, None, _) when 1 + i >= pos -> 2 + i
-	| _ -> 1 + i in
+        match !editing with
+        | Some (pos, _, None, _) when 1 + i >= pos -> 2 + i
+        | _ -> 1 + i in
 
       let rec render_row pos row elt =
-	row##innerHTML <- Js.string "";
-	List.iter
-	  (fun cell ->
-	    let cell_dom = To_dom.of_td cell in
-	    ignore (Dom.appendChild row cell_dom))
-	  (E.render_row elt);
-	let on_edit ev = enable_edit pos row (Some elt) in
-	let on_remove ev =
-	  Lwt.async begin fun () ->
-	    sf_remove elt >|= function
-	    | Ok () -> ()
-	    | Failed msg -> Dom_html.window##alert(Js.string msg)
-	  end in
-	let outside_td =
-	  D.td ~a:[D.a_class ["outside"]] [
-	    D.button ~a:[D.a_button_type `Button; D.a_onclick on_edit]
-		     [D.pcdata "edit"];
-	    D.button ~a:[D.a_button_type `Button; D.a_onclick on_remove]
-		     [D.pcdata "remove"]
-	  ] in
-	Dom.appendChild row (To_dom.of_td outside_td)
+        row##innerHTML <- Js.string "";
+        List.iter
+          (fun cell ->
+            let cell_dom = To_dom.of_td cell in
+            ignore (Dom.appendChild row cell_dom))
+          (E.render_row elt);
+        let on_edit ev = enable_edit pos row (Some elt) in
+        let on_remove ev =
+          Lwt.async begin fun () ->
+            sf_remove elt >|= function
+            | Ok () -> ()
+            | Failed msg -> Dom_html.window##alert(Js.string msg)
+          end in
+        let outside_td =
+          D.td ~a:[D.a_class ["outside"]] [
+            D.button ~a:[D.a_button_type `Button; D.a_onclick on_edit]
+                     [D.pcdata "edit"];
+            D.button ~a:[D.a_button_type `Button; D.a_onclick on_remove]
+                     [D.pcdata "remove"]
+          ] in
+        Dom.appendChild row (To_dom.of_td outside_td)
 
       and render_edit_row_outside ?(is_removed = false) row elt_opt edit_dom =
-	let on_cancel ev = disable_edit () in
-	let on_add ev =
-	  Lwt.async begin fun () ->
-	    sf_add (elt_opt, E.decode_row elt_opt edit_dom) >|= function
-	    | Ok () -> on_cancel ev
-	    | Failed msg -> Dom_html.window##alert(Js.string msg)
-	  end in
-	let commit_label =
-	  if is_removed then "re-add" else
-	  if elt_opt = None then "add" else
-	  "update" in
-	let outside_td = D.td ~a:[D.a_class ["outside"]] [
-	  D.button ~a:[D.a_button_type `Button; D.a_onclick on_cancel]
-		   [D.pcdata "cancel"];
-	  D.button ~a:[D.a_button_type `Button; D.a_onclick on_add]
-		   [D.pcdata commit_label];
-	] in
-	Dom.appendChild row (To_dom.of_td outside_td)
+        let on_cancel ev = disable_edit () in
+        let on_add ev =
+          Lwt.async begin fun () ->
+            sf_add (elt_opt, E.decode_row elt_opt edit_dom) >|= function
+            | Ok () -> on_cancel ev
+            | Failed msg -> Dom_html.window##alert(Js.string msg)
+          end in
+        let commit_label =
+          if is_removed then "re-add" else
+          if elt_opt = None then "add" else
+          "update" in
+        let outside_td = D.td ~a:[D.a_class ["outside"]] [
+          D.button ~a:[D.a_button_type `Button; D.a_onclick on_cancel]
+                   [D.pcdata "cancel"];
+          D.button ~a:[D.a_button_type `Button; D.a_onclick on_add]
+                   [D.pcdata commit_label];
+        ] in
+        Dom.appendChild row (To_dom.of_td outside_td)
 
       and render_edit_row row elt_opt =
-	row##innerHTML <- Js.string "";
-	let edit_dom, edit_tds = E.render_edit_row elt_opt in
-	List.iter (fun cell -> Dom.appendChild row (To_dom.of_td cell))
-		  edit_tds;
-	render_edit_row_outside row elt_opt edit_dom;
-	edit_dom
+        row##innerHTML <- Js.string "";
+        let edit_dom, edit_tds = E.render_edit_row elt_opt in
+        List.iter (fun cell -> Dom.appendChild row (To_dom.of_td cell))
+                  edit_tds;
+        render_edit_row_outside row elt_opt edit_dom;
+        edit_dom
 
       and disable_edit () =
-	begin match !editing with
-	| None -> ()
-	| Some (_, row, None, _) -> Dom.removeChild table_dom row;
-	| Some (pos, row, Some elt, _) -> render_row pos row elt
-	end;
-	editing := None
+        begin match !editing with
+        | None -> ()
+        | Some (_, row, None, _) -> Dom.removeChild table_dom row;
+        | Some (pos, row, Some elt, _) -> render_row pos row elt
+        end;
+        editing := None
 
       and enable_edit pos row elt_opt =
-	if !editing <> None then disable_edit ();
-	let edit_dom = render_edit_row row elt_opt in
-	editing := Some (pos, row, elt_opt, edit_dom) in
+        if !editing <> None then disable_edit ();
+        let edit_dom = render_edit_row row elt_opt in
+        editing := Some (pos, row, elt_opt, edit_dom) in
 
       let on_new _ _ =
-	enable_edit 1 table_dom##insertRow(1) None; Lwt.return_unit in
+        enable_edit 1 table_dom##insertRow(1) None; Lwt.return_unit in
       Lwt_js_events.(async
-	(fun () -> clicks (To_dom.of_element new_button) on_new));
+        (fun () -> clicks (To_dom.of_element new_button) on_new));
 
       let add elt =
-	let i, row =
-	  match Enset.locate elt !enset with
-	  | false, _ ->
-	    enset := Enset.add elt !enset;
-	    set_content !enset;
-	    let i = snd (Enset.locate elt !enset) in
-	    i, table_dom##insertRow (row_pos i)
-	  | true, i ->
-	    let row = Js.Opt.get (table_dom##rows##item(row_pos i))
-				 (fun () -> failwith "Js.Opt.get") in
-	    i, row in
-	render_row (row_pos i) row elt in
+        let i, row =
+          match Enset.locate elt !enset with
+          | false, _ ->
+            enset := Enset.add elt !enset;
+            set_content !enset;
+            let i = snd (Enset.locate elt !enset) in
+            i, table_dom##insertRow (row_pos i)
+          | true, i ->
+            let row = Js.Opt.get (table_dom##rows##item(row_pos i))
+                                 (fun () -> failwith "Js.Opt.get") in
+            i, row in
+        render_row (row_pos i) row elt in
 
       let remove elt =
-	match Enset.locate elt !enset with
-	| false, _ -> Eliom_lib.error "No element matches delete request."
-	| true, i ->
-	  enset := Enset.remove elt !enset;
-	  set_content !enset;
-	  begin match !editing with
-	  | Some (pos, row, Some _, edit_dom) when pos = 1 + i ->
-	    editing := Some (pos, row, None, edit_dom);
-	    Js.Opt.iter (row##lastChild) (Dom.removeChild row);
-	    render_edit_row_outside ~is_removed:true row None edit_dom
-	  | _ ->
-	    table_dom##deleteRow (row_pos i)
-	  end in
+        match Enset.locate elt !enset with
+        | false, _ -> Eliom_lib.error "No element matches delete request."
+        | true, i ->
+          enset := Enset.remove elt !enset;
+          set_content !enset;
+          begin match !editing with
+          | Some (pos, row, Some _, edit_dom) when pos = 1 + i ->
+            editing := Some (pos, row, None, edit_dom);
+            Js.Opt.iter (row##lastChild) (Dom.removeChild row);
+            render_edit_row_outside ~is_removed:true row None edit_dom
+          | _ ->
+            table_dom##deleteRow (row_pos i)
+          end in
 
       Lwt.async begin fun () ->
-	Lwt_stream.iter
-	  begin function
-	  | Add elt -> add elt
-	  | Remove elt -> remove elt
-	  | Replace (elt, elt') -> remove elt; add elt'
-	  end
-	  update_stream
+        Lwt_stream.iter
+          begin function
+          | Add elt -> add elt
+          | Remove elt -> remove elt
+          | Replace (elt, elt') -> remove elt; add elt'
+          end
+          update_stream
       end;
 
       Lwt.ignore_result
-	(sf_fetch_all () >|= function
-	  | Ok entries -> List.iter add entries
-	  | Failed msg -> Dom_html.window##alert(Js.string msg));
+        (sf_fetch_all () >|= function
+          | Ok entries -> List.iter add entries
+          | Failed msg -> Dom_html.window##alert(Js.string msg));
 
       Manip.appendChild outer_div table
   end
@@ -227,12 +227,12 @@
       begin fun (old_entry_opt, entry) ->
         try_lwt
           E.add old_entry_opt entry >|= fun entry ->
-	  Option.iter (fun entry -> emit (Some (Remove entry))) old_entry_opt;
-	  emit (Some (Add entry));
-	  Ok ()
+          Option.iter (fun entry -> emit (Some (Remove entry))) old_entry_opt;
+          emit (Some (Add entry));
+          Ok ()
         with xc ->
           let msg = sprintf "Failed to add %s: %s"
-			    E.which_type (Printexc.to_string xc) in
+                            E.which_type (Printexc.to_string xc) in
           Lwt_log.error ~section msg >> Lwt.return (Failed msg)
       end
 

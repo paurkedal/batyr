@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,7 +57,7 @@ let make_tls_socket host fd =
       let cs = Cstruct.create len in
       let%lwt len' = Tls_lwt.Unix.read socket cs in
       for i = 0 to len' - 1 do
-	Bytes.set buf (start + i) (Cstruct.get_char cs i)
+        Bytes.set buf (start + i) (Cstruct.get_char cs i)
       done;
       Lwt_log.debug_f ~section "In: [%s]" (Bytes.sub buf start len') >>
       Lwt.return len'
@@ -80,7 +80,7 @@ module Chat_params = struct
     resource : string;
   }
   let make ~server ?(port = 5222)
-	   ~username ~password ?(resource = "xmpp3.0") () =
+           ~username ~password ?(resource = "xmpp3.0") () =
     {server; port; username; password; resource}
 end
 
@@ -99,7 +99,7 @@ let with_chat session {server; username; password; resource; port} =
   let tls_socket () = make_tls_socket server fd in
   let%lwt session_data =
     Chat.setup_session ~user_data:() ~myjid ~plain_socket ~tls_socket
-		       ~password session in
+                       ~password session in
   Chat.parse session_data >>
   let module Socket = (val session_data.Chat.socket : Chat.Socket) in
   Lwt_log.info_f ~section "Disconnecting %s@%s/%s." username server resource >>
@@ -114,7 +114,7 @@ module Chat_version = struct
     | Chat.IQSet _ -> Lwt.fail Chat.BadRequest
 
   let register ?(name = "Batyr (bot)") ?(version = Batyr_version.version_string)
-	       ?(os = Sys.os_type) chat =
+               ?(os = Sys.os_type) chat =
     let el = encode {name; version; os} in
     let result = Lwt.return (Chat.IQResult (Some el)) in
     Chat.register_iq_request_handler chat ns_version (on_version result)
@@ -126,25 +126,25 @@ module Chat_disco = struct
   let extract_features chat =
     let open Chat in
     [] |> IQRequestCallback.fold (fun ns v acc -> Option.get ns :: acc)
-				 chat.iq_request
+                                 chat.iq_request
        |> StanzaHandler.fold (fun (ns, _) v acc -> Option.get ns :: acc)
-			     chat.stanza_handlers
+                             chat.stanza_handlers
 
   let register_info
       ?(category = "client") ?(type_ = "bot")
       ?(name = "Batyr") ?features chat =
     let on_disco req jid_from jid_to lang () =
       let features =
-	Option.get_else (fun () -> extract_features chat) features in
+        Option.get_else (fun () -> extract_features chat) features in
       match jid_from with
       | Some jid_from ->
-	Lwt_log.info_f ~section "Received disco request from %s." jid_from >>
-	let els = make_disco_info ~category ~type_ ~name ~features () in
-	let el = Xml.Xmlelement ((ns_disco_info, "query"), [], els) in
-	Lwt.return (Chat.IQResult (Some el))
+        Lwt_log.info_f ~section "Received disco request from %s." jid_from >>
+        let els = make_disco_info ~category ~type_ ~name ~features () in
+        let el = Xml.Xmlelement ((ns_disco_info, "query"), [], els) in
+        Lwt.return (Chat.IQResult (Some el))
       | None ->
-	Lwt_log.warning ~section "Failing disco request lacking from-field." >>
-	Lwt.fail Chat.BadRequest in
+        Lwt_log.warning ~section "Failing disco request lacking from-field." >>
+        Lwt.fail Chat.BadRequest in
     Chat.register_iq_request_handler chat ns_disco_info on_disco
 end
 
@@ -157,10 +157,10 @@ module Chat_ping = struct
       ~jid_from ~jid_to
       (Chat.IQGet Xml.(Xmlelement ((ns_ping, "ping"), [], [])))
       (fun resp jid_from' jid_to' lang () ->
-	Lwt.return @@
-	  match resp with
-	  | Chat.IQResult r -> ()
-	  | Chat.IQError err -> r := Some err) >>
+        Lwt.return @@
+          match resp with
+          | Chat.IQResult r -> ()
+          | Chat.IQError err -> r := Some err) >>
     Lwt.return !r
 
   let on_ping req jid_from jid_to lang () =
@@ -168,12 +168,12 @@ module Chat_ping = struct
     | Some jid_from ->
       begin match req with
       | Chat.IQGet _ ->
-	Lwt_log.info_f ~section "Received ping from %s." jid_from >>
-	Lwt.return (Chat.IQResult None)
+        Lwt_log.info_f ~section "Received ping from %s." jid_from >>
+        Lwt.return (Chat.IQResult None)
       | Chat.IQSet _ ->
-	Lwt_log.warning_f ~section "Failing ping set request from %s."
-			  jid_from >>
-	Lwt.fail Chat.BadRequest
+        Lwt_log.warning_f ~section "Failing ping set request from %s."
+                          jid_from >>
+        Lwt.fail Chat.BadRequest
       end
     | None ->
       Lwt_log.warning ~section "Failing ping request lacking from-field." >>

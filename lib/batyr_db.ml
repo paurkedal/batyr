@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,8 +44,8 @@ let timestamp_of_epoch x =
   let open Unix in
   let tm = gmtime x in
   sprintf "%04d-%02d-%02d %02d:%02d:%02d"
-	  (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
-	  tm.tm_hour tm.tm_min tm.tm_sec
+          (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
+          tm.tm_hour tm.tm_min tm.tm_sec
 
 let epoch_of_timestamp ts =
   let sec, subsec =
@@ -105,11 +105,11 @@ module Expr = struct
       Buffer.add_char acc.acc_buffer '(';
       let is_first = ref true in
       List.iter
-	(fun arg ->
-	  if !is_first then is_first := false else
-	    Buffer.add_string acc.acc_buffer ", ";
-	  to_sql' acc p_comma arg)
-	args;
+        (fun arg ->
+          if !is_first then is_first := false else
+            Buffer.add_string acc.acc_buffer ", ";
+          to_sql' acc p_comma arg)
+        args;
       Buffer.add_char acc.acc_buffer ')'
     | Call (Prefix (name, p, p0), [arg]) ->
       if prec > p then Buffer.add_char acc.acc_buffer '(';
@@ -128,14 +128,14 @@ module Expr = struct
       if prec > p then Buffer.add_char acc.acc_buffer '(';
       let is_first = ref true in
       List.iter2
-	(fun p arg ->
-	  if !is_first then is_first := false else begin
-	    Buffer.add_char acc.acc_buffer ' ';
-	    Buffer.add_string acc.acc_buffer name;
-	    Buffer.add_char acc.acc_buffer ' '
-	  end;
-	  to_sql' acc p arg)
-	ps args;
+        (fun p arg ->
+          if !is_first then is_first := false else begin
+            Buffer.add_char acc.acc_buffer ' ';
+            Buffer.add_string acc.acc_buffer name;
+            Buffer.add_char acc.acc_buffer ' '
+          end;
+          to_sql' acc p arg)
+        ps args;
       if prec > p then Buffer.add_char acc.acc_buffer ')'
 
   let to_sql ?(first_index = 1) e =
@@ -176,38 +176,38 @@ module Expr = struct
     String (if tz.[0] = '+' then cts ^ tz else cts ^ " " ^ tz)
   let var v = Var v
 
-  let not	= let op = prefix 12 "not" in call1 op
-  let (&&)	= let op = infixA 11 "and" in call2 op
-  let (||)	= let op = infixA 10 "or" in call2 op
-  let is_null	= let op = suffix 18 "is null" in call1 op
+  let not       = let op = prefix 12 "not" in call1 op
+  let (&&)      = let op = infixA 11 "and" in call2 op
+  let (||)      = let op = infixA 10 "or" in call2 op
+  let is_null   = let op = suffix 18 "is null" in call1 op
   let is_not_null=let op = suffix 18 "is not null" in call1 op
-  let (=)	= let op = infixB 15 "=" in call2 op
-  let (<>)	= let op = infixB 15 "!=" in call2 op
-  let (<=)	= let op = infixB 15 "<=" in call2 op
-  let (>=)	= let op = infixB 15 ">=" in call2 op
-  let (<)	= let op = infixB 15 "<" in call2 op
-  let (>)	= let op = infixB 15 ">" in call2 op
-  let (=~)	= let op = infixB 15 "~" in fun x re -> call2 op x (string re)
-  let ( =~* )	= let op = infixB 15 "~*" in fun x re -> call2 op x (string re)
-  let (=~@)	= let op = infixB 15 "@@" in fun x p -> call2 op x (string p)
-  let like	= let op = infixB 15 "like" in fun x p -> call2 op x (string p)
-  let ilike	= let op = infixB 15 "ilike" in fun x p -> call2 op x (string p)
+  let (=)       = let op = infixB 15 "=" in call2 op
+  let (<>)      = let op = infixB 15 "!=" in call2 op
+  let (<=)      = let op = infixB 15 "<=" in call2 op
+  let (>=)      = let op = infixB 15 ">=" in call2 op
+  let (<)       = let op = infixB 15 "<" in call2 op
+  let (>)       = let op = infixB 15 ">" in call2 op
+  let (=~)      = let op = infixB 15 "~" in fun x re -> call2 op x (string re)
+  let ( =~* )   = let op = infixB 15 "~*" in fun x re -> call2 op x (string re)
+  let (=~@)     = let op = infixB 15 "@@" in fun x p -> call2 op x (string p)
+  let like      = let op = infixB 15 "like" in fun x p -> call2 op x (string p)
+  let ilike     = let op = infixB 15 "ilike" in fun x p -> call2 op x (string p)
 
-  let (~-)	= let op = prefix 25 "-" in call1 op
-  let (+)	= let op = infixL 20 "+" in call2 op
-  let (-)	= let op = infixL 20 "-" in call2 op
-  let ( * )	= let op = infixL 21 "*" in call2 op
-  let (/)	= let op = infixL 21 "/" in call2 op
-  let (mod)	= let op = infixL 21 "%" in call2 op
-  let (~-.)	= let op = prefix 25 "-" in call1 op
-  let (+.)	= let op = infixL 20 "+" in call2 op
-  let (-.)	= let op = infixL 20 "-" in call2 op
-  let ( *. )	= let op = infixL 21 "*" in call2 op
-  let (/.)	= let op = infixL 21 "/" in call2 op
+  let (~-)      = let op = prefix 25 "-" in call1 op
+  let (+)       = let op = infixL 20 "+" in call2 op
+  let (-)       = let op = infixL 20 "-" in call2 op
+  let ( * )     = let op = infixL 21 "*" in call2 op
+  let (/)       = let op = infixL 21 "/" in call2 op
+  let (mod)     = let op = infixL 21 "%" in call2 op
+  let (~-.)     = let op = prefix 25 "-" in call1 op
+  let (+.)      = let op = infixL 20 "+" in call2 op
+  let (-.)      = let op = infixL 20 "-" in call2 op
+  let ( *. )    = let op = infixL 21 "*" in call2 op
+  let (/.)      = let op = infixL 21 "/" in call2 op
 
-  let date_part	= let f = Func "date_part" in fun p x -> call2 f (string p) x
-  let at_tz	= let op = infixB 18 " at time zone " in
-		  fun tz x -> call2 op (string tz) x
+  let date_part = let f = Func "date_part" in fun p x -> call2 f (string p) x
+  let at_tz     = let op = infixB 18 " at time zone " in
+                  fun tz x -> call2 op (string tz) x
 end
 
 let pool =

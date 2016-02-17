@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ let (>|=) = Lwt.(>|=)
 
 module Domx_html = struct
   let element_by_id : (#Dom_html.element Js.t -> 'a Js.opt) -> string -> 'a
-		    = fun coercion id ->
+                    = fun coercion id ->
     Js.coerce_opt
       (Dom_html.document##getElementById(Js.string id))
       coercion (fun _ -> assert false)
@@ -43,7 +43,7 @@ module Caltime = struct
     jsnew Js.date_day(d##getFullYear(), d##getMonth() + 1, -1)##getDate() + 1
 
   let month_names = [|"Jan"; "Feb"; "Mar"; "Apr"; "May"; "Jun";
-		      "Jul"; "Aug"; "Sep"; "Oct"; "Nov"; "Dec"|]
+                      "Jul"; "Aug"; "Sep"; "Oct"; "Nov"; "Dec"|]
   let day_names = [|"Sun"; "Mon"; "Tue"; "Wed"; "Thu"; "Fri"; "Sat"|]
 end
 
@@ -71,17 +71,17 @@ module Live_table (Elt : LIVE_TABLE_ELEMENT) = struct
     let row =
       match Enset.locate elt t.enset with
       | false, _ ->
-	t.enset <- Enset.add elt t.enset;
-	let i = snd (Enset.locate elt t.enset) in
-	t.table##insertRow (t.static_row_count + i)
+        t.enset <- Enset.add elt t.enset;
+        let i = snd (Enset.locate elt t.enset) in
+        t.table##insertRow (t.static_row_count + i)
       | true, i ->
-	let row =
-	  Js.Opt.get (t.table##rows##item (t.static_row_count + i))
-		     (fun () -> failwith "Js.Opt.get") in
-	row##innerHTML <- Js.string ""; row in
+        let row =
+          Js.Opt.get (t.table##rows##item (t.static_row_count + i))
+                     (fun () -> failwith "Js.Opt.get") in
+        row##innerHTML <- Js.string ""; row in
     List.iter
       (fun cell ->
-	ignore (row##appendChild((Html5.To_dom.of_td cell :> Dom.node Js.t))))
+        ignore (row##appendChild((Html5.To_dom.of_td cell :> Dom.node Js.t))))
       (Elt.render_row elt)
 
   let remove t elt =

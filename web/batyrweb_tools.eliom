@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,16 +27,16 @@
 
     let page title content =
       Eliom_tools.D.html ~title ~css:[["css"; "batyr.css"]]
-	(body (h1 [pcdata title] :: content))
+        (body (h1 [pcdata title] :: content))
 
     let tabbar
-	  ~(onclick : (int -> string -> Dom_html.mouseEvent Js.t -> unit)
-		      Eliom_lib.client_value)
-	  labels =
+          ~(onclick : (int -> string -> Dom_html.mouseEvent Js.t -> unit)
+                      Eliom_lib.client_value)
+          labels =
       let make_tab i l = span ~a:[a_onclick {{ %onclick %i %l }}] [pcdata l] in
       (div ~a:[a_class ["tabbar"]] [
-	div ~a:[a_class ["tabs"]] (List.mapi make_tab labels);
-	div ~a:[a_class ["header"]] []
+        div ~a:[a_class ["tabs"]] (List.mapi make_tab labels);
+        div ~a:[a_class ["header"]] []
       ])
   end
 }}
@@ -51,51 +51,51 @@
       let sheet_dom = Html5.To_dom.of_div sheet_div in
       let tabs_dom = ref [||] in
       let update_content i =
-	if i <> !shown_index then begin
-	  if !shown_index >= 0 then
-	    !tabs_dom.(!shown_index)##classList##remove(Js.string "selected");
-	  !tabs_dom.(i)##classList##add(Js.string "selected");
-	  shown_index := i;
-	  sheet_dom##innerHTML <- Js.string "";
-	  Lwt.async (fun () ->
-	    draw_inner i >|=
-	    List.iter (fun el -> Dom.appendChild sheet_dom
-						 (Html5.To_dom.of_element el)))
-	end in
+        if i <> !shown_index then begin
+          if !shown_index >= 0 then
+            !tabs_dom.(!shown_index)##classList##remove(Js.string "selected");
+          !tabs_dom.(i)##classList##add(Js.string "selected");
+          shown_index := i;
+          sheet_dom##innerHTML <- Js.string "";
+          Lwt.async (fun () ->
+            draw_inner i >|=
+            List.iter (fun el -> Dom.appendChild sheet_dom
+                                                 (Html5.To_dom.of_element el)))
+        end in
       let c_max =
-	match count with
-	| None -> 0
-	| Some count ->
-	  Prime_int.fold_to (fun i -> max (count i)) (Array.length labels) 1 in
+        match count with
+        | None -> 0
+        | Some count ->
+          Prime_int.fold_to (fun i -> max (count i)) (Array.length labels) 1 in
       let make_page i l =
-	let onclick _ = update_content i in
-	let cls = if i = !shown_index then ["selected"] else [] in
-	match count with
-	| None ->
-	  span ~a:[a_onclick onclick; a_class ("b-tab" :: cls)] [pcdata l]
-	| Some count ->
-	  let c = count i in
-	  let cc = sprintf "b-x%x" (15 * c / c_max) in
-	  if c = 0 then
-	    span ~a:[a_onclick onclick;
-		     a_class ("b-tab" :: "empty" :: cc :: "b-link" :: cls)]
-	      [pcdata l; span ~a:[a_class ["b-bar"]] []]
-	  else
-	    span ~a:[a_class ("b-tab" :: cc :: cls)] [
-	      sup ~a:[a_class ["b-tab-count"]] [pcdata (string_of_int c)];
-	      span ~a:[a_onclick onclick;
-		       a_class ["b-link"]]
-		[pcdata l];
-	    ] in
+        let onclick _ = update_content i in
+        let cls = if i = !shown_index then ["selected"] else [] in
+        match count with
+        | None ->
+          span ~a:[a_onclick onclick; a_class ("b-tab" :: cls)] [pcdata l]
+        | Some count ->
+          let c = count i in
+          let cc = sprintf "b-x%x" (15 * c / c_max) in
+          if c = 0 then
+            span ~a:[a_onclick onclick;
+                     a_class ("b-tab" :: "empty" :: cc :: "b-link" :: cls)]
+              [pcdata l; span ~a:[a_class ["b-bar"]] []]
+          else
+            span ~a:[a_class ("b-tab" :: cc :: cls)] [
+              sup ~a:[a_class ["b-tab-count"]] [pcdata (string_of_int c)];
+              span ~a:[a_onclick onclick;
+                       a_class ["b-link"]]
+                [pcdata l];
+            ] in
       let tabs = List.mapi make_page (Array.to_list labels) in
       tabs_dom := Array.map Html5.To_dom.of_span (Array.of_list tabs);
       Option.iter update_content default_index;
       Lwt.return
-	[div ~a:[a_class ["b-pager"]]
-	  [div ~a:[a_class ["b-tabbar"]] tabs;
-	   div ~a:[a_class ["b-tabbar-clear"]] [];
-	   sheet_div]
-	]
+        [div ~a:[a_class ["b-pager"]]
+          [div ~a:[a_class ["b-tabbar"]] tabs;
+           div ~a:[a_class ["b-tabbar-clear"]] [];
+           sheet_div]
+        ]
   end
 }}
 

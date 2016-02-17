@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@ end
 module Resource : sig
   type t
   val create : domain_name: string -> ?node_name: string ->
-	       ?resource_name: string -> unit -> t
+               ?resource_name: string -> unit -> t
   val domain_name : t -> string
   val node_name : t -> string
   val resource_name : t -> string
@@ -64,9 +64,9 @@ end
 module Account : sig
   type t
   val create : resource: Resource.t -> ?port: int ->
-	       password: string -> ?is_active: bool -> unit -> t Lwt.t
+               password: string -> ?is_active: bool -> unit -> t Lwt.t
   val update : ?resource: Resource.t -> ?port: int -> ?password: string ->
-	       ?is_active: bool -> t -> unit Lwt.t
+               ?is_active: bool -> t -> unit Lwt.t
   val delete : t -> unit Lwt.t
   val delete_id : int -> unit Lwt.t
   val of_resource : Resource.t -> t option Lwt.t
@@ -86,7 +86,7 @@ end
 module Muc_user : sig
   type t
   val make : nick: string -> ?jid: JID.t -> role: Chat_muc.role ->
-	     affiliation: Chat_muc.affiliation -> unit -> t
+             affiliation: Chat_muc.affiliation -> unit -> t
   val nick : t -> string
   val jid : t -> JID.t option
   val resource : t -> Resource.t option

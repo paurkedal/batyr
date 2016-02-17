@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,22 +35,22 @@ module Chat : sig
   val ns_xmpp_session : string option
 
   val register_iq_request_handler :
-	chat -> Xml.namespace ->
-	(iq_request -> string option -> string option -> string option ->
-	 unit -> iq_response Lwt.t) ->
-	unit
+        chat -> Xml.namespace ->
+        (iq_request -> string option -> string option -> string option ->
+         unit -> iq_response Lwt.t) ->
+        unit
 
   val register_stanza_handler :
-	chat -> Xml.qname ->
-	(chat -> Xml.attribute list -> Xml.element list -> unit Lwt.t) ->
-	unit
+        chat -> Xml.qname ->
+        (chat -> Xml.attribute list -> Xml.element list -> unit Lwt.t) ->
+        unit
 
   val parse_message :
-	callback: (chat -> message_content stanza -> 'a) ->
-	callback_error: (chat -> ?id: string ->
-			 ?jid_from: JID.t -> ?jid_to: string -> ?lang: string ->
-			 StanzaError.t -> 'a) ->
-	chat -> Xml.attribute list -> Xml.element list -> 'a
+        callback: (chat -> message_content stanza -> 'a) ->
+        callback_error: (chat -> ?id: string ->
+                         ?jid_from: JID.t -> ?jid_to: string -> ?lang: string ->
+                         StanzaError.t -> 'a) ->
+        chat -> Xml.attribute list -> Xml.element list -> 'a
 
   val close_stream : chat -> unit Lwt.t
 end
@@ -68,9 +68,9 @@ module Chat_params : sig
   }
 
   val make :
-	server: string -> ?port : int ->
-	username: string -> password: string -> ?resource : string ->
-	unit -> t
+        server: string -> ?port : int ->
+        username: string -> password: string -> ?resource : string ->
+        unit -> t
 end
 
 val with_chat : (chat -> unit Lwt.t) -> Chat_params.t -> unit Lwt.t
@@ -93,31 +93,31 @@ module Chat_version : sig
   val decode : Xml.attribute list -> Xml.element list -> t option
 
   val get : chat -> ?jid_from: JID.t -> ?jid_to: JID.t -> ?lang: string ->
-	    ?error_callback: (StanzaError.t -> unit Lwt.t) ->
-	    (?jid_from: JID.t -> ?jid_to: JID.t -> ?lang: string ->
-	     t option -> unit Lwt.t) ->
-	    unit Lwt.t
+            ?error_callback: (StanzaError.t -> unit Lwt.t) ->
+            (?jid_from: JID.t -> ?jid_to: JID.t -> ?lang: string ->
+             t option -> unit Lwt.t) ->
+            unit Lwt.t
 
   val iq_request :
-	get: (?jid_from: JID.t -> ?jid_to: JID.t -> ?lang: string ->
-	      unit -> t) ->
-	Chat.iq_request -> JID.t option -> JID.t option -> string option ->
-	unit -> Chat.iq_response
+        get: (?jid_from: JID.t -> ?jid_to: JID.t -> ?lang: string ->
+              unit -> t) ->
+        Chat.iq_request -> JID.t option -> JID.t option -> string option ->
+        unit -> Chat.iq_response
 
   val register : ?name: string -> ?version: string -> ?os: string ->
-		 Chat.chat -> unit
+                 Chat.chat -> unit
 end
 
 module Chat_disco : sig
   val ns_disco_info : string option
   val ns_disco_items : string option
   val register_info : ?category: string -> ?type_: string -> ?name: string ->
-		      ?features: string list -> Chat.chat -> unit
+                      ?features: string list -> Chat.chat -> unit
 end
 
 module Chat_ping : sig
   val ping : jid_from: JID.t -> jid_to: JID.t -> Chat.chat ->
-	     StanzaError.t option Lwt.t
+             StanzaError.t option Lwt.t
   val ns_ping : string option
   val register : Chat.chat -> unit
 end
@@ -151,7 +151,7 @@ module Chat_muc : sig
     password : string option;
   }
   val encode_muc : ?maxchars: int -> ?maxstanzas: int -> ?seconds: int ->
-		   ?since: int -> ?password: string -> unit -> Xml.element
+                   ?since: int -> ?password: string -> unit -> Xml.element
   val decode_muc : Xml.element -> muc_data
 
   module User : sig
@@ -187,33 +187,33 @@ module Chat_muc : sig
     }
     val encode : Xml.element list -> Xml.element
     val encode_item : ?actor: JID.t -> ?reason: string ->
-		      ?affiliation: affiliation -> ?jid: string ->
-		      ?nick: string -> ?role: role -> unit -> Xml.element
+                      ?affiliation: affiliation -> ?jid: string ->
+                      ?nick: string -> ?role: role -> unit -> Xml.element
     val decode : Xml.element -> item list
   end
 
   module Owner : sig
     val encode_destroy : ?jid: string -> ?password: string -> ?reason: string ->
-			 unit -> Xml.element
+                         unit -> Xml.element
     val decode_destroy : Xml.element ->
-			 string option * string option * string option
+                         string option * string option * string option
     val encode_xdata : Xml.element -> Xml.element
     val decode_xdata : Xml.element -> unit
   end
 
   val enter_room :
-	chat ->
-	?maxchars: int ->
-	?maxstanzas: int ->
-	?seconds: int ->
-	?since: int ->
-	?password: string ->
-	?nick: string ->
-	JID.t -> unit Lwt.t
+        chat ->
+        ?maxchars: int ->
+        ?maxstanzas: int ->
+        ?seconds: int ->
+        ?since: int ->
+        ?password: string ->
+        ?nick: string ->
+        JID.t -> unit Lwt.t
 
   val leave_room :
-	chat ->
-	?reason: string ->
-	nick: string ->
-	JID.t -> unit Lwt.t
+        chat ->
+        ?reason: string ->
+        nick: string ->
+        JID.t -> unit Lwt.t
 end

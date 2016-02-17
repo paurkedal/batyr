@@ -62,53 +62,53 @@
 
     let render_headers () =
       [ D.th [D.pcdata "JID"];
-	D.th [D.pcdata "Password"];
-	D.th [D.pcdata "Server Port"];
-	D.th [D.pcdata "Active"] ]
+        D.th [D.pcdata "Password"];
+        D.th [D.pcdata "Server Port"];
+        D.th [D.pcdata "Active"] ]
 
     let render_row ac =
       [ D.td [D.pcdata ac.account_jid];
-	D.td [D.pcdata (Option.get_or hidden ac.client_password)];
-	D.td [D.pcdata (string_of_int ac.server_port)];
-	D.td [D.pcdata (string_of_bool ac.is_active)] ]
+        D.td [D.pcdata (Option.get_or hidden ac.client_password)];
+        D.td [D.pcdata (string_of_int ac.server_port)];
+        D.td [D.pcdata (string_of_bool ac.is_active)] ]
 
     let render_edit_row ac_opt =
       let jid_input =
-	D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
+        D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
       let password_input =
-	D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
+        D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
       let server_port_input =
-	D.input ~a:[D.a_input_type `Text; D.a_size 4] () in
+        D.input ~a:[D.a_input_type `Text; D.a_size 4] () in
       let is_active_input =
-	D.input ~a:[D.a_input_type `Checkbox] () in
+        D.input ~a:[D.a_input_type `Checkbox] () in
       let ed = {
-	ed_jid = To_dom.of_input jid_input;
-	ed_password = To_dom.of_input password_input;
-	ed_server_port = To_dom.of_input server_port_input;
-	ed_is_active = To_dom.of_input is_active_input;
+        ed_jid = To_dom.of_input jid_input;
+        ed_password = To_dom.of_input password_input;
+        ed_server_port = To_dom.of_input server_port_input;
+        ed_is_active = To_dom.of_input is_active_input;
       } in
       Option.iter
-	(fun ac ->
-	  ed.ed_jid##value <- Js.string ac.account_jid;
-	  Option.iter (fun pw -> ed.ed_password##value <- Js.string pw)
-		      ac.client_password;
-	  ed.ed_server_port##value <- Js.string (string_of_int ac.server_port);
-	  ed.ed_is_active##checked <- Js.bool ac.is_active)
-	ac_opt;
+        (fun ac ->
+          ed.ed_jid##value <- Js.string ac.account_jid;
+          Option.iter (fun pw -> ed.ed_password##value <- Js.string pw)
+                      ac.client_password;
+          ed.ed_server_port##value <- Js.string (string_of_int ac.server_port);
+          ed.ed_is_active##checked <- Js.bool ac.is_active)
+        ac_opt;
       let tds =
-	[ D.td [jid_input];
-	  D.td [password_input];
-	  D.td [server_port_input];
-	  D.td [is_active_input] ] in
+        [ D.td [jid_input];
+          D.td [password_input];
+          D.td [server_port_input];
+          D.td [is_active_input] ] in
       (ed, tds)
 
     let decode_row _ ed =
       { account_jid = Js.to_string ed.ed_jid##value;
-	client_password = (match Js.to_string ed.ed_password##value with
-			    | "" -> None
-			    | pw -> Some pw);
-	server_port = int_of_string (Js.to_string ed.ed_server_port##value);
-	is_active = Js.to_bool ed.ed_is_active##checked; }
+        client_password = (match Js.to_string ed.ed_password##value with
+                            | "" -> None
+                            | pw -> Some pw);
+        server_port = int_of_string (Js.to_string ed.ed_server_port##value);
+        is_active = Js.to_bool ed.ed_is_active##checked; }
   end
 }}
 {server{
@@ -121,11 +121,11 @@
 
     let of_account a =
       let client_password =
-	if hide_passwords then None else Some (Account.password a) in
+        if hide_passwords then None else Some (Account.password a) in
       { account_jid = Resource.to_string (Account.resource a);
-	client_password;
-	server_port = Account.port a;
-	is_active = Account.is_active a; }
+        client_password;
+        server_port = Account.port a;
+        is_active = Account.is_active a; }
 
     let fetch_all () = Batyr_data.Account.all () >|= List.map of_account
 
@@ -136,30 +136,30 @@
       let is_active = a.is_active in
       begin match old_account_opt with
       | None ->
-	lwt password =
-	  match password with
-	  | None -> Lwt.fail (Failure "Password is needed for new account.")
-	  | Some pw -> Lwt.return pw in
-	Batyr_data.Account.create ~resource ~port ~password ~is_active ()
-	  >|= fun account ->
-	if is_active then ignore (Batyr_presence.Session.start account)
+        lwt password =
+          match password with
+          | None -> Lwt.fail (Failure "Password is needed for new account.")
+          | Some pw -> Lwt.return pw in
+        Batyr_data.Account.create ~resource ~port ~password ~is_active ()
+          >|= fun account ->
+        if is_active then ignore (Batyr_presence.Session.start account)
       | Some old_account ->
-	let old_resource = Resource.of_string old_account.account_jid in
-	begin match_lwt Batyr_data.Account.of_resource old_resource with
-	| None -> Lwt.return_unit
-	| Some account ->
-	  begin if Account.is_active account then
-	    begin match Batyr_presence.Session.find account with
-	    | None -> Lwt.return_unit
-	    | Some old_session -> Batyr_presence.Session.shutdown old_session
-	    end
-	  else
-	    Lwt.return_unit
-	  end >>
-	  Batyr_data.Account.update ~resource ~port ?password ~is_active account
-	    >|= fun () ->
-	  if is_active then ignore (Batyr_presence.Session.start account)
-	end
+        let old_resource = Resource.of_string old_account.account_jid in
+        begin match_lwt Batyr_data.Account.of_resource old_resource with
+        | None -> Lwt.return_unit
+        | Some account ->
+          begin if Account.is_active account then
+            begin match Batyr_presence.Session.find account with
+            | None -> Lwt.return_unit
+            | Some old_session -> Batyr_presence.Session.shutdown old_session
+            end
+          else
+            Lwt.return_unit
+          end >>
+          Batyr_data.Account.update ~resource ~port ?password ~is_active account
+            >|= fun () ->
+          if is_active then ignore (Batyr_presence.Session.start account)
+        end
       end >>
       Lwt.return (if hide_passwords then {a with client_password = None} else a)
 
@@ -198,38 +198,38 @@
     let fetch_all () =
       lwt entries = Batyr_db.use Batyr_sql.Admin.fetch_chatrooms in
       let chatroom_of_entry
-	    (node_id, room_alias, room_description, transcribe) =
-	lwt node = Node.stored_of_id node_id in
-	let room_jid = Node.to_string node in
-	Lwt.return {room_jid; room_alias; room_description; transcribe} in
+            (node_id, room_alias, room_description, transcribe) =
+        lwt node = Node.stored_of_id node_id in
+        let room_jid = Node.to_string node in
+        Lwt.return {room_jid; room_alias; room_description; transcribe} in
       Lwt_list.rev_map_p chatroom_of_entry entries
 
     let add old_room_opt room =
       lwt old_node_id_opt =
-	match old_room_opt with
-	| None -> Lwt.return_none
-	| Some old_room ->
-	  lwt node = Lwt.wrap1 Node.of_string old_room.room_jid in
-	  Node.stored_id node in
+        match old_room_opt with
+        | None -> Lwt.return_none
+        | Some old_room ->
+          lwt node = Lwt.wrap1 Node.of_string old_room.room_jid in
+          Node.stored_id node in
       lwt node = Lwt.wrap1 Node.of_string room.room_jid in
       lwt node_id = Node.store node in
       let room = {room with room_jid = Node.to_string node} in
       Batyr_db.use begin fun conn ->
-	Batyr_sql.Admin.upsert_chatroom (old_node_id_opt <> Some node_id)
-	  node_id room.room_alias room.room_description room.transcribe conn >>
-	match old_node_id_opt with
-	| Some old_node_id when old_node_id <> node_id ->
-	  Batyr_sql.Admin.delete_chatroom old_node_id conn
-	| _ -> Lwt.return_unit
+        Batyr_sql.Admin.upsert_chatroom (old_node_id_opt <> Some node_id)
+          node_id room.room_alias room.room_description room.transcribe conn >>
+        match old_node_id_opt with
+        | Some old_node_id when old_node_id <> node_id ->
+          Batyr_sql.Admin.delete_chatroom old_node_id conn
+        | _ -> Lwt.return_unit
       end >>
       Lwt.return room
 
     let remove room =
       lwt node = Lwt.wrap1 Node.of_string room.room_jid in
       lwt node_id =
-	match_lwt Node.stored_id node with
-	| None -> Lwt.fail Eliom_common.Eliom_404
-	| Some id -> Lwt.return id in
+        match_lwt Node.stored_id node with
+        | None -> Lwt.fail Eliom_common.Eliom_404
+        | Some id -> Lwt.return id in
       Batyr_db.use (Batyr_sql.Admin.delete_chatroom node_id)
   end
 }}
@@ -251,15 +251,15 @@
 
     let render_headers () =
       [ D.th [D.pcdata "JID"];
-	D.th [D.pcdata "Alias"];
-	D.th [D.pcdata "Description"];
-	D.th [D.pcdata "Transcribe"] ]
+        D.th [D.pcdata "Alias"];
+        D.th [D.pcdata "Description"];
+        D.th [D.pcdata "Transcribe"] ]
 
     let render_row r =
       [ D.td [D.pcdata r.room_jid];
-	D.td [D.pcdata (Option.get_or "-" r.room_alias)];
-	D.td [D.pcdata (Option.get_or "-" r.room_description)];
-	D.td [D.pcdata (string_of_bool r.transcribe)] ]
+        D.td [D.pcdata (Option.get_or "-" r.room_alias)];
+        D.td [D.pcdata (Option.get_or "-" r.room_description)];
+        D.td [D.pcdata (string_of_bool r.transcribe)] ]
 
     let render_edit_row r_opt =
       let jid_inp = D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
@@ -267,21 +267,21 @@
       let description_inp = D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
       let transcribe_inp = D.input ~a:[D.a_input_type `Checkbox] () in
       let ed = {
-	ed_jid = To_dom.of_input jid_inp;
-	ed_alias = To_dom.of_input alias_inp;
-	ed_description = To_dom.of_input description_inp;
-	ed_transcribe = To_dom.of_input transcribe_inp;
+        ed_jid = To_dom.of_input jid_inp;
+        ed_alias = To_dom.of_input alias_inp;
+        ed_description = To_dom.of_input description_inp;
+        ed_transcribe = To_dom.of_input transcribe_inp;
       } in
       Option.iter
-	(fun r ->
-	  ed.ed_jid##value <- Js.string r.room_jid;
-	  ed.ed_alias##value <- Js.string (Option.get_or "" r.room_alias);
-	  ed.ed_description##value <-
-	    Js.string (Option.get_or "" r.room_description);
-	  ed.ed_transcribe##checked <- Js.bool r.transcribe)
-	r_opt;
+        (fun r ->
+          ed.ed_jid##value <- Js.string r.room_jid;
+          ed.ed_alias##value <- Js.string (Option.get_or "" r.room_alias);
+          ed.ed_description##value <-
+            Js.string (Option.get_or "" r.room_description);
+          ed.ed_transcribe##checked <- Js.bool r.transcribe)
+        r_opt;
       ed, [D.td [jid_inp]; D.td [alias_inp];
-	   D.td [description_inp]; D.td [transcribe_inp]]
+           D.td [description_inp]; D.td [transcribe_inp]]
 
     let decode_row r_opt ed = {
       room_jid = Js.to_string ed.ed_jid##value;
@@ -316,33 +316,33 @@
 
     let fetch_all () =
       Batyr_db.use Batyr_sql.Admin.fetch_presences >|=
-	List.rev_map (fun (resource_jid, account_jid, is_present, nick) ->
-			  {resource_jid; account_jid; is_present; nick})
+        List.rev_map (fun (resource_jid, account_jid, is_present, nick) ->
+                          {resource_jid; account_jid; is_present; nick})
 
     let add old_pres_opt pres =
       lwt old_resource_id_opt =
-	match old_pres_opt with
-	| None -> Lwt.return_none
-	| Some old_pres ->
-	  Resource.stored_id (Resource.of_string old_pres.resource_jid) in
+        match old_pres_opt with
+        | None -> Lwt.return_none
+        | Some old_pres ->
+          Resource.stored_id (Resource.of_string old_pres.resource_jid) in
       lwt resource_id = Resource.store (Resource.of_string pres.resource_jid) in
       lwt account_id =
-	Resource.stored_id (Resource.of_string pres.account_jid)
-	  >|= Option.get in
+        Resource.stored_id (Resource.of_string pres.account_jid)
+          >|= Option.get in
       Batyr_db.use begin fun conn ->
-	Batyr_sql.Admin.upsert_presence
-	  (old_resource_id_opt <> Some resource_id)
-	  resource_id account_id pres.nick pres.is_present conn >>
-	match old_resource_id_opt with
-	| Some old_resource_id when old_resource_id <> resource_id ->
-	  Batyr_sql.Admin.delete_presence old_resource_id conn
-	| _ -> Lwt.return_unit
+        Batyr_sql.Admin.upsert_presence
+          (old_resource_id_opt <> Some resource_id)
+          resource_id account_id pres.nick pres.is_present conn >>
+        match old_resource_id_opt with
+        | Some old_resource_id when old_resource_id <> resource_id ->
+          Batyr_sql.Admin.delete_presence old_resource_id conn
+        | _ -> Lwt.return_unit
       end >>
       Lwt.return pres
     let remove pres =
       lwt resource_id =
-	Resource.stored_id (Resource.of_string pres.resource_jid)
-	  >|= Option.get in
+        Resource.stored_id (Resource.of_string pres.resource_jid)
+          >|= Option.get in
       Batyr_db.use (Batyr_sql.Admin.delete_presence resource_id)
   end
 }}
@@ -377,35 +377,35 @@
       let mkopt acct = F.option (F.pcdata acct.Account.account_jid) in
       RList.from_signal @@
       React.S.map ~eq:(==)
-	(fun accts ->
-	  Accounts_editor.Enset.fold (List.push *< mkopt) accts []
-	    |> List.rev)
-	Accounts_editor.content
+        (fun accts ->
+          Accounts_editor.Enset.fold (List.push *< mkopt) accts []
+            |> List.rev)
+        Accounts_editor.content
 
     let render_edit_row pres_opt =
       let inp_resource_jid =
-	D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
+        D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
       let inp_account_jid =
-	R.select account_optgroup in
+        R.select account_optgroup in
       let inp_nick =
-	D.input ~a:[D.a_input_type `Text; D.a_size 8] () in
+        D.input ~a:[D.a_input_type `Text; D.a_size 8] () in
       let inp_is_present =
-	D.input ~a:[D.a_input_type `Checkbox] () in
+        D.input ~a:[D.a_input_type `Checkbox] () in
       let ed = {
-	ed_resource_jid = To_dom.of_input inp_resource_jid;
-	ed_account_jid = To_dom.of_select inp_account_jid;
-	ed_nick = To_dom.of_input inp_nick;
-	ed_is_present = To_dom.of_input inp_is_present;
+        ed_resource_jid = To_dom.of_input inp_resource_jid;
+        ed_account_jid = To_dom.of_select inp_account_jid;
+        ed_nick = To_dom.of_input inp_nick;
+        ed_is_present = To_dom.of_input inp_is_present;
       } in
       Option.iter
-	(fun pres ->
-	  ed.ed_resource_jid##value <- Js.string pres.resource_jid;
-	  ed.ed_account_jid##value <- Js.string pres.account_jid;
-	  ed.ed_nick##value <- Js.string (Option.get_or "" pres.nick);
-	  ed.ed_is_present##checked <- Js.bool pres.is_present)
-	pres_opt;
+        (fun pres ->
+          ed.ed_resource_jid##value <- Js.string pres.resource_jid;
+          ed.ed_account_jid##value <- Js.string pres.account_jid;
+          ed.ed_nick##value <- Js.string (Option.get_or "" pres.nick);
+          ed.ed_is_present##checked <- Js.bool pres.is_present)
+        pres_opt;
       ed, [D.td [inp_resource_jid]; D.td [inp_account_jid];
-	   D.td [inp_nick]; D.td [inp_is_present]]
+           D.td [inp_nick]; D.td [inp_is_present]]
 
     let decode_row pres_opt ed =
       let resource_jid = Js.to_string ed.ed_resource_jid##value in
