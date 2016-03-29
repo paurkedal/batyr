@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,11 +16,14 @@
 
 (** Search patterns for logged messages (types). *)
 
+type search_field = [`Any | `Author | `Subject | `Body]
+type search_op = [`Regex | `Substring | `Word]
+
 (** The compiled pattern type. *)
 type search_pattern =
-  | Sp_regex of string
-  | Sp_substring of string
-  | Sp_word of string
+  | Sp_regex of search_field * string
+  | Sp_substring of search_field * string
+  | Sp_word of search_field * string
   | Sp_not of search_pattern
   | Sp_and of search_pattern * search_pattern
   | Sp_or of search_pattern * search_pattern

@@ -469,13 +469,15 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     let vn s = span ~a:[a_style "font-style: italic"] [pcdata s] in
     let sp = pcdata " " in
     span ~a:[a_class ["help"]] [
-      vn "pat"; sp; bop "::="; sp;
-      vn "word"; sp; bop "|"; sp;
-      op "\""; vn "string"; op "\""; sp; bop "|"; sp;
-      op "("; vn "pat"; op ")"; sp; bop "|"; sp;
-      op "!"; vn "pat"; sp; bop "|"; sp;
-      vn "pat"; sp; vn "pat"; sp; bop "|"; sp;
-      vn "pat"; sp; op "|"; sp; vn "pat"
+      vn"pat"; sp; bop"::="; sp;
+      bop"("; op"author:"; sp; bop"|"; sp; op"subject:"; sp; bop"|";
+              op"body:"; bop")"; bop"?"; sp;
+      bop"("; vn"word"; sp; bop"|"; sp;
+              op"\""; vn"string"; op"\""; sp; bop")"; sp; bop"|"; sp;
+      op"("; vn"pat"; op")"; sp; bop"|"; sp;
+      op"!"; vn"pat"; sp; bop"|"; sp;
+      vn"pat"; sp; vn"pat"; sp; bop"|"; sp;
+      vn"pat"; sp; op"|"; sp; vn"pat"
     ] in
   Lwt.return (Batyrweb_tools.D.page
     (sprintf "Transcript of %s" room_jid)

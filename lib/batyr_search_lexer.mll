@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,13 +25,16 @@ let wordchar =  ['0'-'9' 'A'-'Z' 'a'-'z' '_' '\128'-'\255' '.' '-']
 rule lex = parse
   | [' ' '\t']+ { lex lexbuf }
   | '\n' { Lexing.new_line lexbuf; lex lexbuf }
-  | '/' { ATOM (Sp_regex (lex_regex (Buffer.create 64) lexbuf)) }
-  | '"' { ATOM (Sp_substring (lex_quoted (Buffer.create 64) lexbuf)) }
+  | '/' { REGEX (lex_regex (Buffer.create 64) lexbuf) }
+  | '"' { SUBSTRING (lex_quoted (Buffer.create 64) lexbuf) }
+  | "author:" { FIELD `Author }
+  | "subject:" { FIELD `Subject }
+  | "body:" { FIELD `Body }
   | '(' { LPAREN }
   | ')' { RPAREN }
   | '|' { OR }
   | '!' { NOT }
-  | wordbound (wordchar* wordbound)? as s { ATOM (Sp_word s) }
+  | wordbound (wordchar* wordbound)? as s { WORD s }
   | eof { EOF }
 
 and lex_quoted buf = parse

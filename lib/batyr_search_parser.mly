@@ -1,4 +1,4 @@
-/* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+/* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,8 @@
 open Batyr_search_types
 %}
 
-%token<Batyr_search_types.search_pattern> ATOM
+%token<string> REGEX SUBSTRING WORD
+%token<Batyr_search_types.search_field> FIELD
 %token LPAREN RPAREN OR NOT EOF
 
 %type<Batyr_search_types.search_pattern> start
@@ -34,7 +35,13 @@ conj:
   | conj atom { Sp_and ($1, $2) }
   ;
 atom:
-    ATOM { $1 }
+    field_opt REGEX { Sp_regex ($1, $2) }
+  | field_opt SUBSTRING { Sp_substring ($1, $2) }
+  | field_opt WORD { Sp_word ($1, $2) }
   | NOT atom { Sp_not $2 }
   | LPAREN disj RPAREN { $2 }
+  ;
+field_opt:
+    /* empty */ { `Any }
+  | FIELD { $1 }
   ;
