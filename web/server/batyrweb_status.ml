@@ -23,13 +23,15 @@ let json_of_option f = function
 let json_of_string (x : string) = `String x
 let json_of_float (x : float) = `Float x
 
-let room_info (node_id, domain_name, node_name, room_alias) =
+let room_info (node_id, domain_name, node_name, room_alias, transcribe) =
   lwt lmt = Batyr_db.use (Batyr_sql.Muc_room.latest_message_time node_id) in
+  let room_jid = node_name ^ "@" ^ domain_name in
   let info : Yojson.Basic.json = `Assoc [
     "alias", json_of_option json_of_string room_alias;
     "latest_message_time", json_of_option json_of_float lmt;
+    "transcribe", `Bool transcribe;
   ] in
-  Lwt.return (node_name, info)
+  Lwt.return (room_jid, info)
 
 let status_handler () () =
   lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in

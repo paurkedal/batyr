@@ -20,7 +20,7 @@ open Eliom_content.Html5
 
 let index_handler () () =
   lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in
-  let render_room_link (node_id, domain_name, node_name, alias) =
+  let render_room_link (node_id, domain_name, node_name, alias, transcribe) =
     let node_jid = node_name ^ "@" ^ domain_name in
     let label =
       match alias with
