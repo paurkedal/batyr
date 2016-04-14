@@ -32,4 +32,8 @@ let transcript_service =
 let admin_service =
   Eliom_service.App.service ~path:["admin"] ~get_params:Eliom_parameter.unit ()
 
+let status_service =
+  Eliom_service.Http.service ~path:["status"]
+    ~get_params:Eliom_parameter.unit ()
+
 let () = Lwt.async Batyr_presence.Session.start_all

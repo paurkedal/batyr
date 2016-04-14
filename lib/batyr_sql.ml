@@ -165,6 +165,17 @@ module Muc_room = struct
       C.Tuple.(fun t -> option string 0 t, option string 1 t,
                         bool 2 t, option utc 3 t)
       C.Param.[|int node_id|]
+
+  let latest_message_time' = prepare_sql_p
+    "SELECT max(seen_time)
+      FROM batyr.messages
+      JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
+        ON sender_id = sender.resource_id
+     WHERE node_id = ?"
+  let latest_message_time node_id (module C : CONNECTION) =
+    C.find_opt latest_message_time'
+               C.Tuple.(option utc_float 0) C.Param.[|int node_id|]
+      >|= Prime_option.flatten
 end
 
 module Presence = struct

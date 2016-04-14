@@ -41,13 +41,14 @@ Library batyrweb
   Modules:
     server/Batyrweb_admin,
     server/Batyrweb_index,
+    server/Batyrweb_status,
     server/Batyrweb_tools,
     server/Batyrweb_transcript,
     Batyrweb_prereq,
     server/Batyrweb_server,
     server/Bwl_table_editor
   BuildDepends:
-    batyr, eliom.server
+    batyr, eliom.server, yojson
   ByteOpt: -thread
   NativeOpt: -thread
   DataFiles:
