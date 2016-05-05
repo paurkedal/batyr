@@ -15,6 +15,9 @@
  *)
 
 open Eliom_content
+open Eliom_pervasives
+
+let ignore_client_unit : unit client_value -> unit = fun _ -> ()
 
 module Main_app =
   Eliom_registration.App (struct let application_name = "main" end)

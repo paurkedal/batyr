@@ -14,8 +14,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-{shared{
+[%%shared
   open Eliom_content.Html5
+  open Lwt.Infix
   open Printf
   open Scanf
   open Unprime
@@ -26,16 +27,16 @@
 
   type chatroom = string
   let query_limit = 10000
-}}
-{server{
+]
+[%%server
   open Batyr_data
   open Batyr_prereq
   open Batyrweb_server
   open Caqti_lwt
 
   let section = Lwt_log.Section.make "batyrweb.main"
-}}
-{client{
+]
+[%%client
   open Batyrweb_client
   module Chatroom = struct
     type t = chatroom
@@ -46,7 +47,7 @@
 
   let fragment =
     let sg, set = React.S.create (Url.Current.get_fragment ()) in
-    Dom_html.window##onhashchange <-
+    Dom_html.window##.onhashchange :=
       Dom.handler (fun _ -> set (Url.Current.get_fragment ()); Js._true);
     sg
 
@@ -56,14 +57,14 @@
         match String.cut_affix "T" frag with Some (s, _) -> s | None -> frag in
       match String.chop_affix "-" frag_date with
       | [sY; sM; sD] ->
-        (try Some (jsnew Js.date_day(int_of_string sY, int_of_string sM - 1,
-                                     int_of_string sD))
+        (try Some (new%js Js.date_day (int_of_string sY) (int_of_string sM - 1)
+                                      (int_of_string sD))
          with Failure _ -> None)
       | _ -> None)
     fragment
-}}
+]
 
-{shared{
+[%%shared
   type message = {
     msg_time : float;
     msg_sender_cls : string;
@@ -72,7 +73,7 @@
     msg_thread : string option;
     msg_body : string option;
   }
-}}
+]
 
 let phrase_query pat_opt tI_opt tF_opt =
     (match pat_opt with None -> "" | Some pat -> " matching " ^ pat)
@@ -87,9 +88,9 @@ let client_message_counts_service =
     ~get_params:Eliom_parameter.(string "room" ** opt (string "pat") **
                                  string "tz")
     begin fun (room_jid, (pat_opt, tz)) () ->
-      lwt room = Lwt.wrap1 Node.of_string room_jid in
-      lwt room_id =
-        match_lwt Node.stored_id room with
+      let%lwt room = Lwt.wrap1 Node.of_string room_jid in
+      let%lwt room_id =
+        match%lwt Node.stored_id room with
         | None -> Lwt.fail Eliom_common.Eliom_404
         | Some id -> Lwt.return id in
       let cond =
@@ -123,9 +124,9 @@ let client_transcript_service =
       begin fun () ->
         Lwt_log.debug_f ~section "Sending %s transcript%s."
                         room_jid (phrase_query pat_opt tI_opt tF_opt) >>
-        lwt room = Lwt.wrap1 Node.of_string room_jid in
-        lwt room_id =
-          match_lwt Node.stored_id room with
+        let%lwt room = Lwt.wrap1 Node.of_string room_jid in
+        let%lwt room_id =
+          match%lwt Node.stored_id room with
           | None -> Lwt.fail Eliom_common.Eliom_404
           | Some id -> Lwt.return id in
         let cond =
@@ -176,7 +177,7 @@ let client_transcript_service =
       end
     end
 
-{client{
+[%%client
 
   type transcript_state = {
     mutable ts_day : int * int * int;
@@ -203,19 +204,17 @@ let client_transcript_service =
       | None -> msg_frag
       | Some st_frag ->
         F.span ~a:[F.a_class ["subject"]] st_frag :: msg_frag in
-    let jstime = jsnew Js.date_fromTimeValue(msg.msg_time *. 1000.0) in
-    let day = jstime##getFullYear(), jstime##getMonth() + 1,
-              jstime##getDate() in
+    let jstime = new%js Js.date_fromTimeValue (msg.msg_time *. 1000.0) in
+    let day = jstime##getFullYear, jstime##getMonth + 1, jstime##getDate in
     if day <> ts.ts_day then begin
-      let (y, m, d), wd = day, Caltime.day_names.(jstime##getDay()) in
+      let (y, m, d), wd = day, Caltime.day_names.(jstime##getDay) in
       let day_str = sprintf "%04d-%02d-%02d" y m d in
       let header_h2 = F.h2 [F.pcdata (wd ^ " " ^ day_str)] in
       Dom.appendChild ts.ts_dom (To_dom.of_h2 header_h2);
       ts.ts_day <- day;
       ts.ts_day_str <- day_str
     end;
-    let h, m, s =
-      jstime##getHours(), jstime##getMinutes(), jstime##getSeconds() in
+    let h, m, s = jstime##getHours, jstime##getMinutes, jstime##getSeconds in
     let hour = sprintf "%02d:%02d:%02d" h m s in
     let frag = sprintf "%sT%02d%02d%02d" ts.ts_day_str h m s in
     let message_p =
@@ -250,7 +249,7 @@ let client_transcript_service =
   }
 
   let shown_prec = ref 3
-  let shown_date = Option.get_else (fun () -> jsnew Js.date_now())
+  let shown_date = Option.get_else (fun () -> new%js Js.date_now)
                                    (React.S.value fragment_date)
   let shown_room = ref ""
   let shown_pat = ref None
@@ -263,9 +262,9 @@ let client_transcript_service =
       Lwt.return_unit
     else begin
       (* FIXME: Need the real timezone for this to work across DST. *)
-      let tz = sprintf "%d" (shown_date##getTimezoneOffset() / 60) in
-      lwt counts =
-        Eliom_client.call_ocaml_service ~service:%client_message_counts_service
+      let tz = sprintf "%d" (shown_date##getTimezoneOffset / 60) in
+      let%lwt counts =
+        Eliom_client.call_ocaml_service ~service:~%client_message_counts_service
           (room, (pat, tz)) () in
       let init_mday d =
         {ct_card = 0; ct_branches = [||]} in
@@ -293,7 +292,7 @@ let client_transcript_service =
 
   let render_messages ~room ?tI ?tF ?pat update_comet =
     disable_updates ();
-    Eliom_client.call_ocaml_service ~service:%client_transcript_service
+    Eliom_client.call_ocaml_service ~service:~%client_transcript_service
                                     (room, (tI, (tF, pat))) ()
       >|= fun messages ->
     let transcript_div = D.div [] in
@@ -310,22 +309,22 @@ let client_transcript_service =
       let limit_p = D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
       Dom.appendChild ts.ts_dom (To_dom.of_p limit_p)
     end;
-    let jt_now = jsnew Js.date_now() in
+    let jt_now = new%js Js.date_now in
     if Caltime.day_start shown_date = Caltime.day_start jt_now then
       enable_updates ts update_comet;
     [transcript_div]
 
   let update_transcript_view ~room ~min_time ?pat transcript_dom update_comet =
-    let jt_min = jsnew Js.date_fromTimeValue(min_time *. 1000.0) in
-    let jt_now = jsnew Js.date_now() in
-    let y_min = jt_min##getFullYear() in
-    let y_now = jt_now##getFullYear() in
+    let jt_min = new%js Js.date_fromTimeValue (min_time *. 1000.0) in
+    let jt_now = new%js Js.date_now in
+    let y_min = jt_min##getFullYear in
+    let y_now = jt_now##getFullYear in
 
-    lwt () = update_message_counts room pat y_min y_now in
+    let%lwt () = update_message_counts room pat y_min y_now in
 
     let render_content dd =
       let d = 1 + dd in
-      ignore shown_date##setDate(d);
+      ignore (shown_date##setDate d);
       let tI = Caltime.to_epoch (Caltime.day_start shown_date) in
       let tF = Caltime.to_epoch (Caltime.day_end shown_date) in
       render_messages ~room ~tI ~tF ?pat update_comet in
@@ -333,13 +332,13 @@ let client_transcript_service =
     let render_mdays ct_year dm =
       let ct_month = ct_year.ct_branches.(dm) in
       let m = 1 + dm in
-      ignore shown_date##setMonth(m - 1);
+      ignore (shown_date##setMonth (m - 1));
       if !shown_prec = 2 then
         let tI = Caltime.to_epoch (Caltime.month_start shown_date) in
         let tF = Caltime.to_epoch (Caltime.month_end shown_date) in
         render_messages ~room ~tI ~tF ?pat update_comet
       else
-        let d_dfl = shown_date##getDate() in
+        let d_dfl = shown_date##getDate in
         let mdays = Array.init (Caltime.days_in_month shown_date)
                                (fun i -> sprintf "%d" (i + 1)) in
         Batyrweb_tools.D.pager
@@ -349,13 +348,13 @@ let client_transcript_service =
     let render_months dy =
       let ct_year = shown_counts.ct_branches.(dy) in
       let y = y_min + dy in
-      ignore shown_date##setFullYear(y);
+      ignore (shown_date##setFullYear y);
       if !shown_prec = 1 then
         let tI = Caltime.to_epoch (Caltime.year_start shown_date) in
         let tF = Caltime.to_epoch (Caltime.year_end shown_date) in
         render_messages ~room ~tI ~tF ?pat update_comet
       else
-        let m_dfl = shown_date##getMonth() + 1 in
+        let m_dfl = shown_date##getMonth + 1 in
         Batyrweb_tools.D.pager
           ~default_index:(m_dfl - 1)
           ~count:(fun dm -> ct_year.ct_branches.(dm).ct_card)
@@ -364,7 +363,7 @@ let client_transcript_service =
       if !shown_prec = 0 then
         render_messages ~room ?pat update_comet
       else
-        let y_dfl = shown_date##getFullYear() in
+        let y_dfl = shown_date##getFullYear in
         let years = Array.init (y_now - y_min + 1)
                                (fun dy -> sprintf "%04d" (y_min + dy)) in
         Batyrweb_tools.D.pager
@@ -372,17 +371,17 @@ let client_transcript_service =
           ~count:(fun dy -> shown_counts.ct_branches.(dy).ct_card)
           years render_months in
 
-    transcript_dom##innerHTML <- Js.string "";
+    transcript_dom##.innerHTML := Js.string "";
     render_years () >|=
       List.iter (Dom.appendChild transcript_dom *< To_dom.of_element)
-}}
+]
 
 let transcript_handler (room_jid, (tI, (tF, pat))) () =
   let open D in
   let transcript_div = div ~a:[a_class ["transcript"]] [] in
   let room_node = Node.of_string room_jid in
-  lwt room =
-    match_lwt Muc_room.stored_of_node room_node with
+  let%lwt room =
+    match%lwt Muc_room.stored_of_node room_node with
     | None -> Lwt.fail Eliom_common.Eliom_404
     | Some room -> Lwt.return room in
   let min_time = Option.get_else Unix.time (Muc_room.min_message_time room) in
@@ -405,64 +404,64 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     Eliom_comet.Channel.create (Lwt_react.E.to_stream update_events) in
   let info_span = span ~a:[a_class ["error"]] [] in
   let clear_handler =
-    {{fun ev ->
-      let info_dom = To_dom.of_span %info_span in
+    [%client fun ev ->
+      let info_dom = To_dom.of_span ~%info_span in
       let search_dom =
         Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
-      info_dom##className <- Js.string "";
-      info_dom##innerHTML <- Js.string "";
-      search_dom##value <- Js.string "";
+      info_dom##.className := Js.string "";
+      info_dom##.innerHTML := Js.string "";
+      search_dom##.value := Js.string "";
       let clear_dom =
         Domx_html.element_by_id Dom_html.CoerceTo.button "clear_search" in
-      clear_dom##disabled <- Js._true;
+      clear_dom##.disabled := Js._true;
       Lwt.ignore_result begin
-        update_transcript_view ~room:%room_jid ~min_time:%min_time
-                               (To_dom.of_div %transcript_div)
-                               %update_comet
+        update_transcript_view ~room:~%room_jid ~min_time:~%min_time
+                               (To_dom.of_div ~%transcript_div)
+                               ~%update_comet
       end
-    }} in
+    ] in
   let clear_button =
     button ~a:[a_button_type `Button; a_onclick clear_handler;
                a_id "clear_search"; a_disabled `Disabled]
            [pcdata "all"] in
   let search_handler =
-    {{fun ev ->
-      let info_dom = To_dom.of_span %info_span in
+    [%client fun ev ->
+      let info_dom = To_dom.of_span ~%info_span in
       let search_dom =
         Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
-      let pat = match Js.to_string search_dom##value
+      let pat = match Js.to_string search_dom##.value
                 with "" -> None | s -> Some s in
-      (To_dom.of_button %clear_button)##disabled <- Js.bool (pat = None);
-      info_dom##className <- Js.string "";
-      info_dom##innerHTML <- Js.string "";
-      Lwt.ignore_result begin try_lwt
-        update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat
-                               (To_dom.of_div %transcript_div)
-                               %update_comet
+      (To_dom.of_button ~%clear_button)##.disabled := Js.bool (pat = None);
+      info_dom##.className := Js.string "";
+      info_dom##.innerHTML := Js.string "";
+      Lwt.ignore_result begin try%lwt
+        update_transcript_view ~room:~%room_jid ~min_time:~%min_time ?pat
+                               (To_dom.of_div ~%transcript_div)
+                               ~%update_comet
       with Eliom_lib.Exception_on_server msg ->
-        info_dom##className <- Js.string "error";
-        info_dom##innerHTML <- Js.string msg;
+        info_dom##.className := Js.string "error";
+        info_dom##.innerHTML := Js.string msg;
         Lwt.return_unit
       end
-    }} in
+    ] in
   let search_handler_mouse =
-    {{fun ev -> %search_handler (ev :> Dom_html.event Js.t)}} in
+    [%client fun ev -> ~%search_handler (ev :> Dom_html.event Js.t)] in
   let search_button =
     button ~a:[a_button_type `Button; a_onclick search_handler_mouse]
            [pcdata "matching"] in
   let search_input =
     input ~a:[a_input_type `Text; a_id "search_text"; a_onchange search_handler]
           () in
-  ignore {unit{
-    let transcript_dom = To_dom.of_div %transcript_div in
-    let tI = ref %tI in
-    let tF = ref %tF in
-    let pat = ref %pat in
+  ignore_client_unit [%client
+    let transcript_dom = To_dom.of_div ~%transcript_div in
+    let tI = ref ~%tI in
+    let tF = ref ~%tF in
+    let pat = ref ~%pat in
     Lwt.ignore_result begin
-      update_transcript_view ~room:%room_jid ~min_time:%min_time ?pat:!pat
-                             transcript_dom %update_comet
+      update_transcript_view ~room:~%room_jid ~min_time:~%min_time ?pat:!pat
+                             transcript_dom ~%update_comet
     end
-  }};
+  ];
   let help_span =
     let bop s = span ~a:[a_class ["bnf-op"]] [pcdata s] in
     let op s = span [bop "'"; pcdata s; bop "'"] in

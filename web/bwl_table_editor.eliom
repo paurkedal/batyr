@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-{shared{
+[%%shared
   open Eliom_content.Html5
   open Unprime_option
   open Batyrweb_prereq
@@ -22,7 +22,7 @@
 
   module type ELEMENT_SHARED = sig
 
-    type t deriving (Json)
+    type t [@@deriving json]
 
     include Prime_enumset.OrderedType with type t := t
 
@@ -41,9 +41,9 @@
     type clientside = [`Div] elt -> serverside -> unit
 
   end
-}}
+]
 
-{client{
+[%%client
   module type ELEMENT = sig
     include ELEMENT_SHARED
 
@@ -79,7 +79,7 @@
         | _ -> 1 + i in
 
       let rec render_row pos row elt =
-        row##innerHTML <- Js.string "";
+        row##.innerHTML := Js.string "";
         List.iter
           (fun cell ->
             let cell_dom = To_dom.of_td cell in
@@ -122,7 +122,7 @@
         Dom.appendChild row (To_dom.of_td outside_td)
 
       and render_edit_row row elt_opt =
-        row##innerHTML <- Js.string "";
+        row##.innerHTML := Js.string "";
         let edit_dom, edit_tds = E.render_edit_row elt_opt in
         List.iter (fun cell -> Dom.appendChild row (To_dom.of_td cell))
                   edit_tds;
@@ -143,7 +143,7 @@
         editing := Some (pos, row, elt_opt, edit_dom) in
 
       let on_new _ _ =
-        enable_edit 1 table_dom##insertRow(1) None; Lwt.return_unit in
+        enable_edit 1 (table_dom##insertRow 1) None; Lwt.return_unit in
       Lwt_js_events.(async
         (fun () -> clicks (To_dom.of_element new_button) on_new));
 
@@ -156,7 +156,7 @@
             let i = snd (Enset.locate elt !enset) in
             i, table_dom##insertRow (row_pos i)
           | true, i ->
-            let row = Js.Opt.get (table_dom##rows##item(row_pos i))
+            let row = Js.Opt.get (table_dom##.rows##item (row_pos i))
                                  (fun () -> failwith "Js.Opt.get") in
             i, row in
         render_row (row_pos i) row elt in
@@ -170,7 +170,7 @@
           begin match !editing with
           | Some (pos, row, Some _, edit_dom) when pos = 1 + i ->
             editing := Some (pos, row, None, edit_dom);
-            Js.Opt.iter (row##lastChild) (Dom.removeChild row);
+            Js.Opt.iter (row##.lastChild) (Dom.removeChild row);
             render_edit_row_outside ~is_removed:true row None edit_dom
           | _ ->
             table_dom##deleteRow (row_pos i)
@@ -194,9 +194,9 @@
       Manip.appendChild outer_div table
   end
 
-}}
+]
 
-{server{
+[%%server
   let section = Lwt_log.Section.make "Bwl_table_editor"
 
   module type ELEMENT = sig
@@ -215,17 +215,17 @@
     let update_comet : update Eliom_comet.Channel.t =
       Eliom_comet.Channel.create ~scope:Eliom_common.site_scope update_stream
 
-    let fetch_all = server_function Json.t<unit>
+    let fetch_all = server_function [%json: unit]
       begin fun () ->
-        try_lwt E.fetch_all () >|= fun entries -> Ok entries
+        try%lwt E.fetch_all () >|= fun entries -> Ok entries
         with xc ->
           let msg = sprintf "Failed to fetch %s list." E.which_type in
           Lwt_log.error ~section msg >> Lwt.return (Failed msg)
       end
 
-    let add = server_function Json.t<E.t option * E.t>
+    let add = server_function [%json: E.t option * E.t]
       begin fun (old_entry_opt, entry) ->
-        try_lwt
+        try%lwt
           E.add old_entry_opt entry >|= fun entry ->
           Option.iter (fun entry -> emit (Some (Remove entry))) old_entry_opt;
           emit (Some (Add entry));
@@ -236,9 +236,9 @@
           Lwt_log.error ~section msg >> Lwt.return (Failed msg)
       end
 
-    let remove = server_function Json.t<E.t>
+    let remove = server_function [%json: E.t]
       begin fun entry ->
-        try_lwt
+        try%lwt
           E.remove entry >|= fun () -> emit (Some (Remove entry)); Ok ()
         with xc ->
           let msg = sprintf "Failed to remove %s." E.which_type in
@@ -247,4 +247,4 @@
 
     let serverside = fetch_all, add, remove, update_comet
   end
-}}
+]

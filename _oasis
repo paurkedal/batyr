@@ -7,7 +7,7 @@ License: GPL-3
 AlphaFeatures: ocamlbuild_more_args
 Plugins: DevFiles (0.4), META (0.4)
 BuildTools: ocamlbuild
-XOCamlbuildPluginTags: package(eliom.ocamlbuild)
+XOCamlbuildPluginTags: package(ocamlbuild-eliom-dev)
 OCamlVersion: >= 4.01
 
 FilesAB: lib/batyr_version.ml.ab
@@ -48,7 +48,7 @@ Library batyrweb
     server/Batyrweb_server,
     server/Bwl_table_editor
   BuildDepends:
-    batyr, eliom.server, yojson
+    batyr, eliom.server, ppx_deriving.runtime, yojson
   ByteOpt: -thread
   NativeOpt: -thread
   DataFiles:

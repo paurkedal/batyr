@@ -19,7 +19,7 @@ open Batyrweb_server
 open Eliom_content.Html5
 
 let index_handler () () =
-  lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in
+  let%lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in
   let render_room_link (node_id, domain_name, node_name, alias, transcribe) =
     let node_jid = node_name ^ "@" ^ domain_name in
     let label =
@@ -30,7 +30,7 @@ let index_handler () () =
         [D.pcdata alias; D.pcdata " <"; D.pcdata node_jid; D.pcdata ">"] in
     Lwt.return @@ D.li [D.a ~service:transcript_service label
                             (node_jid, (None, (None, None)))] in
-  lwt room_lis = Lwt_list.map_p render_room_link rooms in
+  let%lwt room_lis = Lwt_list.map_p render_room_link rooms in
   let rooms_ul = D.ul room_lis in
   Lwt.return (Batyrweb_tools.D.page "Chatrooms" [rooms_ul])
 

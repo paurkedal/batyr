@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ module Html5_R = struct
   let signal_is_const s = React.S.equal s (React.S.const (React.S.value s))
 
   let append_child_signal' p csig =
-    let c = ref p##appendChild(Html5.To_dom.of_node (React.S.value csig)) in
+    let c = ref (p##appendChild (Html5.To_dom.of_node (React.S.value csig))) in
     let update e =
       let n = Html5.To_dom.of_node e in
       Dom.replaceChild p n !c; c := n in

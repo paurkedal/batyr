@@ -14,10 +14,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Lwt.Infix
 open Eliom_content
 open Unprime_option
-
-let (>|=) = Lwt.(>|=)
 
 module Domx_html = struct
   let element_by_id : (#Dom_html.element Js.t -> 'a Js.opt) -> string -> 'a
@@ -28,19 +27,19 @@ module Domx_html = struct
 end
 
 module Caltime = struct
-  let to_epoch jd = 0.001 *. Js.to_float jd##valueOf()
+  let to_epoch jd = 0.001 *. Js.to_float jd##valueOf
 
   let day_start d =
-    jsnew Js.date_day(d##getFullYear(), d##getMonth(), d##getDate())
+    new%js Js.date_day d##getFullYear d##getMonth d##getDate
   let day_end d =
-    jsnew Js.date_day(d##getFullYear(), d##getMonth(), d##getDate() + 1)
-  let month_start d = jsnew Js.date_month(d##getFullYear(), d##getMonth())
-  let month_end d = jsnew Js.date_month(d##getFullYear(), d##getMonth() + 1)
-  let year_start d = jsnew Js.date_month(d##getFullYear(), 0)
-  let year_end d = jsnew Js.date_month(d##getFullYear() + 1, 0)
+    new%js Js.date_day d##getFullYear d##getMonth (d##getDate + 1)
+  let month_start d = new%js Js.date_month d##getFullYear d##getMonth
+  let month_end d = new%js Js.date_month d##getFullYear (d##getMonth + 1)
+  let year_start d = new%js Js.date_month d##getFullYear 0
+  let year_end d = new%js Js.date_month (d##getFullYear + 1) 0
 
   let days_in_month d =
-    jsnew Js.date_day(d##getFullYear(), d##getMonth() + 1, -1)##getDate() + 1
+    (new%js Js.date_day d##getFullYear (d##getMonth + 1) (-1))##getDate + 1
 
   let month_names = [|"Jan"; "Feb"; "Mar"; "Apr"; "May"; "Jun";
                       "Jul"; "Aug"; "Sep"; "Oct"; "Nov"; "Dec"|]
@@ -64,7 +63,7 @@ module Live_table (Elt : LIVE_TABLE_ELEMENT) = struct
   let create tbl = {
     enset = Enset.empty;
     table = tbl;
-    static_row_count = tbl##rows##length;
+    static_row_count = tbl##.rows##.length;
   }
 
   let add t elt =
@@ -76,9 +75,9 @@ module Live_table (Elt : LIVE_TABLE_ELEMENT) = struct
         t.table##insertRow (t.static_row_count + i)
       | true, i ->
         let row =
-          Js.Opt.get (t.table##rows##item (t.static_row_count + i))
+          Js.Opt.get (t.table##.rows##item (t.static_row_count + i))
                      (fun () -> failwith "Js.Opt.get") in
-        row##innerHTML <- Js.string ""; row in
+        row##.innerHTML := Js.string ""; row in
     List.iter
       (fun cell ->
         ignore (row##appendChild((Html5.To_dom.of_td cell :> Dom.node Js.t))))

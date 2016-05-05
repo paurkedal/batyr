@@ -24,7 +24,7 @@ let json_of_string (x : string) = `String x
 let json_of_float (x : float) = `Float x
 
 let room_info (node_id, domain_name, node_name, room_alias, transcribe) =
-  lwt lmt = Batyr_db.use (Batyr_sql.Muc_room.latest_message_time node_id) in
+  let%lwt lmt = Batyr_db.use (Batyr_sql.Muc_room.latest_message_time node_id) in
   let room_jid = node_name ^ "@" ^ domain_name in
   let info : Yojson.Basic.json = `Assoc [
     "alias", json_of_option json_of_string room_alias;
@@ -34,8 +34,8 @@ let room_info (node_id, domain_name, node_name, room_alias, transcribe) =
   Lwt.return (room_jid, info)
 
 let status_handler () () =
-  lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in
-  lwt assoc = Lwt_list.map_s room_info rooms in
+  let%lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in
+  let%lwt assoc = Lwt_list.map_s room_info rooms in
   Lwt.return (Yojson.Basic.pretty_to_string (`Assoc assoc), "application/json")
 
 let () = Eliom_registration.String.register status_service status_handler

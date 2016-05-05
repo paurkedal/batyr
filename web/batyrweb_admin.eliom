@@ -14,40 +14,40 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-{shared{
+[%%shared
   open Batyrweb_prereq
   open Eliom_content.Html5
   open Eliom_pervasives
   open Unprime
   open Unprime_list
   open Unprime_option
-}}
-{client{
+]
+[%%client
   open Bwl_content
-}}
-{server{
+]
+[%%server
   open Batyr_data
   open Batyr_prereq
   open Batyrweb_server
   open Caqti_lwt
-}}
+]
 
 (* Accounts *)
 (* ======== *)
 
-{shared{
+[%%shared
   module Account_shared = struct
     type t = {
       account_jid : string;
       server_port : int;
       client_password : string option;
       is_active : bool;
-    } deriving (Json)
+    } [@@deriving json]
 
     let compare acA acB = compare acA.account_jid acB.account_jid
   end
-}}
-{client{
+]
+[%%client
   let hidden = "********"
 
   module Account = struct
@@ -89,11 +89,11 @@
       } in
       Option.iter
         (fun ac ->
-          ed.ed_jid##value <- Js.string ac.account_jid;
-          Option.iter (fun pw -> ed.ed_password##value <- Js.string pw)
+          ed.ed_jid##.value := Js.string ac.account_jid;
+          Option.iter (fun pw -> ed.ed_password##.value := Js.string pw)
                       ac.client_password;
-          ed.ed_server_port##value <- Js.string (string_of_int ac.server_port);
-          ed.ed_is_active##checked <- Js.bool ac.is_active)
+          ed.ed_server_port##.value := Js.string (string_of_int ac.server_port);
+          ed.ed_is_active##.checked := Js.bool ac.is_active)
         ac_opt;
       let tds =
         [ D.td [jid_input];
@@ -103,15 +103,15 @@
       (ed, tds)
 
     let decode_row _ ed =
-      { account_jid = Js.to_string ed.ed_jid##value;
-        client_password = (match Js.to_string ed.ed_password##value with
+      { account_jid = Js.to_string ed.ed_jid##.value;
+        client_password = (match Js.to_string ed.ed_password##.value with
                             | "" -> None
                             | pw -> Some pw);
-        server_port = int_of_string (Js.to_string ed.ed_server_port##value);
-        is_active = Js.to_bool ed.ed_is_active##checked; }
+        server_port = int_of_string (Js.to_string ed.ed_server_port##.value);
+        is_active = Js.to_bool ed.ed_is_active##.checked; }
   end
-}}
-{server{
+]
+[%%server
   module Account = struct
     include Account_shared
 
@@ -130,13 +130,13 @@
     let fetch_all () = Batyr_data.Account.all () >|= List.map of_account
 
     let add old_account_opt a =
-      lwt resource = Lwt.wrap1 Resource.of_string a.account_jid in
+      let%lwt resource = Lwt.wrap1 Resource.of_string a.account_jid in
       let port = a.server_port in
       let password = a.client_password in
       let is_active = a.is_active in
       begin match old_account_opt with
       | None ->
-        lwt password =
+        let%lwt password =
           match password with
           | None -> Lwt.fail (Failure "Password is needed for new account.")
           | Some pw -> Lwt.return pw in
@@ -145,7 +145,7 @@
         if is_active then ignore (Batyr_presence.Session.start account)
       | Some old_account ->
         let old_resource = Resource.of_string old_account.account_jid in
-        begin match_lwt Batyr_data.Account.of_resource old_resource with
+        begin match%lwt Batyr_data.Account.of_resource old_resource with
         | None -> Lwt.return_unit
         | Some account ->
           begin if Account.is_active account then
@@ -165,17 +165,17 @@
 
     let remove a =
       let resource = Resource.of_string a.account_jid in
-      lwt resource_id = Resource.stored_id resource >|= Option.get in
+      let%lwt resource_id = Resource.stored_id resource >|= Option.get in
       Batyr_data.Account.delete_id resource_id
   end
-}}
-{shared{ module Accounts_editor = Bwl_table_editor.Make (Account) }}
+]
+[%%shared module Accounts_editor = Bwl_table_editor.Make (Account)]
 
 
 (* Chatrooms *)
 (* ========= *)
 
-{shared{
+[%%shared
   module Chatroom_shared = struct
 
     type t = {
@@ -183,36 +183,36 @@
       room_alias : string option;
       room_description : string option;
       transcribe : bool;
-    } deriving (Json)
+    } [@@deriving json]
 
     let compare r0 r1 = compare r0.room_jid r1.room_jid
 
   end
-}}
-{server{
+]
+[%%server
   module Chatroom = struct
     include Chatroom_shared
 
     let which_type = "chat room"
 
     let fetch_all () =
-      lwt entries = Batyr_db.use Batyr_sql.Admin.fetch_chatrooms in
+      let%lwt entries = Batyr_db.use Batyr_sql.Admin.fetch_chatrooms in
       let chatroom_of_entry
             (node_id, room_alias, room_description, transcribe) =
-        lwt node = Node.stored_of_id node_id in
+        let%lwt node = Node.stored_of_id node_id in
         let room_jid = Node.to_string node in
         Lwt.return {room_jid; room_alias; room_description; transcribe} in
       Lwt_list.rev_map_p chatroom_of_entry entries
 
     let add old_room_opt room =
-      lwt old_node_id_opt =
+      let%lwt old_node_id_opt =
         match old_room_opt with
         | None -> Lwt.return_none
         | Some old_room ->
-          lwt node = Lwt.wrap1 Node.of_string old_room.room_jid in
+          let%lwt node = Lwt.wrap1 Node.of_string old_room.room_jid in
           Node.stored_id node in
-      lwt node = Lwt.wrap1 Node.of_string room.room_jid in
-      lwt node_id = Node.store node in
+      let%lwt node = Lwt.wrap1 Node.of_string room.room_jid in
+      let%lwt node_id = Node.store node in
       let room = {room with room_jid = Node.to_string node} in
       Batyr_db.use begin fun conn ->
         Batyr_sql.Admin.upsert_chatroom (old_node_id_opt <> Some node_id)
@@ -225,17 +225,17 @@
       Lwt.return room
 
     let remove room =
-      lwt node = Lwt.wrap1 Node.of_string room.room_jid in
-      lwt node_id =
-        match_lwt Node.stored_id node with
+      let%lwt node = Lwt.wrap1 Node.of_string room.room_jid in
+      let%lwt node_id =
+        match%lwt Node.stored_id node with
         | None -> Lwt.fail Eliom_common.Eliom_404
         | Some id -> Lwt.return id in
       Batyr_db.use (Batyr_sql.Admin.delete_chatroom node_id)
   end
-}}
-{client{
+]
+[%%client
   let input_value_opt inp =
-    match String.trim (Js.to_string inp##value) with
+    match String.trim (Js.to_string inp##.value) with
     | "" -> None
     | s -> Some s
 
@@ -274,41 +274,41 @@
       } in
       Option.iter
         (fun r ->
-          ed.ed_jid##value <- Js.string r.room_jid;
-          ed.ed_alias##value <- Js.string (Option.get_or "" r.room_alias);
-          ed.ed_description##value <-
+          ed.ed_jid##.value := Js.string r.room_jid;
+          ed.ed_alias##.value := Js.string (Option.get_or "" r.room_alias);
+          ed.ed_description##.value :=
             Js.string (Option.get_or "" r.room_description);
-          ed.ed_transcribe##checked <- Js.bool r.transcribe)
+          ed.ed_transcribe##.checked := Js.bool r.transcribe)
         r_opt;
       ed, [D.td [jid_inp]; D.td [alias_inp];
            D.td [description_inp]; D.td [transcribe_inp]]
 
     let decode_row r_opt ed = {
-      room_jid = Js.to_string ed.ed_jid##value;
+      room_jid = Js.to_string ed.ed_jid##.value;
       room_alias = input_value_opt ed.ed_alias;
       room_description = input_value_opt ed.ed_description;
-      transcribe = Js.to_bool ed.ed_transcribe##checked;
+      transcribe = Js.to_bool ed.ed_transcribe##.checked;
     }
   end
-}}
-{shared{ module Chatrooms_editor = Bwl_table_editor.Make (Chatroom) }}
+]
+[%%shared module Chatrooms_editor = Bwl_table_editor.Make (Chatroom)]
 
 
 (* Presence *)
 (* ======== *)
 
-{shared{
+[%%shared
   module Presence_shared = struct
     type t = {
       resource_jid : string;
       account_jid : string;
       is_present : bool;
       nick : string option;
-    } deriving (Json)
+    } [@@deriving json]
     let compare presA presB = compare presA.resource_jid presB.resource_jid
   end
-}}
-{server{
+]
+[%%server
   module Presence = struct
     include Presence_shared
 
@@ -320,13 +320,14 @@
                           {resource_jid; account_jid; is_present; nick})
 
     let add old_pres_opt pres =
-      lwt old_resource_id_opt =
+      let%lwt old_resource_id_opt =
         match old_pres_opt with
         | None -> Lwt.return_none
         | Some old_pres ->
           Resource.stored_id (Resource.of_string old_pres.resource_jid) in
-      lwt resource_id = Resource.store (Resource.of_string pres.resource_jid) in
-      lwt account_id =
+      let%lwt resource_id =
+        Resource.store (Resource.of_string pres.resource_jid) in
+      let%lwt account_id =
         Resource.stored_id (Resource.of_string pres.account_jid)
           >|= Option.get in
       Batyr_db.use begin fun conn ->
@@ -340,13 +341,13 @@
       end >>
       Lwt.return pres
     let remove pres =
-      lwt resource_id =
+      let%lwt resource_id =
         Resource.stored_id (Resource.of_string pres.resource_jid)
           >|= Option.get in
       Batyr_db.use (Batyr_sql.Admin.delete_presence resource_id)
   end
-}}
-{client{
+]
+[%%client
   open ReactiveData
 
   module Presence = struct
@@ -399,23 +400,23 @@
       } in
       Option.iter
         (fun pres ->
-          ed.ed_resource_jid##value <- Js.string pres.resource_jid;
-          ed.ed_account_jid##value <- Js.string pres.account_jid;
-          ed.ed_nick##value <- Js.string (Option.get_or "" pres.nick);
-          ed.ed_is_present##checked <- Js.bool pres.is_present)
+          ed.ed_resource_jid##.value := Js.string pres.resource_jid;
+          ed.ed_account_jid##.value := Js.string pres.account_jid;
+          ed.ed_nick##.value := Js.string (Option.get_or "" pres.nick);
+          ed.ed_is_present##.checked := Js.bool pres.is_present)
         pres_opt;
       ed, [D.td [inp_resource_jid]; D.td [inp_account_jid];
            D.td [inp_nick]; D.td [inp_is_present]]
 
     let decode_row pres_opt ed =
-      let resource_jid = Js.to_string ed.ed_resource_jid##value in
-      let account_jid = Js.to_string ed.ed_account_jid##value in
+      let resource_jid = Js.to_string ed.ed_resource_jid##.value in
+      let account_jid = Js.to_string ed.ed_account_jid##.value in
       let nick = input_value_opt ed.ed_nick in
-      let is_present = Js.to_bool ed.ed_is_present##checked in
+      let is_present = Js.to_bool ed.ed_is_present##.checked in
       {resource_jid; account_jid; nick; is_present}
   end
-}}
-{shared{ module Presence_editor = Bwl_table_editor.Make (Presence) }}
+]
+[%%shared module Presence_editor = Bwl_table_editor.Make (Presence)]
 
 
 (* Main *)
@@ -427,19 +428,19 @@ module Admin_app = Eliom_registration.App
 let admin_handler () () =
 
   let accounts_editor = D.div [] in
-  ignore {unit{
-    Accounts_editor.clientside %accounts_editor %Accounts_editor.serverside
-  }};
+  ignore_client_unit [%client
+    Accounts_editor.clientside ~%accounts_editor ~%Accounts_editor.serverside
+  ];
 
   let chatrooms_editor = D.div [] in
-  ignore {unit{
-    Chatrooms_editor.clientside %chatrooms_editor %Chatrooms_editor.serverside
-  }};
+  ignore_client_unit [%client
+    Chatrooms_editor.clientside ~%chatrooms_editor ~%Chatrooms_editor.serverside
+  ];
 
   let presence_editor = D.div [] in
-  ignore {unit{
-    Presence_editor.clientside %presence_editor %Presence_editor.serverside
-  }};
+  ignore_client_unit [%client
+    Presence_editor.clientside ~%presence_editor ~%Presence_editor.serverside
+  ];
 
   Lwt.return @@ Batyrweb_tools.D.page "Administration" [
     D.h2 [D.pcdata "Accounts"];

@@ -14,14 +14,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-{shared{
+[%%shared
   open Batyrweb_prereq
   open Eliom_content
   open Printf
   open Unprime_option
-}}
+]
 
-{server{
+[%%server
   module D' = struct
     open Html5.D
 
@@ -33,15 +33,16 @@
           ~(onclick : (int -> string -> Dom_html.mouseEvent Js.t -> unit)
                       Eliom_lib.client_value)
           labels =
-      let make_tab i l = span ~a:[a_onclick {{ %onclick %i %l }}] [pcdata l] in
+      let make_tab i l =
+        span ~a:[a_onclick [%client ~%onclick ~%i ~%l]] [pcdata l] in
       (div ~a:[a_class ["tabbar"]] [
         div ~a:[a_class ["tabs"]] (List.mapi make_tab labels);
         div ~a:[a_class ["header"]] []
       ])
   end
-}}
+]
 
-{client{
+[%%client
   open Html5.D
 
   module D' = struct
@@ -53,10 +54,10 @@
       let update_content i =
         if i <> !shown_index then begin
           if !shown_index >= 0 then
-            !tabs_dom.(!shown_index)##classList##remove(Js.string "selected");
-          !tabs_dom.(i)##classList##add(Js.string "selected");
+            !tabs_dom.(!shown_index)##.classList##remove(Js.string "selected");
+          !tabs_dom.(i)##.classList##add(Js.string "selected");
           shown_index := i;
-          sheet_dom##innerHTML <- Js.string "";
+          sheet_dom##.innerHTML := Js.string "";
           Lwt.async (fun () ->
             draw_inner i >|=
             List.iter (fun el -> Dom.appendChild sheet_dom
@@ -97,10 +98,10 @@
            sheet_div]
         ]
   end
-}}
+]
 
-{shared{
+[%%shared
   module D = struct
     include D'
   end
-}}
+]
