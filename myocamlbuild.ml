@@ -1,5 +1,4 @@
-(* OASIS_START *)
-(* OASIS_STOP *)
+open Ocamlbuild_plugin
 
 module M = Ocamlbuild_eliom.Make (struct
   let client_dir = "client"
@@ -8,18 +7,32 @@ module M = Ocamlbuild_eliom.Make (struct
 end)
 
 let oasis_executables = [
-  "web/client/main.byte";
-  "web/client/admin.byte";
+  "web/client/batyrweb_main.byte";
+  "web/client/batyrweb_admin.byte";
 ]
 
-let () = Ocamlbuild_plugin.dispatch @@ fun hook ->
-  dispatch_default hook;
+let () =
+  rule "pkg/META -> lib/META"
+    ~dep:"pkg/META" ~prod:"lib/META"
+    begin fun env build ->
+      Cmd (S[A"sed"; A"/^\\s*requires =/ s/\\<batyr\\>/lib/g";
+             P"pkg/META"; Sh">"; Px"lib/META"])
+    end;
+  rule "%.mli & %.idem -> %.ml"
+    ~deps:["%.mli"; "%.idem"] ~prod:"%.ml"
+    begin fun env build ->
+      let src = env "%.mli" and dst = env "%.ml" in
+      cp src dst
+    end;
+  rule "%.eliomi & %.idem -> %.eliom"
+    ~deps:["%.eliomi"; "%.idem"] ~prod:"%.eliom"
+    begin fun env build ->
+      let src = env "%.eliomi" and dst = env "%.eliom" in
+      cp src dst
+    end
+
+let () = dispatch @@ fun hook ->
   M.dispatcher ~oasis_executables hook;
   match hook with
-  | Before_options ->
-    Options.make_links := false
-  | After_rules ->
-    (* Cf https://github.com/ocsigen/js_of_ocaml/issues/20 *)
-    flag ["js_of_ocaml"] &
-      S[A"+eliom/client/eliom_client.js"; A"+js_of_ocaml/weak.js"]
+  | Before_options -> Options.make_links := false
   | _ -> ()

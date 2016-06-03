@@ -1,0 +1,17 @@
+true: bin_annot, eliom_ppx
+false: package(ocamlbuild-eliom-dev)
+true: \
+    package(calendar), \
+    package(lwt.ppx), \
+    package(prime), package(prime.unstable), \
+    package(react)
+<{lib,web/server}/*>: thread, \
+    package(caqti), \
+    package(config-file), \
+    package(extunix), \
+    package(erm_xmpp), \
+    package(postgresql), \
+    package(tls), \
+    package(ppx_deriving), package(js_of_ocaml.deriving.ppx)
+<web/server/*>: package(eliom.server), package(lib), package(yojson)
+<web/client/*>: package(eliom.client), package(js_of_ocaml.ppx)

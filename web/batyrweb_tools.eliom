@@ -15,8 +15,8 @@
  *)
 
 [%%shared
-  open Batyrweb_prereq
   open Eliom_content
+  open Lwt.Infix
   open Printf
   open Unprime_option
 ]

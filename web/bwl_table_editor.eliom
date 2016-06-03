@@ -16,9 +16,13 @@
 
 [%%shared
   open Eliom_content.Html5
+  open Lwt.Infix
   open Unprime_option
-  open Batyrweb_prereq
   open Printf
+
+  type 'a fallible =
+    | Ok of 'a
+    | Failed of string
 
   module type ELEMENT_SHARED = sig
 

@@ -15,7 +15,6 @@
  *)
 
 [%%shared
-  open Batyrweb_prereq
   open Eliom_content.Html5
   open Eliom_pervasives
   open Unprime
@@ -423,7 +422,7 @@
 (* ==== *)
 
 module Admin_app = Eliom_registration.App
-  (struct let application_name = "admin" end)
+  (struct let application_name = "batyrweb_admin" end)
 
 let admin_handler () () =
 

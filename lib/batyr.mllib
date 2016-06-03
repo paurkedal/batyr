@@ -1,0 +1,13 @@
+Batyr_data
+Batyr_db
+Batyr_cache
+Batyr_config
+Batyr_prereq
+Batyr_presence
+Batyr_search
+Batyr_search_lexer
+Batyr_search_parser
+Batyr_search_types
+Batyr_sql
+Batyr_version
+Batyr_xmpp

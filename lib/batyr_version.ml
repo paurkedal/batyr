@@ -1,4 +1,4 @@
-(* Copyright (C) 2013  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,9 +14,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-let (>>=) = Lwt.(>>=)
-let (>|=) = Lwt.(>|=)
-
-type 'a fallible =
-  | Ok of 'a
-  | Failed of string
+let version_string = "%%VERSION_NUM%%"

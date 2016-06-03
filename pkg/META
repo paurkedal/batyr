@@ -1,0 +1,22 @@
+version = "%%VERSION_NUM%%"
+description = "A jabber logger and web interface"
+requires = "
+  caqti calendar config-file eliom erm_xmpp extunix lwt lwt.react
+  postgresql prime prime.unstable tls.lwt
+"
+archive(byte) = "batyr.cma"
+archive(native) = "batyr.cmxa"
+plugin(byte) = "batyr.cma"
+plugin(native) = "batyr.cmxs"
+exists_if = "batyr.cma"
+
+package "web" (
+  version = "%%VERSION_NUM%%"
+  description = "A jabber logger and web interface"
+  requires = "batyr eliom.server yojson"
+  archive(byte) = "batyrweb.cma"
+  archive(native) = "batyrweb.cmxa"
+  plugin(byte) = "batyrweb.cma"
+  plugin(native) = "batyrweb.cmxs"
+  exists_if = "batyrweb.cma"
+)
