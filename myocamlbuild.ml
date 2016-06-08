@@ -29,10 +29,13 @@ let () =
     begin fun env build ->
       let src = env "%.eliomi" and dst = env "%.eliom" in
       cp src dst
-    end
+    end;
+  copy_rule ".mllib -> .odocl" "lib/%.mllib" "lib/%.odocl"
 
 let () = dispatch @@ fun hook ->
   M.dispatcher ~oasis_executables hook;
   match hook with
   | Before_options -> Options.make_links := false
+  | After_rules ->
+    dep ["ocaml"; "ocamldep"; "package(lib)"] ["lib/batyr.otarget"]
   | _ -> ()

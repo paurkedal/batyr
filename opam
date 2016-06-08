@@ -4,7 +4,7 @@ authors: [ "Petter A. Urkedal" ]
 maintainer: "paurkedal@gmail.com"
 homepage: "https://github.com/paurkedal/batyr/"
 bug-reports: "https://github.com/paurkedal/batyr/issues"
-dev-repo: "git://github.com/paurkedal/batyr.git#next"
+dev-repo: "https://github.com/paurkedal/batyr.git"
 license: "GPL-3"
 build: [ocaml "pkg/pkg.ml" "build" "--installer" "true"]
 depends: [
