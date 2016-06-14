@@ -1,5 +1,5 @@
 true: bin_annot, eliom_ppx
-false: package(ocamlbuild-eliom-dev)
+false: package(ocamlbuild-eliom-dev), package(adpkg)
 true: \
     package(calendar), \
     package(lwt.ppx), \

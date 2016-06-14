@@ -51,8 +51,10 @@ let () = Pkg.describe ~build ~metas ~opams "batyr" @@ fun c ->
     >>= fun batyr_modules ->
   Modules.(of_file ~tags:(Tags.singleton "internal") "web/server/batyrweb.oclib")
     >>= fun batyrweb_modules ->
-  Modules.save batyr_modules "doc/api.odocl";
-  Modules.save Modules.(union batyr_modules batyrweb_modules) "doc/dev.odocl";
+  Modules.save batyr_modules "doc/api.odocl"
+    >>= fun () ->
+  Modules.save Modules.(union batyr_modules batyrweb_modules) "doc/dev.odocl"
+    >>= fun () ->
   Modules.mllib batyr_modules "lib/batyr.mllib"
     >>= fun batyr_mllib ->
   Modules.mllib batyrweb_modules ~dst_dir:"web/" "web/server/batyrweb.mllib"
