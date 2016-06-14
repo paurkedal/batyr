@@ -1,3 +1,5 @@
+*.mllib
+*.odocl
 /_build
 /_var
 /batyr.install

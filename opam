@@ -8,6 +8,7 @@ dev-repo: "https://github.com/paurkedal/batyr.git"
 license: "GPL-3"
 build: [ocaml "pkg/pkg.ml" "build" "--pinned" "%{pinned}%"]
 depends: [
+  "adpkg" {build}
   "calendar"
   "caqti"
   "config-file"

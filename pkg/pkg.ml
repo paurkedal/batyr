@@ -17,9 +17,11 @@
  *)
 
 #use "topfind"
+#require "adpkg"
 #require "topkg"
 #require "unix"
 
+open Adpkg
 open Topkg
 
 let build_cmd c os =
@@ -31,6 +33,7 @@ let build_cmd c os =
         % "-plugin-tag" % "package(ocamlbuild-eliom-dev)"
         % "-build-dir" % build_dir
         % "lib/META")
+let () = Unix.putenv "OCAMLPATH" "."
 
 let build = Pkg.build ~cmd:build_cmd ()
 
@@ -38,23 +41,25 @@ let metas = [Pkg.meta_file "pkg/META"]
 
 let opams = [Pkg.opam_file ~lint_deps_excluding:(Some ["lib"]) "opam"]
 
-let batyr_api = [
-  "Batyr_cache";
-  "Batyr_data";
-  "Batyr_db";
-  "Batyr_prereq";
-  "Batyr_presence";
-  "Batyr_search";
-  "Batyr_version";
-  "Batyr_xmpp";
-]
-
-let () = Unix.putenv "OCAMLPATH" Filename.(concat (Unix.getcwd ()) "_build")
+let save_list ?(pfx = "") fn lines =
+  let oc = open_out fn in
+  List.iter (fun m -> output_string oc (pfx ^ m ^ "\n")) lines;
+  close_out oc
 
 let () = Pkg.describe ~build ~metas ~opams "batyr" @@ fun c ->
+  Modules.of_file "lib/batyr.oclib"
+    >>= fun batyr_modules ->
+  Modules.(of_file ~tags:(Tags.singleton "internal") "web/server/batyrweb.oclib")
+    >>= fun batyrweb_modules ->
+  Modules.save batyr_modules "doc/api.odocl";
+  Modules.save Modules.(union batyr_modules batyrweb_modules) "doc/dev.odocl";
+  Modules.mllib batyr_modules "lib/batyr.mllib"
+    >>= fun batyr_mllib ->
+  Modules.mllib batyrweb_modules ~dst_dir:"web/" "web/server/batyrweb.mllib"
+    >>= fun batyrweb_mllib ->
   Ok [
-    Pkg.mllib ~api:batyr_api "lib/batyr.mllib";
-    Pkg.mllib ~api:[] ~dst_dir:"web/" "web/server/batyrweb.mllib";
+    batyr_mllib;
+    batyrweb_mllib;
     Pkg.share ~dst:"static/" "web/client/batyrweb_main.js";
     Pkg.share ~dst:"static/" "web/client/batyrweb_admin.js";
     Pkg.share ~dst:"static/css/" "web/static/css/batyr.css";
