@@ -1,11 +1,13 @@
 Batyr_cache
+Batyr_config
 Batyr_data
 Batyr_db
+Batyr_prereq		{internal}
 Batyr_presence
 Batyr_search
-Batyr_version
-Batyr_xmpp
-Batyr_prereq		{internal}
 Batyr_search_lexer	{internal}
 Batyr_search_parser	{internal}
+Batyr_search_types
+Batyr_version
+Batyr_xmpp
 Batyr_sql		{internal}
