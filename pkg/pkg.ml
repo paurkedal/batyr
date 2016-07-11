@@ -24,15 +24,17 @@
 open Adpkg
 open Topkg
 
-let build_cmd c os =
+let build_cmd c os targets =
   let ocamlbuild = Conf.tool "ocamlbuild" os in
   let build_dir = Conf.build_dir c in
+  OS.Cmd.run @@
   Cmd.(ocamlbuild
         % "-use-ocamlfind"
         % "-classic-display"
         % "-plugin-tag" % "package(ocamlbuild-eliom-dev)"
         % "-build-dir" % build_dir
-        % "lib/META")
+        % "lib/META"
+        %% of_list targets)
 let () = Unix.putenv "OCAMLPATH" "."
 
 let build = Pkg.build ~cmd:build_cmd ()
