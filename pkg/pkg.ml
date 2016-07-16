@@ -30,7 +30,6 @@ let build_cmd c os targets =
   OS.Cmd.run @@
   Cmd.(ocamlbuild
         % "-use-ocamlfind"
-        % "-classic-display"
         % "-plugin-tag" % "package(ocamlbuild-eliom-dev)"
         % "-build-dir" % build_dir
         % "lib/META"

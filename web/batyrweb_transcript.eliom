@@ -373,7 +373,7 @@ let client_transcript_service =
 
     transcript_dom##.innerHTML := Js.string "";
     render_years () >|=
-      List.iter (Dom.appendChild transcript_dom *< To_dom.of_element)
+      List.iter (Dom.appendChild transcript_dom <@ To_dom.of_element)
 ]
 
 let transcript_handler (room_jid, (tI, (tF, pat))) () =
