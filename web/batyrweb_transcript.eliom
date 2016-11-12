@@ -114,6 +114,14 @@ let client_message_counts_service =
         C.fold q C.Tuple.(fun t -> List.push (int 0 t, int 1 t))
                (Array.map C.Param.string (Array.append [|tz|] params)) []
     end
+let%client client_message_counts_service =
+  ~%(client_message_counts_service :
+      (_, _,
+       Eliom_service.get_service_kind,
+       Eliom_service.non_attached_kind,
+       Eliom_service.service_kind,
+       _, _, _,
+       Eliom_service.registrable, _) Eliom_service.service)
 
 let client_transcript_service =
   Eliom_registration.Ocaml.register_coservice'
@@ -176,6 +184,14 @@ let client_transcript_service =
         }]
       end
     end
+let%client client_transcript_service =
+  ~%(client_transcript_service :
+      (_, _,
+       Eliom_service.get_service_kind,
+       Eliom_service.non_attached_kind,
+       Eliom_service.service_kind,
+       _, _, _,
+       Eliom_service.registrable, _) Eliom_service.service)
 
 [%%client
 
@@ -264,7 +280,7 @@ let client_transcript_service =
       (* FIXME: Need the real timezone for this to work across DST. *)
       let tz = sprintf "%d" (shown_date##getTimezoneOffset / 60) in
       let%lwt counts =
-        Eliom_client.call_ocaml_service ~service:~%client_message_counts_service
+        Eliom_client.call_ocaml_service ~service:client_message_counts_service
           (room, (pat, tz)) () in
       let init_mday d =
         {ct_card = 0; ct_branches = [||]} in
@@ -292,7 +308,7 @@ let client_transcript_service =
 
   let render_messages ~room ?tI ?tF ?pat update_comet =
     disable_updates ();
-    Eliom_client.call_ocaml_service ~service:~%client_transcript_service
+    Eliom_client.call_ocaml_service ~service:client_transcript_service
                                     (room, (tI, (tF, pat))) ()
       >|= fun messages ->
     let transcript_div = D.div [] in
@@ -405,7 +421,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
   let info_span = span ~a:[a_class ["error"]] [] in
   let clear_handler =
     [%client fun ev ->
-      let info_dom = To_dom.of_span ~%info_span in
+      let info_dom = To_dom.of_span ~%(info_span : [`Span] elt) in
       let search_dom =
         Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
       info_dom##.className := Js.string "";
@@ -416,7 +432,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
       clear_dom##.disabled := Js._true;
       Lwt.ignore_result begin
         update_transcript_view ~room:~%room_jid ~min_time:~%min_time
-                               (To_dom.of_div ~%transcript_div)
+                               (To_dom.of_div ~%(transcript_div : [`Div] elt))
                                ~%update_comet
       end
     ] in
@@ -426,17 +442,18 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
            [pcdata "all"] in
   let search_handler =
     [%client fun ev ->
-      let info_dom = To_dom.of_span ~%info_span in
+      let info_dom = To_dom.of_span ~%(info_span : [`Span] elt) in
       let search_dom =
         Domx_html.element_by_id Dom_html.CoerceTo.input "search_text" in
       let pat = match Js.to_string search_dom##.value
                 with "" -> None | s -> Some s in
-      (To_dom.of_button ~%clear_button)##.disabled := Js.bool (pat = None);
+      (To_dom.of_button ~%(clear_button : [`Button] elt))##.disabled
+        := Js.bool (pat = None);
       info_dom##.className := Js.string "";
       info_dom##.innerHTML := Js.string "";
       Lwt.ignore_result begin try%lwt
         update_transcript_view ~room:~%room_jid ~min_time:~%min_time ?pat
-                               (To_dom.of_div ~%transcript_div)
+                               (To_dom.of_div ~%(transcript_div : [`Div] elt))
                                ~%update_comet
       with Eliom_lib.Exception_on_server msg ->
         info_dom##.className := Js.string "error";
@@ -453,7 +470,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     input ~a:[a_input_type `Text; a_id "search_text"; a_onchange search_handler]
           () in
   ignore_client_unit [%client
-    let transcript_dom = To_dom.of_div ~%transcript_div in
+    let transcript_dom = To_dom.of_div ~%(transcript_div : [`Div] elt) in
     let tI = ref ~%tI in
     let tF = ref ~%tF in
     let pat = ref ~%pat in

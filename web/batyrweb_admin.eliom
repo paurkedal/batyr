@@ -428,17 +428,20 @@ let admin_handler () () =
 
   let accounts_editor = D.div [] in
   ignore_client_unit [%client
-    Accounts_editor.clientside ~%accounts_editor ~%Accounts_editor.serverside
+    Accounts_editor.clientside ~%(accounts_editor : [`Div] elt)
+                               ~%Accounts_editor.serverside
   ];
 
   let chatrooms_editor = D.div [] in
   ignore_client_unit [%client
-    Chatrooms_editor.clientside ~%chatrooms_editor ~%Chatrooms_editor.serverside
+    Chatrooms_editor.clientside ~%(chatrooms_editor : [`Div] elt)
+                                ~%Chatrooms_editor.serverside
   ];
 
   let presence_editor = D.div [] in
   ignore_client_unit [%client
-    Presence_editor.clientside ~%presence_editor ~%Presence_editor.serverside
+    Presence_editor.clientside ~%(presence_editor : [`Div] elt)
+                               ~%Presence_editor.serverside
   ];
 
   Lwt.return @@ Batyrweb_tools.D.page "Administration" [
