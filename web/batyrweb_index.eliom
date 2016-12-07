@@ -16,7 +16,7 @@
 
 open Batyr_data
 open Batyrweb_server
-open Eliom_content.Html5
+open Eliom_content.Html
 
 let index_handler () () =
   let%lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in

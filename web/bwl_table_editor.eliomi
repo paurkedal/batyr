@@ -30,15 +30,15 @@ module type ELEMENT = sig
 
   type edit_dom
 
-  val render_headers : unit -> [> `Th] Html5.elt list
-  val render_row : t -> [`Td] Html5.elt list
-  val render_edit_row : t option -> edit_dom * [`Td] Html5.elt list
+  val render_headers : unit -> [> `Th] Html.elt list
+  val render_row : t -> [`Td] Html.elt list
+  val render_edit_row : t option -> edit_dom * [`Td] Html.elt list
   val decode_row : t option -> edit_dom -> t
 end
 
 module Make (E : ELEMENT) : sig
   type serverside
-  type clientside = [`Div] Html5.elt -> serverside -> unit
+  type clientside = [`Div] Html.elt -> serverside -> unit
   val clientside : clientside
 
   module Enset : Prime_enumset.S with type elt = E.t

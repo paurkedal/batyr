@@ -1,4 +1,4 @@
-(* Copyright (C) 2014  Petter Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,25 +16,25 @@
 
 open Eliom_content
 
-(* A complete Html5.R implementation will be available in an upcoming version
+(* A complete Html.R implementation will be available in an upcoming version
  * of Eliom, at which point this will be removed. *)
-module Html5_R : sig
+module Html_R : sig
 
   val retain : 'a -> 'b -> unit
 
   val signal_is_const : 'a React.signal -> bool
 
   val append_child_signals :
-    #Dom.node Js.t -> 'a Eliom_content.Html5.elt React.signal list -> unit
+    #Dom.node Js.t -> 'a Eliom_content.Html.elt React.signal list -> unit
 
   val div :
-    ?a: [< Html5_types.div_attrib] Html5.attrib list ->
-    [< Html5_types.div_content_fun] Html5.elt React.signal list ->
-    [> `Div] Html5.elt
+    ?a: [< Html_types.div_attrib] Html.attrib list ->
+    [< Html_types.div_content_fun] Html.elt React.signal list ->
+    [> `Div] Html.elt
 
   val span :
-    ?a: [< Html5_types.span_attrib] Html5.attrib list ->
-    [< Html5_types.span_content_fun] Html5.elt React.signal list ->
-    [> `Span] Html5.elt
+    ?a: [< Html_types.span_attrib] Html.attrib list ->
+    [< Html_types.span_content_fun] Html.elt React.signal list ->
+    [> `Span] Html.elt
 
 end

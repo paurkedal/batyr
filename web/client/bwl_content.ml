@@ -17,16 +17,16 @@
 open Eliom_content
 open Unprime_list
 
-module Html5_R = struct
+module Html_R = struct
 
   let retain a b = Gc.finalise (fun _ -> ignore a) b
 
   let signal_is_const s = React.S.equal s (React.S.const (React.S.value s))
 
   let append_child_signal' p csig =
-    let c = ref (p##appendChild (Html5.To_dom.of_node (React.S.value csig))) in
+    let c = ref (p##appendChild (Html.To_dom.of_node (React.S.value csig))) in
     let update e =
-      let n = Html5.To_dom.of_node e in
+      let n = Html.To_dom.of_node e in
       Dom.replaceChild p n !c; c := n in
     if signal_is_const csig
     then None
@@ -37,13 +37,13 @@ module Html5_R = struct
     if updaters <> [] then retain updaters p
 
   let div ?a esigs =
-    let p_div = Html5.D.div ?a [] in
-    append_child_signals (Html5.To_dom.of_div p_div) esigs;
+    let p_div = Html.D.div ?a [] in
+    append_child_signals (Html.To_dom.of_div p_div) esigs;
     p_div
 
   let span ?a esigs =
-    let p_span = Html5.D.span ?a [] in
-    append_child_signals (Html5.To_dom.of_span p_span) esigs;
+    let p_span = Html.D.span ?a [] in
+    append_child_signals (Html.To_dom.of_span p_span) esigs;
     p_span
 
 end

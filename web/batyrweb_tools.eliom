@@ -23,7 +23,7 @@
 
 [%%server
   module D' = struct
-    open Html5.D
+    open Html.D
 
     let page title content =
       Eliom_tools.D.html ~title ~css:[["css"; "batyr.css"]]
@@ -31,7 +31,7 @@
 
     let tabbar
           ~(onclick : (int -> string -> Dom_html.mouseEvent Js.t -> unit)
-                      Eliom_lib.client_value)
+                      Eliom_client_value.t)
           labels =
       let make_tab i l =
         span ~a:[a_onclick [%client ~%onclick ~%i ~%l]] [pcdata l] in
@@ -43,13 +43,13 @@
 ]
 
 [%%client
-  open Html5.D
+  open Html.D
 
   module D' = struct
     let pager ?default_index ?count labels draw_inner =
       let shown_index = ref (-1) in
       let sheet_div = div ~a:[a_class ["sheet"]] [] in
-      let sheet_dom = Html5.To_dom.of_div sheet_div in
+      let sheet_dom = Html.To_dom.of_div sheet_div in
       let tabs_dom = ref [||] in
       let update_content i =
         if i <> !shown_index then begin
@@ -61,7 +61,7 @@
           Lwt.async (fun () ->
             draw_inner i >|=
             List.iter (fun el -> Dom.appendChild sheet_dom
-                                                 (Html5.To_dom.of_element el)))
+                                                 (Html.To_dom.of_element el)))
         end in
       let c_max =
         match count with
@@ -89,7 +89,7 @@
                 [pcdata l];
             ] in
       let tabs = List.mapi make_page (Array.to_list labels) in
-      tabs_dom := Array.map Html5.To_dom.of_span (Array.of_list tabs);
+      tabs_dom := Array.map Html.To_dom.of_span (Array.of_list tabs);
       Option.iter update_content default_index;
       Lwt.return
         [div ~a:[a_class ["b-pager"]]

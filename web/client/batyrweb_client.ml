@@ -48,7 +48,7 @@ end
 
 module type LIVE_TABLE_ELEMENT = sig
   include Prime_enumset.OrderedType
-  val render_row : t -> [`Td] Html5.elt list
+  val render_row : t -> [`Td] Html.elt list
 end
 
 module Live_table (Elt : LIVE_TABLE_ELEMENT) = struct
@@ -80,7 +80,7 @@ module Live_table (Elt : LIVE_TABLE_ELEMENT) = struct
         row##.innerHTML := Js.string ""; row in
     List.iter
       (fun cell ->
-        ignore (row##appendChild((Html5.To_dom.of_td cell :> Dom.node Js.t))))
+        ignore (row##appendChild((Html.To_dom.of_td cell :> Dom.node Js.t))))
       (Elt.render_row elt)
 
   let remove t elt =

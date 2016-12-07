@@ -15,8 +15,8 @@
  *)
 
 [%%shared
-  open Eliom_content.Html5
-  open Eliom_pervasives
+  open Eliom_content.Html
+  open Eliom_lib
   open Unprime
   open Unprime_list
   open Unprime_option
@@ -368,12 +368,12 @@
        D.td [D.pcdata (Option.get_or "-" pres.nick)];
        D.td [D.pcdata (string_of_bool pres.is_present)]]
 
-    let simple_select = Eliom_content_core.Html5.D.select
-    let simple_option l = Eliom_content_core.Html5.D.(option (pcdata l))
+    let simple_select = Eliom_content_core.Html.D.select
+    let simple_option l = Eliom_content_core.Html.D.(option (pcdata l))
 
     let dummy_opt = ([], "*", None, false)
 
-    let account_optgroup : [`Option] Eliom_content.Html5.R.elt RList.t =
+    let account_optgroup : [`Option] Eliom_content.Html.R.elt RList.t =
       let mkopt acct = F.option (F.pcdata acct.Account.account_jid) in
       RList.from_signal @@
       React.S.map ~eq:(==)
@@ -422,7 +422,10 @@
 (* ==== *)
 
 module Admin_app = Eliom_registration.App
-  (struct let application_name = "batyrweb_admin" end)
+  (struct
+    let application_name = "batyrweb_admin"
+    let global_data_path = None
+  end)
 
 let admin_handler () () =
 

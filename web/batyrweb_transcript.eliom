@@ -15,7 +15,8 @@
  *)
 
 [%%shared
-  open Eliom_content.Html5
+  open Eliom_client
+  open Eliom_content.Html
   open Lwt.Infix
   open Printf
   open Scanf
@@ -83,115 +84,97 @@ let phrase_query pat_opt tI_opt tF_opt =
 let sql_of_pattern pat_s =
   Batyr_search.denote_pattern (Batyr_search.pattern_of_string pat_s)
 
-let client_message_counts_service =
-  Eliom_registration.Ocaml.register_coservice'
-    ~get_params:Eliom_parameter.(string "room" ** opt (string "pat") **
-                                 string "tz")
-    begin fun (room_jid, (pat_opt, tz)) () ->
-      let%lwt room = Lwt.wrap1 Node.of_string room_jid in
-      let%lwt room_id =
-        match%lwt Node.stored_id room with
-        | None -> Lwt.fail Eliom_common.Eliom_404
-        | Some id -> Lwt.return id in
-      let cond =
-        let open Batyr_db.Expr in
-        var "sender.node_id" = int room_id
-        |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt in
-      let cond_str, params = Batyr_db.Expr.to_sql ~first_index:2 cond in
-      let q = Caqti_query.oneshot_fun @@ function
-        `Pgsql ->
-          sprintf
-            "SELECT batyr.intenc_date(seen_time AT TIME ZONE 'UTC' \
-                                                AT TIME ZONE $1) AS t, \
-                    count(0) \
-             FROM batyr.messages \
-             JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
-               ON sender_id = sender.resource_id \
-             WHERE %s GROUP BY t"
-             cond_str
-        | _ -> raise Caqti_query.Missing_query_string in
-      Batyr_db.use @@ fun (module C : CONNECTION) ->
-        C.fold q C.Tuple.(fun t -> List.push (int 0 t, int 1 t))
-               (Array.map C.Param.string (Array.append [|tz|] params)) []
-    end
-let%client client_message_counts_service =
-  ~%(client_message_counts_service :
-      (_, _,
-       Eliom_service.get_service_kind,
-       Eliom_service.non_attached_kind,
-       Eliom_service.service_kind,
-       _, _, _,
-       Eliom_service.registrable, _) Eliom_service.service)
+let fetch_message_counts (room_jid, pat_opt, tz) =
+  try%lwt
+    let%lwt room = Lwt.wrap1 Node.of_string room_jid in
+    let%lwt room_id =
+      match%lwt Node.stored_id room with
+      | None -> Lwt.fail Eliom_common.Eliom_404
+      | Some id -> Lwt.return id in
+    let cond =
+      let open Batyr_db.Expr in
+      var "sender.node_id" = int room_id
+      |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt in
+    let cond_str, params = Batyr_db.Expr.to_sql ~first_index:2 cond in
+    let q = Caqti_query.oneshot_fun @@ function
+      `Pgsql ->
+        sprintf
+          "SELECT batyr.intenc_date(seen_time AT TIME ZONE 'UTC' \
+                                              AT TIME ZONE $1) AS t, \
+                  count(0) \
+           FROM batyr.messages \
+           JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
+             ON sender_id = sender.resource_id \
+           WHERE %s GROUP BY t"
+           cond_str
+      | _ -> raise Caqti_query.Missing_query_string in
+    Batyr_db.use @@ fun (module C : CONNECTION) ->
+      C.fold q C.Tuple.(fun t -> List.push (int 0 t, int 1 t))
+             (Array.map C.Param.string (Array.append [|tz|] params)) [] >|=
+    (fun counts -> Ok counts)
+  with exn ->
+    (* TODO: Deliver friendly message to client. *)
+    let msg = Printexc.to_string exn in
+    Lwt_log.error_f "Failed query of transcript list: %s" msg >>
+    Lwt.return @@ Error (sprintf "Query failed: %s" msg)
 
-let client_transcript_service =
-  Eliom_registration.Ocaml.register_coservice'
-    ~get_params:Eliom_parameter.
-      (string "room" ** opt (float "tI") ** opt (float "tF") **
-       opt (string "pat"))
-    begin fun (room_jid, (tI_opt, (tF_opt, pat_opt))) () -> Lwt.catch
-      begin fun () ->
-        Lwt_log.debug_f ~section "Sending %s transcript%s."
-                        room_jid (phrase_query pat_opt tI_opt tF_opt) >>
-        let%lwt room = Lwt.wrap1 Node.of_string room_jid in
-        let%lwt room_id =
-          match%lwt Node.stored_id room with
-          | None -> Lwt.fail Eliom_common.Eliom_404
-          | Some id -> Lwt.return id in
-        let cond =
-          Batyr_db.Expr.(
-            (var "sender.node_id" = int room_id)
-            |> Option.fold (fun tI -> (&&) (var "seen_time" >= epoch tI)) tI_opt
-            |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
-            |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt
-          ) in
-        let cond_str, params = Batyr_db.Expr.to_sql cond in
-        let q = Caqti_query.oneshot_fun @@ function
-          | `Pgsql ->
-            (sprintf "SELECT seen_time, sender_id, subject, thread, body \
-                        FROM batyr.messages \
-                        JOIN (batyr.resources NATURAL JOIN batyr.nodes) \
-                          AS sender \
-                          ON sender_id = sender.resource_id \
-                        WHERE %s \
-                        ORDER BY seen_time, message_id LIMIT %d"
-                       cond_str query_limit)
-          | _ -> raise Caqti_query.Missing_query_string in
-        (Batyr_db.use @@ fun (module C : CONNECTION) ->
-          C.fold q
-            C.Tuple.(fun t -> List.push (utc 0 t, int 1 t, option string 2 t,
-                                         option string 3 t, option string 4 t))
-            (Array.map C.Param.string params) []) >>=
-        Lwt_list.rev_map_p
-          (fun (time, sender_id, subject_opt, thread_opt, body_opt) ->
-            Resource.stored_of_id sender_id >|= fun sender_resource ->
-            { msg_time = CalendarLib.Calendar.to_unixfloat time;
-              msg_sender_cls = "jid";
-              msg_sender = Resource.resource_name sender_resource;
-              msg_subject = subject_opt;
-              msg_thread = thread_opt;
-              msg_body = body_opt })
-      end
-      begin fun xc ->
-        let msg = Printexc.to_string xc in
-        Lwt_log.error_f "Failed query of transcript list: %s" msg >>
-        Lwt.return [{
-          msg_time = Unix.time ();
-          msg_sender_cls = "meta";
-          msg_sender = "system";
-          msg_subject = Some "System Error";
-          msg_thread = None;
-          msg_body = Some (sprintf "Query failed: %s" msg);
-        }]
-      end
-    end
-let%client client_transcript_service =
-  ~%(client_transcript_service :
-      (_, _,
-       Eliom_service.get_service_kind,
-       Eliom_service.non_attached_kind,
-       Eliom_service.service_kind,
-       _, _, _,
-       Eliom_service.registrable, _) Eliom_service.service)
+let%client fetch_message_counts =
+  ~%(server_function [%json: string * string option * string]
+                     fetch_message_counts)
+
+let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
+  try%lwt
+    Lwt_log.debug_f ~section "Sending %s transcript%s."
+                    room_jid (phrase_query pat_opt tI_opt tF_opt) >>
+    let%lwt room = Lwt.wrap1 Node.of_string room_jid in
+    let%lwt room_id =
+      match%lwt Node.stored_id room with
+      | None -> Lwt.fail Eliom_common.Eliom_404
+      | Some id -> Lwt.return id in
+    let cond =
+      Batyr_db.Expr.(
+        (var "sender.node_id" = int room_id)
+        |> Option.fold (fun tI -> (&&) (var "seen_time" >= epoch tI)) tI_opt
+        |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
+        |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt
+      ) in
+    let cond_str, params = Batyr_db.Expr.to_sql cond in
+    let q = Caqti_query.oneshot_fun @@ function
+      | `Pgsql ->
+        (sprintf "SELECT seen_time, sender_id, subject, thread, body \
+                    FROM batyr.messages \
+                    JOIN (batyr.resources NATURAL JOIN batyr.nodes) \
+                      AS sender \
+                      ON sender_id = sender.resource_id \
+                    WHERE %s \
+                    ORDER BY seen_time, message_id LIMIT %d"
+                   cond_str query_limit)
+      | _ -> raise Caqti_query.Missing_query_string in
+    (Batyr_db.use @@ fun (module C : CONNECTION) ->
+      C.fold q
+        C.Tuple.(fun t -> List.push (utc 0 t, int 1 t, option string 2 t,
+                                     option string 3 t, option string 4 t))
+        (Array.map C.Param.string params) []) >>=
+    Lwt_list.rev_map_p
+      (fun (time, sender_id, subject_opt, thread_opt, body_opt) ->
+        Resource.stored_of_id sender_id >|= fun sender_resource ->
+        { msg_time = CalendarLib.Calendar.to_unixfloat time;
+          msg_sender_cls = "jid";
+          msg_sender = Resource.resource_name sender_resource;
+          msg_subject = subject_opt;
+          msg_thread = thread_opt;
+          msg_body = body_opt }) >|=
+    (fun msgs -> Ok msgs)
+  with exn ->
+    (* TODO: Deliver friendly message to client. *)
+    let msg = Printexc.to_string exn in
+    Lwt_log.error_f "Failed query of transcript list: %s" msg >>
+    Lwt.return @@ Error (sprintf "Query failed: %s" msg)
+
+let%client fetch_transcript =
+  ~%(server_function
+      [%json: string * float option * float option * string option]
+      fetch_transcript)
 
 [%%client
 
@@ -272,23 +255,8 @@ let%client client_transcript_service =
   let shown_counts = {ct_card = 0; ct_branches = [||]}
 
   let update_message_counts room pat y_min y_now =
-    if !shown_room = room && !shown_pat = pat
-          && Array.length shown_counts.ct_branches >= (y_now - y_min + 1)
-    then
-      Lwt.return_unit
-    else begin
-      (* FIXME: Need the real timezone for this to work across DST. *)
-      let tz = sprintf "%d" (shown_date##getTimezoneOffset / 60) in
-      let%lwt counts =
-        Eliom_client.call_ocaml_service ~service:client_message_counts_service
-          (room, (pat, tz)) () in
-      let init_mday d =
-        {ct_card = 0; ct_branches = [||]} in
-      let init_month m =
-        {ct_card = 0; ct_branches = Array.init 31 init_mday} in
-      let init_year _ =
-        {ct_card = 0; ct_branches = Array.init 12 init_month} in
-      shown_counts.ct_branches <- Array.init (y_now - y_min + 1) init_year;
+
+    let on_ok counts =
       List.iter
         (fun (encdate, count) ->
           let y = encdate lsr 16 in
@@ -303,32 +271,55 @@ let%client client_transcript_service =
         counts;
       shown_room := room;
       shown_pat := pat;
-      Lwt.return_unit
+      Ok () in
+
+    let on_error msg = Error msg in
+
+    if !shown_room = room && !shown_pat = pat
+          && Array.length shown_counts.ct_branches >= (y_now - y_min + 1)
+    then
+      Lwt.return (Ok ())
+    else begin
+      let init_mday d =
+        {ct_card = 0; ct_branches = [||]} in
+      let init_month m =
+        {ct_card = 0; ct_branches = Array.init 31 init_mday} in
+      let init_year _ =
+        {ct_card = 0; ct_branches = Array.init 12 init_month} in
+      shown_counts.ct_branches <- Array.init (y_now - y_min + 1) init_year;
+      (* FIXME: Need the real timezone for this to work across DST. *)
+      let tz = sprintf "%d" (shown_date##getTimezoneOffset / 60) in
+      fetch_message_counts (room, pat, tz)
+        >|= (function Ok counts -> on_ok counts | Error msg -> on_error msg)
     end
 
   let render_messages ~room ?tI ?tF ?pat update_comet =
     disable_updates ();
-    Eliom_client.call_ocaml_service ~service:client_transcript_service
-                                    (room, (tI, (tF, pat))) ()
-      >|= fun messages ->
-    let transcript_div = D.div [] in
-    let ts = {
-      ts_day = (0, 0, 0);
-      ts_day_str = "";
-      ts_dom = To_dom.of_div transcript_div;
-    } in
-    let message_count = List.length messages in
-    List.iter (append_message ts) messages;
-    if message_count = query_limit then begin
-      let limit_s =
-        sprintf "This result has been limited to %d messages." query_limit in
-      let limit_p = D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
-      Dom.appendChild ts.ts_dom (To_dom.of_p limit_p)
-    end;
-    let jt_now = new%js Js.date_now in
-    if Caltime.day_start shown_date = Caltime.day_start jt_now then
-      enable_updates ts update_comet;
-    [transcript_div]
+
+    let on_ok messages =
+      let transcript_div = D.div [] in
+      let ts = {
+        ts_day = (0, 0, 0);
+        ts_day_str = "";
+        ts_dom = To_dom.of_div transcript_div;
+      } in
+      let message_count = List.length messages in
+      List.iter (append_message ts) messages;
+      if message_count = query_limit then begin
+        let limit_s =
+          sprintf "This result has been limited to %d messages." query_limit in
+        let limit_p = D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
+        Dom.appendChild ts.ts_dom (To_dom.of_p limit_p)
+      end;
+      let jt_now = new%js Js.date_now in
+      if Caltime.day_start shown_date = Caltime.day_start jt_now then
+        enable_updates ts update_comet;
+      [transcript_div] in
+
+    let on_error msg = [F.p ~a:[F.a_class ["error"]] [F.pcdata msg]] in
+
+    fetch_transcript (room, tI, tF, pat)
+      >|= (function Ok messages -> on_ok messages | Error msg -> on_error msg)
 
   let update_transcript_view ~room ~min_time ?pat transcript_dom update_comet =
     let jt_min = new%js Js.date_fromTimeValue (min_time *. 1000.0) in
@@ -336,7 +327,7 @@ let%client client_transcript_service =
     let y_min = jt_min##getFullYear in
     let y_now = jt_now##getFullYear in
 
-    let%lwt () = update_message_counts room pat y_min y_now in
+    let%lwt count_err = update_message_counts room pat y_min y_now in
 
     let render_content dd =
       let d = 1 + dd in
@@ -388,8 +379,9 @@ let%client client_transcript_service =
           years render_months in
 
     transcript_dom##.innerHTML := Js.string "";
-    render_years () >|=
-      List.iter (Dom.appendChild transcript_dom <@ To_dom.of_element)
+    (List.iter (Dom.appendChild transcript_dom <@ To_dom.of_element)
+      =|< render_years ()) >>
+    Lwt.return count_err
 ]
 
 let transcript_handler (room_jid, (tI, (tF, pat))) () =
@@ -438,7 +430,7 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     ] in
   let clear_button =
     button ~a:[a_button_type `Button; a_onclick clear_handler;
-               a_id "clear_search"; a_disabled `Disabled]
+               a_id "clear_search"; a_disabled ()]
            [pcdata "all"] in
   let search_handler =
     [%client fun ev ->
@@ -451,14 +443,17 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
         := Js.bool (pat = None);
       info_dom##.className := Js.string "";
       info_dom##.innerHTML := Js.string "";
-      Lwt.ignore_result begin try%lwt
-        update_transcript_view ~room:~%room_jid ~min_time:~%min_time ?pat
-                               (To_dom.of_div ~%(transcript_div : [`Div] elt))
-                               ~%update_comet
-      with Eliom_lib.Exception_on_server msg ->
-        info_dom##.className := Js.string "error";
-        info_dom##.innerHTML := Js.string msg;
-        Lwt.return_unit
+      Lwt.async begin fun () ->
+        match%lwt
+          update_transcript_view ~room:~%room_jid ~min_time:~%min_time ?pat
+                                 (To_dom.of_div ~%(transcript_div : [`Div] elt))
+                                 ~%update_comet
+        with
+         | Ok () -> Lwt.return_unit
+         | Error msg ->
+            info_dom##.className := Js.string "error";
+            info_dom##.innerHTML := Js.string msg;
+            Lwt.return_unit
       end
     ] in
   let search_handler_mouse =

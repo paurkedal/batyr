@@ -15,7 +15,8 @@
  *)
 
 [%%shared
-  open Eliom_content.Html5
+  open Eliom_client
+  open Eliom_content.Html
   open Lwt.Infix
   open Unprime_option
   open Printf
