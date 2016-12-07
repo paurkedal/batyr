@@ -14,9 +14,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+[%%server
+  open Batyr_data
+  open Batyr_prereq
+  open Batyrweb_server
+  open Caqti_lwt
+
+]
+[%%client
+  open Batyrweb_client
+]
 [%%shared
   open Eliom_client
   open Eliom_content.Html
+  open Eliom_lib
   open Lwt.Infix
   open Printf
   open Scanf
@@ -25,56 +36,45 @@
   open Unprime_list
   open Unprime_option
   open Unprime_string
-
-  type chatroom = string
-  let query_limit = 10000
-]
-[%%server
-  open Batyr_data
-  open Batyr_prereq
-  open Batyrweb_server
-  open Caqti_lwt
-
-  let section = Lwt_log.Section.make "batyrweb.main"
-]
-[%%client
-  open Batyrweb_client
-  module Chatroom = struct
-    type t = chatroom
-    let compare = String.compare
-    let render_row room = D.([td [pcdata room]])
-  end
-  module Chatrooms_live = Live_table (Chatroom)
-
-  let fragment =
-    let sg, set = React.S.create (Url.Current.get_fragment ()) in
-    Dom_html.window##.onhashchange :=
-      Dom.handler (fun _ -> set (Url.Current.get_fragment ()); Js._true);
-    sg
-
-  let fragment_date = React.S.map
-    (fun frag ->
-      let frag_date =
-        match String.cut_affix "T" frag with Some (s, _) -> s | None -> frag in
-      match String.chop_affix "-" frag_date with
-      | [sY; sM; sD] ->
-        (try Some (new%js Js.date_day (int_of_string sY) (int_of_string sM - 1)
-                                      (int_of_string sD))
-         with Failure _ -> None)
-      | _ -> None)
-    fragment
 ]
 
-[%%shared
-  type message = {
-    msg_time : float;
-    msg_sender_cls : string;
-    msg_sender : string;
-    msg_subject : string option;
-    msg_thread : string option;
-    msg_body : string option;
-  }
-]
+let%shared section = Lwt_log.Section.make "batyrweb.main"
+type%shared chatroom = string
+let%shared query_limit = 10000
+
+module%client Chatroom = struct
+  type t = chatroom
+  let compare = String.compare
+  let render_row room = D.([td [pcdata room]])
+end
+module%client Chatrooms_live = Live_table (Chatroom)
+
+let%client fragment =
+  let sg, set = React.S.create (Url.Current.get_fragment ()) in
+  Dom_html.window##.onhashchange :=
+    Dom.handler (fun _ -> set (Url.Current.get_fragment ()); Js._true);
+  sg
+
+let%client fragment_date = React.S.map
+  (fun frag ->
+    let frag_date =
+      match String.cut_affix "T" frag with Some (s, _) -> s | None -> frag in
+    match String.chop_affix "-" frag_date with
+    | [sY; sM; sD] ->
+      (try Some (new%js Js.date_day (int_of_string sY) (int_of_string sM - 1)
+                                    (int_of_string sD))
+       with Failure _ -> None)
+    | _ -> None)
+  fragment
+
+type%shared message = {
+  msg_time : float;
+  msg_sender_cls : string;
+  msg_sender : string;
+  msg_subject : string option;
+  msg_thread : string option;
+  msg_body : string option;
+}
 
 let phrase_query pat_opt tI_opt tF_opt =
     (match pat_opt with None -> "" | Some pat -> " matching " ^ pat)
