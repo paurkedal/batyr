@@ -176,13 +176,62 @@ let%client fetch_transcript =
       [%json: string * float option * float option * string option]
       fetch_transcript)
 
-[%%client
+module%client Message_counts = struct
 
-  type transcript_state = {
+  type t = {
+    mutable card : int;
+    mutable branches : t array;
+  }
+
+  let card mc = mc.card
+
+  let year_span mc = Array.length mc.branches
+
+  let get mc i = mc.branches.(i)
+
+  let fetch room pat y_min y_now tz =
+    let mc =
+      let init_mday d = {card = 0; branches = [||]} in
+      let init_month m = {card = 0; branches = Array.init 31 init_mday} in
+      let init_year _ = {card = 0; branches = Array.init 12 init_month} in
+      {card = 0; branches = Array.init (y_now - y_min + 1) init_year} in
+
+    fetch_message_counts (room, pat, tz) >|= function
+     | Ok counts ->
+        List.iter
+          (fun (encdate, count) ->
+            let y = encdate lsr 16 in
+            let m = encdate lsr 8 land 0xff in
+            let d = encdate land 0xff in
+            let mcY = mc.branches.(y - y_min) in
+            let mcM = mcY.branches.(m - 1) in
+            let mcD = mcM.branches.(d - 1) in
+            mcD.card <- count;
+            mcM.card <- mcM.card + count;
+            mcY.card <- mcY.card + count)
+          counts;
+        Ok mc
+     | Error msg -> Error msg
+end
+
+module%client Transcript = struct
+
+  type t = {
     mutable ts_day : int * int * int;
     mutable ts_day_str : string;
     ts_dom : Dom_html.divElement Js.t;
+    mutable ts_updater : unit Lwt.t option;
   }
+
+  let create () =
+    let transcript_div = D.div [] in
+    let ts = {
+      ts_day = (0, 0, 0);
+      ts_day_str = "";
+      ts_dom = To_dom.of_div transcript_div;
+      ts_updater = None;
+    } in
+    (transcript_div, ts)
 
   let append_message ts msg =
     let msg_frag =
@@ -225,166 +274,144 @@ let%client fetch_transcript =
          msg_frag)) in
     Dom.appendChild ts.ts_dom (To_dom.of_p message_p)
 
-  let update_thread = ref None
+  let append_messages ts msgs =
+    let message_count = List.length msgs in
+    List.iter (append_message ts) msgs;
+    if message_count = query_limit then begin
+      let limit_s =
+        sprintf "This result has been limited to %d messages." query_limit in
+      let limit_p = D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
+      Dom.appendChild ts.ts_dom (To_dom.of_p limit_p)
+    end
 
   let enable_updates ts update_comet =
-    if !update_thread = None then begin
+    if ts.ts_updater = None then begin
       Eliom_lib.debug "Enabling updates.";
-      update_thread := Some (Lwt_stream.iter (append_message ts) update_comet)
+      ts.ts_updater <- Some (Lwt_stream.iter (append_message ts) update_comet)
     end
 
-  let disable_updates () =
-    Option.iter
-      begin fun thread ->
+  let disable_updates ts =
+    match ts.ts_updater with
+     | None -> ()
+     | Some updater ->
         Eliom_lib.debug "Disabling updates.";
-        update_thread := None;
-        Lwt.cancel thread
-      end
-      !update_thread
+        ts.ts_updater <- None;
+        Lwt.cancel updater
+end
 
-  type card_tree = {
-    mutable ct_card : int;
-    mutable ct_branches : card_tree array;
-  }
+let%client shown_transcript = ref None
 
-  let shown_prec = ref 3
-  let shown_date = Option.get_else (fun () -> new%js Js.date_now)
-                                   (React.S.value fragment_date)
-  let shown_room = ref ""
-  let shown_pat = ref None
-  let shown_counts = {ct_card = 0; ct_branches = [||]}
+let%client render_transcript ~room ?tI ?tF ?pat ?date update_comet =
+  begin match !shown_transcript with
+   | None -> ()
+   | Some ts -> Transcript.disable_updates ts; shown_transcript := None
+  end;
+  fetch_transcript (room, tI, tF, pat) >|= function
+   | Error msg ->
+      [F.p ~a:[F.a_class ["error"]] [F.pcdata msg]]
+   | Ok msgs ->
+      let content, ts = Transcript.create () in
+      Transcript.append_messages ts msgs;
 
-  let update_message_counts room pat y_min y_now =
+      let is_past date =
+        let jt_now = new%js Js.date_now in
+        Caltime.day_start date <> Caltime.day_start jt_now in
+      if not (Option.for_all is_past date) then
+        Transcript.enable_updates ts update_comet;
 
-    let on_ok counts =
-      List.iter
-        (fun (encdate, count) ->
-          let y = encdate lsr 16 in
-          let m = encdate lsr 8 land 0xff in
-          let d = encdate land 0xff in
-          let ct_year = shown_counts.ct_branches.(y - y_min) in
-          let ct_month = ct_year.ct_branches.(m - 1) in
-          let ct_day = ct_month.ct_branches.(d - 1) in
-          ct_day.ct_card   <- count;
-          ct_month.ct_card <- ct_month.ct_card + count;
-          ct_year.ct_card  <- ct_year.ct_card + count)
-        counts;
-      shown_room := room;
-      shown_pat := pat;
-      Ok () in
+      shown_transcript := Some ts;
+      [content]
 
-    let on_error msg = Error msg in
+type%client shown_counts = {
+  sc_room : string;
+  sc_pattern : string option;
+  sc_counts : Message_counts.t;
+}
+let%client shown_counts = ref None
 
-    if !shown_room = room && !shown_pat = pat
-          && Array.length shown_counts.ct_branches >= (y_now - y_min + 1)
-    then
-      Lwt.return (Ok ())
-    else begin
-      let init_mday d =
-        {ct_card = 0; ct_branches = [||]} in
-      let init_month m =
-        {ct_card = 0; ct_branches = Array.init 31 init_mday} in
-      let init_year _ =
-        {ct_card = 0; ct_branches = Array.init 12 init_month} in
-      shown_counts.ct_branches <- Array.init (y_now - y_min + 1) init_year;
-      (* FIXME: Need the real timezone for this to work across DST. *)
-      let tz = sprintf "%d" (shown_date##getTimezoneOffset / 60) in
-      fetch_message_counts (room, pat, tz)
-        >|= (function Ok counts -> on_ok counts | Error msg -> on_error msg)
-    end
+let%client render_page ~room ~min_time ?pat ~page transcript_dom update_comet =
+  let jt_min = new%js Js.date_fromTimeValue (min_time *. 1000.0) in
+  let jt_now = new%js Js.date_now in
+  let y_min = jt_min##getFullYear in
+  let y_now = jt_now##getFullYear in
 
-  let render_messages ~room ?tI ?tF ?pat update_comet =
-    disable_updates ();
+  let render_day iY iM iD =
+    let date = new%js Js.date_day (y_min + iY) iM (1 + iD) in
+    let tI = Caltime.to_epoch (Caltime.day_start date) in
+    let tF = Caltime.to_epoch (Caltime.day_end date) in
+    page := [iY; iM; iD];
+    render_transcript ~room ~tI ~tF ?pat ~date update_comet in
 
-    let on_ok messages =
-      let transcript_div = D.div [] in
-      let ts = {
-        ts_day = (0, 0, 0);
-        ts_day_str = "";
-        ts_dom = To_dom.of_div transcript_div;
-      } in
-      let message_count = List.length messages in
-      List.iter (append_message ts) messages;
-      if message_count = query_limit then begin
-        let limit_s =
-          sprintf "This result has been limited to %d messages." query_limit in
-        let limit_p = D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
-        Dom.appendChild ts.ts_dom (To_dom.of_p limit_p)
-      end;
-      let jt_now = new%js Js.date_now in
-      if Caltime.day_start shown_date = Caltime.day_start jt_now then
-        enable_updates ts update_comet;
-      [transcript_div] in
+  let render_month mcY iY iM = function
+   | [] ->
+      let date = new%js Js.date_month (y_min + iY) iM in
+      let tI = Caltime.to_epoch (Caltime.month_start date) in
+      let tF = Caltime.to_epoch (Caltime.month_end date) in
+      page := [iY; iM];
+      render_transcript ~room ~tI ~tF ?pat ~date update_comet
+   | [iD] ->
+      let date = new%js Js.date_month (y_min + iY) iM in
+      let mcM = Message_counts.get mcY iM in
+      let label iD = sprintf "%d" (iD + 1) in
+      Batyrweb_tools.D.pager
+        ~default_index:iD
+        ~count:(fun iD -> Message_counts.(card (get mcM iD)))
+        (Array.init (Caltime.days_in_month date) label)
+        (fun iD -> render_day iY iM iD)
+   | _ -> assert false in
 
-    let on_error msg = [F.p ~a:[F.a_class ["error"]] [F.pcdata msg]] in
+  let render_year mcA iY = function
+   | [] ->
+      let tI = Caltime.to_epoch (new%js Js.date_month (y_min + iY) 0) in
+      let tF = Caltime.to_epoch (new%js Js.date_month (y_min + iY + 1) 0) in
+      page := [iY];
+      render_transcript ~room ~tI ~tF ?pat update_comet
+   | iM :: iDs ->
+      let mcY = Message_counts.get mcA iY in
+      Batyrweb_tools.D.pager
+        ~default_index:iM
+        ~count:(fun iM -> Message_counts.(card (get mcY iM)))
+        Caltime.month_names
+        (fun iM -> render_month mcY iY iM iDs) in
 
-    fetch_transcript (room, tI, tF, pat)
-      >|= (function Ok messages -> on_ok messages | Error msg -> on_error msg)
+  let render_all mcA = function
+   | [] ->
+      render_transcript ~room ?pat update_comet
+   | iY :: iMDs ->
+      let label iY = sprintf "%04d" (y_min + iY) in
+      Batyrweb_tools.D.pager
+        ~default_index:iY
+        ~count:(fun iY -> Message_counts.(card (get mcA iY)))
+        (Array.init (y_now - y_min + 1) label)
+        (fun iY -> render_year mcA iY iMDs) in
 
-  let update_transcript_view ~room ~min_time ?pat transcript_dom update_comet =
-    let jt_min = new%js Js.date_fromTimeValue (min_time *. 1000.0) in
-    let jt_now = new%js Js.date_now in
-    let y_min = jt_min##getFullYear in
-    let y_now = jt_now##getFullYear in
+  let is_current =
+    match !shown_counts with
+     | Some sc ->
+        sc.sc_room = room && sc.sc_pattern = pat
+         && Message_counts.year_span sc.sc_counts >= (y_now - y_min + 1)
+     | None -> false in
 
-    let%lwt count_err = update_message_counts room pat y_min y_now in
+  if is_current then Lwt.return (Ok ()) else begin
+    (* FIXME: Need the real timezone for this to work across DST. *)
+    let today = new%js Js.date_now in
+    let tz = sprintf "%d" (today##getTimezoneOffset / 60) in
+    match%lwt Message_counts.fetch room pat y_min y_now tz with
+     | Ok counts ->
+        let%lwt content = render_all counts !page in
+        shown_counts := Some {
+          sc_room = room;
+          sc_pattern = pat;
+          sc_counts = counts;
+        };
+        transcript_dom##.innerHTML := Js.string "";
+        List.iter (Dom.appendChild transcript_dom <@ To_dom.of_element) content;
+        Lwt.return (Ok ())
+     | Error msg ->
+        Lwt.return (Error msg)
+  end
 
-    let render_content dd =
-      let d = 1 + dd in
-      ignore (shown_date##setDate d);
-      let tI = Caltime.to_epoch (Caltime.day_start shown_date) in
-      let tF = Caltime.to_epoch (Caltime.day_end shown_date) in
-      render_messages ~room ~tI ~tF ?pat update_comet in
-
-    let render_mdays ct_year dm =
-      let ct_month = ct_year.ct_branches.(dm) in
-      let m = 1 + dm in
-      ignore (shown_date##setMonth (m - 1));
-      if !shown_prec = 2 then
-        let tI = Caltime.to_epoch (Caltime.month_start shown_date) in
-        let tF = Caltime.to_epoch (Caltime.month_end shown_date) in
-        render_messages ~room ~tI ~tF ?pat update_comet
-      else
-        let d_dfl = shown_date##getDate in
-        let mdays = Array.init (Caltime.days_in_month shown_date)
-                               (fun i -> sprintf "%d" (i + 1)) in
-        Batyrweb_tools.D.pager
-          ~default_index:(d_dfl - 1)
-          ~count:(fun dd -> ct_month.ct_branches.(dd).ct_card)
-          mdays render_content in
-    let render_months dy =
-      let ct_year = shown_counts.ct_branches.(dy) in
-      let y = y_min + dy in
-      ignore (shown_date##setFullYear y);
-      if !shown_prec = 1 then
-        let tI = Caltime.to_epoch (Caltime.year_start shown_date) in
-        let tF = Caltime.to_epoch (Caltime.year_end shown_date) in
-        render_messages ~room ~tI ~tF ?pat update_comet
-      else
-        let m_dfl = shown_date##getMonth + 1 in
-        Batyrweb_tools.D.pager
-          ~default_index:(m_dfl - 1)
-          ~count:(fun dm -> ct_year.ct_branches.(dm).ct_card)
-          Caltime.month_names (render_mdays ct_year) in
-    let render_years () =
-      if !shown_prec = 0 then
-        render_messages ~room ?pat update_comet
-      else
-        let y_dfl = shown_date##getFullYear in
-        let years = Array.init (y_now - y_min + 1)
-                               (fun dy -> sprintf "%04d" (y_min + dy)) in
-        Batyrweb_tools.D.pager
-          ~default_index:(y_dfl - y_min)
-          ~count:(fun dy -> shown_counts.ct_branches.(dy).ct_card)
-          years render_months in
-
-    transcript_dom##.innerHTML := Js.string "";
-    (List.iter (Dom.appendChild transcript_dom <@ To_dom.of_element)
-      =|< render_years ()) >>
-    Lwt.return count_err
-]
-
-let transcript_handler (room_jid, (tI, (tF, pat))) () =
+let transcript_handler (room_jid, pat) () =
   let open D in
   let transcript_div = div ~a:[a_class ["transcript"]] [] in
   let room_node = Node.of_string room_jid in
@@ -393,6 +420,13 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
     | None -> Lwt.fail Eliom_common.Eliom_404
     | Some room -> Lwt.return room in
   let min_time = Option.get_else Unix.time (Muc_room.min_message_time room) in
+  let page : int list ref Eliom_client_value.t = [%client
+    let jt_min = new%js Js.date_fromTimeValue (~%min_time *. 1000.0) in
+    let y_min = jt_min##getFullYear in
+    let d = Option.get_else (fun () -> new%js Js.date_now)
+                            (React.S.value fragment_date) in
+    ref [d##getFullYear - y_min; d##getMonth; d##getDate - 1]
+  ] in
   let relevant_message msg =
     let open Batyr_presence in
     Lwt.return begin
@@ -423,9 +457,9 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
         Domx_html.element_by_id Dom_html.CoerceTo.button "clear_search" in
       clear_dom##.disabled := Js._true;
       Lwt.ignore_result begin
-        update_transcript_view ~room:~%room_jid ~min_time:~%min_time
-                               (To_dom.of_div ~%(transcript_div : [`Div] elt))
-                               ~%update_comet
+        render_page
+          ~room:~%room_jid ~min_time:~%min_time ~page:~%page
+          (To_dom.of_div ~%(transcript_div : [`Div] elt)) ~%update_comet
       end
     ] in
   let clear_button =
@@ -445,9 +479,10 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
       info_dom##.innerHTML := Js.string "";
       Lwt.async begin fun () ->
         match%lwt
-          update_transcript_view ~room:~%room_jid ~min_time:~%min_time ?pat
-                                 (To_dom.of_div ~%(transcript_div : [`Div] elt))
-                                 ~%update_comet
+          render_page
+            ~room:~%room_jid ~min_time:~%min_time ?pat ~page:~%page
+            (To_dom.of_div ~%(transcript_div : [`Div] elt))
+            ~%update_comet
         with
          | Ok () -> Lwt.return_unit
          | Error msg ->
@@ -466,12 +501,11 @@ let transcript_handler (room_jid, (tI, (tF, pat))) () =
           () in
   ignore_client_unit [%client
     let transcript_dom = To_dom.of_div ~%(transcript_div : [`Div] elt) in
-    let tI = ref ~%tI in
-    let tF = ref ~%tF in
     let pat = ref ~%pat in
     Lwt.ignore_result begin
-      update_transcript_view ~room:~%room_jid ~min_time:~%min_time ?pat:!pat
-                             transcript_dom ~%update_comet
+      render_page
+        ~room:~%room_jid ~min_time:~%min_time ?pat:!pat ~page:~%page
+        transcript_dom ~%update_comet
     end
   ];
   let help_span =

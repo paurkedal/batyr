@@ -30,8 +30,7 @@ let index_service =
 
 let transcript_service =
   let get = Eliom_parameter.
-    (suffix_prod (string "chatroom")
-      (opt (float "tI") ** opt (float "tF") ** opt (string "pat"))) in
+    (suffix_prod (string "chatroom") (opt (string "pat"))) in
   Eliom_service.(create ~path:(Path ["rooms"]) ~meth:(Get get) ())
 
 let admin_service =

@@ -28,8 +28,8 @@ let index_handler () () =
         [D.pcdata node_jid]
       | Some alias ->
         [D.pcdata alias; D.pcdata " <"; D.pcdata node_jid; D.pcdata ">"] in
-    Lwt.return @@ D.li [D.a ~service:transcript_service label
-                            (node_jid, (None, (None, None)))] in
+    Lwt.return @@
+      D.li [D.a ~service:transcript_service label (node_jid, None)] in
   let%lwt room_lis = Lwt_list.map_p render_room_link rooms in
   let rooms_ul = D.ul room_lis in
   Lwt.return (Batyrweb_tools.D.page "Chatrooms" [rooms_ul])
