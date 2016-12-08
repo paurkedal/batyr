@@ -12,6 +12,7 @@ exists_if = "batyr.cma"
 
 package "web" (
   version = "%%VERSION_NUM%%"
+  directory = "web"
   description = "A jabber logger and web interface"
   requires = "batyr eliom.server yojson"
   archive(byte) = "batyrweb.cma"
