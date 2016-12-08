@@ -219,9 +219,12 @@
     let fetch_all = server_function [%json: unit]
       begin fun () ->
         try%lwt E.fetch_all () >|= fun entries -> Ok entries
-        with xc ->
-          let msg = sprintf "Failed to fetch %s list." E.which_type in
-          Lwt_log.error ~section msg >> Lwt.return (Error msg)
+        with
+         | Caqti.Execute_failed (_, _, msg) ->
+            Lwt.return (Error msg)
+         | exn ->
+            let msg = sprintf "Failed to fetch %s list." E.which_type in
+            Lwt_log.error ~exn ~section msg >> Lwt.return (Error msg)
       end
 
     let add = server_function [%json: E.t option * E.t]
@@ -231,19 +234,24 @@
           Option.iter (fun entry -> emit (Some (Remove entry))) old_entry_opt;
           emit (Some (Add entry));
           Ok ()
-        with xc ->
-          let msg = sprintf "Failed to add %s: %s"
-                            E.which_type (Printexc.to_string xc) in
-          Lwt_log.error ~section msg >> Lwt.return (Error msg)
+        with
+         | Caqti.Execute_failed (_, _, msg) ->
+            Lwt.return (Error msg)
+         | exn ->
+            let msg = sprintf "Failed to add %s." E.which_type in
+            Lwt_log.error ~exn ~section msg >> Lwt.return (Error msg)
       end
 
     let remove = server_function [%json: E.t]
       begin fun entry ->
         try%lwt
           E.remove entry >|= fun () -> emit (Some (Remove entry)); Ok ()
-        with xc ->
-          let msg = sprintf "Failed to remove %s." E.which_type in
-          Lwt_log.error ~section msg >> Lwt.return (Error msg)
+        with
+         | Caqti.Execute_failed (_, _, msg) ->
+            Lwt.return (Error msg)
+         | exn ->
+            let msg = sprintf "Failed to remove %s." E.which_type in
+            Lwt_log.error ~exn ~section msg >> Lwt.return (Error msg)
       end
 
     let serverside = fetch_all, add, remove, update_comet

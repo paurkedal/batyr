@@ -112,11 +112,12 @@ let fetch_message_counts (room_jid, pat_opt, tz) =
       C.fold q C.Tuple.(fun t -> List.push (int 0 t, int 1 t))
              (Array.map C.Param.string (Array.append [|tz|] params)) [] >|=
     (fun counts -> Ok counts)
-  with exn ->
-    (* TODO: Deliver friendly message to client. *)
-    let msg = Printexc.to_string exn in
-    Lwt_log.error_f "Failed query of transcript list: %s" msg >>
-    Lwt.return @@ Error (sprintf "Query failed: %s" msg)
+  with
+   | Batyr_search_types.Syntax_error msg ->
+      Lwt.return (Error msg)
+   | exn ->
+      Lwt_log.error_f ~exn "Failed query of transcript list." >>
+      Lwt.return (Error "Query failed, see log for details.")
 
 let%client fetch_message_counts =
   ~%(server_function [%json: string * string option * string]
@@ -165,11 +166,12 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
           msg_thread = thread_opt;
           msg_body = body_opt }) >|=
     (fun msgs -> Ok msgs)
-  with exn ->
-    (* TODO: Deliver friendly message to client. *)
-    let msg = Printexc.to_string exn in
-    Lwt_log.error_f "Failed query of transcript list: %s" msg >>
-    Lwt.return @@ Error (sprintf "Query failed: %s" msg)
+  with
+   | Batyr_search_types.Syntax_error msg ->
+      Lwt.return (Error msg)
+   | exn ->
+      Lwt_log.error_f ~exn "Failed query of transcript list." >>
+      Lwt.return (Error "Query failed, see log for details.")
 
 let%client fetch_transcript =
   ~%(server_function
