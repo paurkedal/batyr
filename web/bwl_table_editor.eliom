@@ -21,10 +21,6 @@
   open Unprime_option
   open Printf
 
-  type 'a fallible =
-    | Ok of 'a
-    | Failed of string
-
   module type ELEMENT_SHARED = sig
 
     type t [@@deriving json]
@@ -38,9 +34,9 @@
     type update = Add of E.t | Remove of E.t | Replace of E.t * E.t
 
     type serverside =
-        (unit, E.t list fallible) server_function
-      * (E.t option * E.t, unit fallible) server_function
-      * (E.t, unit fallible) server_function
+        (unit, (E.t list, string) result) server_function
+      * (E.t option * E.t, (unit, string) result) server_function
+      * (E.t, (unit, string) result) server_function
       * update Eliom_comet.Channel.t
 
     type clientside = [`Div] elt -> serverside -> unit
@@ -95,7 +91,7 @@
           Lwt.async begin fun () ->
             sf_remove elt >|= function
             | Ok () -> ()
-            | Failed msg -> Dom_html.window##alert(Js.string msg)
+            | Error msg -> Dom_html.window##alert(Js.string msg)
           end in
         let outside_td =
           D.td ~a:[D.a_class ["outside"]] [
@@ -112,7 +108,7 @@
           Lwt.async begin fun () ->
             sf_add (elt_opt, E.decode_row elt_opt edit_dom) >|= function
             | Ok () -> on_cancel ev
-            | Failed msg -> Dom_html.window##alert(Js.string msg)
+            | Error msg -> Dom_html.window##alert(Js.string msg)
           end in
         let commit_label =
           if is_removed then "re-add" else
@@ -194,7 +190,7 @@
       Lwt.ignore_result
         (sf_fetch_all () >|= function
           | Ok entries -> List.iter add entries
-          | Failed msg -> Dom_html.window##alert(Js.string msg));
+          | Error msg -> Dom_html.window##alert(Js.string msg));
 
       Manip.appendChild outer_div table
   end
@@ -225,7 +221,7 @@
         try%lwt E.fetch_all () >|= fun entries -> Ok entries
         with xc ->
           let msg = sprintf "Failed to fetch %s list." E.which_type in
-          Lwt_log.error ~section msg >> Lwt.return (Failed msg)
+          Lwt_log.error ~section msg >> Lwt.return (Error msg)
       end
 
     let add = server_function [%json: E.t option * E.t]
@@ -238,7 +234,7 @@
         with xc ->
           let msg = sprintf "Failed to add %s: %s"
                             E.which_type (Printexc.to_string xc) in
-          Lwt_log.error ~section msg >> Lwt.return (Failed msg)
+          Lwt_log.error ~section msg >> Lwt.return (Error msg)
       end
 
     let remove = server_function [%json: E.t]
@@ -247,7 +243,7 @@
           E.remove entry >|= fun () -> emit (Some (Remove entry)); Ok ()
         with xc ->
           let msg = sprintf "Failed to remove %s." E.which_type in
-          Lwt_log.error ~section msg >> Lwt.return (Failed msg)
+          Lwt_log.error ~section msg >> Lwt.return (Error msg)
       end
 
     let serverside = fetch_all, add, remove, update_comet
