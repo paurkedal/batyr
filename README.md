@@ -18,9 +18,7 @@ Prepare an OPAM installation as described in http://opam.ocaml.org/, then
 If you wish to try it in a local Git clone, add `--deps-only` to the last
 command, then in the top source directory:
 
-    oasis setup -setup-update dynamic
-    ocaml setup.ml -configure
-    make
+    ocaml pkg/pkg.ml build
 
 
 ## Deployment
