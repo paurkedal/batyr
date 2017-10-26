@@ -368,7 +368,7 @@ module%client Presence = struct
     RList.from_signal @@
     React.S.map ~eq:(==)
       (fun accts ->
-        Accounts_editor.Enset.fold (List.push <@ mkopt) accts []
+        Accounts_editor.Enset.fold (List.cons % mkopt) accts []
           |> List.rev)
       Accounts_editor.content
 

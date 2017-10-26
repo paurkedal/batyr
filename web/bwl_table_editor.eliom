@@ -220,7 +220,7 @@
       begin fun () ->
         try%lwt E.fetch_all () >|= fun entries -> Ok entries
         with
-         | Caqti.Execute_failed (_, _, msg) ->
+         | Caqti_errors.Execute_failed (_, _, msg) ->
             Lwt.return (Error msg)
          | exn ->
             let msg = sprintf "Failed to fetch %s list." E.which_type in
@@ -235,7 +235,7 @@
           emit (Some (Add entry));
           Ok ()
         with
-         | Caqti.Execute_failed (_, _, msg) ->
+         | Caqti_errors.Execute_failed (_, _, msg) ->
             Lwt.return (Error msg)
          | exn ->
             let msg = sprintf "Failed to add %s." E.which_type in
@@ -247,7 +247,7 @@
         try%lwt
           E.remove entry >|= fun () -> emit (Some (Remove entry)); Ok ()
         with
-         | Caqti.Execute_failed (_, _, msg) ->
+         | Caqti_errors.Execute_failed (_, _, msg) ->
             Lwt.return (Error msg)
          | exn ->
             let msg = sprintf "Failed to remove %s." E.which_type in

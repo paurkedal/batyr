@@ -449,7 +449,7 @@ module Session = struct
     Lwt.async connect_loop;
     cs
 
-  let start_all () = Account.all_active () >|= List.iter (ignore <@ start)
+  let start_all () = Account.all_active () >|= List.iter (ignore % start)
 
   let find account =
     try Some (Hashtbl.find chat_sessions (account_key account))

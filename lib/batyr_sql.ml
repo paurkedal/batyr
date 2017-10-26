@@ -212,7 +212,7 @@ module Presence = struct
     | _ -> raise Missing_query_string
   let room_presence account_id (module C : CONNECTION) =
     C.fold room_presence'
-           C.Tuple.(fun t -> List.push (int 0 t, option string 1 t,
+           C.Tuple.(fun t -> List.cons (int 0 t, option string 1 t,
                                         option utc 2 t))
            C.Param.[|int account_id|] []
 
@@ -223,7 +223,7 @@ module Presence = struct
     | _ -> raise Missing_query_string
   let active_accounts (module C : CONNECTION) =
     C.fold active_accounts'
-           C.Tuple.(fun t -> List.push (int 0 t, int 1 t, string 2 t))
+           C.Tuple.(fun t -> List.cons (int 0 t, int 1 t, string 2 t))
            [||] []
 end
 
@@ -237,7 +237,7 @@ module Web = struct
        ORDER BY domain_name DESC, node_name DESC, room_alias DESC"
     | _ -> raise Missing_query_string
   let rooms (module C : CONNECTION) =
-    C.fold rooms' C.Tuple.(fun t -> List.push (int 0 t, string 1 t, string 2 t,
+    C.fold rooms' C.Tuple.(fun t -> List.cons (int 0 t, string 1 t, string 2 t,
                                                option string 3 t, bool 4 t))
            [||] []
 end
@@ -250,7 +250,7 @@ module Admin = struct
     | _ -> raise Missing_query_string
   let fetch_chatrooms (module C : CONNECTION) =
     C.fold fetch_chatrooms'
-           C.Tuple.(fun t -> List.push (int 0 t, option string 1 t,
+           C.Tuple.(fun t -> List.cons (int 0 t, option string 1 t,
                                         option string 2 t, bool 3 t))
            [||] []
 
@@ -286,7 +286,7 @@ module Admin = struct
     | _ -> raise Missing_query_string
   let fetch_presences (module C : CONNECTION) =
     C.fold fetch_presences'
-           C.Tuple.(fun t -> List.push (string 0 t, string 1 t, bool 2 t,
+           C.Tuple.(fun t -> List.cons (string 0 t, string 1 t, bool 2 t,
                                         option string 3 t))
            [||] []
 

@@ -10,6 +10,7 @@ true: \
     package(react)
 <{lib,web/server}/*>: thread, \
     package(caqti), \
+    package(caqti-lwt), \
     package(config-file), \
     package(extunix), \
     package(erm_xmpp), \

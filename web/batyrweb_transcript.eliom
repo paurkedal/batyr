@@ -109,7 +109,7 @@ let fetch_message_counts (room_jid, pat_opt, tz) =
            cond_str
       | _ -> raise Caqti_query.Missing_query_string in
     Batyr_db.use @@ fun (module C : CONNECTION) ->
-      C.fold q C.Tuple.(fun t -> List.push (int 0 t, int 1 t))
+      C.fold q C.Tuple.(fun t -> List.cons (int 0 t, int 1 t))
              (Array.map C.Param.string (Array.append [|tz|] params)) [] >|=
     (fun counts -> Ok counts)
   with
@@ -153,7 +153,7 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
       | _ -> raise Caqti_query.Missing_query_string in
     (Batyr_db.use @@ fun (module C : CONNECTION) ->
       C.fold q
-        C.Tuple.(fun t -> List.push (utc 0 t, int 1 t, option string 2 t,
+        C.Tuple.(fun t -> List.cons (utc 0 t, int 1 t, option string 2 t,
                                      option string 3 t, option string 4 t))
         (Array.map C.Param.string params) []) >>=
     Lwt_list.rev_map_p
@@ -407,7 +407,7 @@ let%client render_page ~room ~min_time ?pat ~page transcript_dom update_comet =
           sc_counts = counts;
         };
         transcript_dom##.innerHTML := Js.string "";
-        List.iter (Dom.appendChild transcript_dom <@ To_dom.of_element) content;
+        List.iter (Dom.appendChild transcript_dom % To_dom.of_element) content;
         Lwt.return (Ok ())
      | Error msg ->
         Lwt.return (Error msg)
