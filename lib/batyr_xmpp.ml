@@ -87,6 +87,8 @@ end
 open Chat_params
 
 let with_chat session {server; username; password; resource; port} =
+
+  (* Connect fd to server *)
   let myjid = JID.make_jid username server resource in
   Lwt_log.info_f ~section "Connecting %s@%s/%s." username server resource >>
   let inetaddr =
@@ -94,16 +96,25 @@ let with_chat session {server; username; password; resource; port} =
     with Failure _ -> (Unix.gethostbyname server).Unix.h_addr_list.(0) in
   let sockaddr = Unix.ADDR_INET (inetaddr, port) in
   let fd = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
-  Lwt_unix.connect fd sockaddr >>
+  (try%lwt Lwt_unix.connect fd sockaddr with
+   | exn -> Lwt_unix.close fd >> Lwt.fail exn) >>
+
+  (* Create the session. *)
   let%lwt plain_socket = make_plain_socket fd in
   let tls_socket () = make_tls_socket server fd in
   let%lwt session_data =
     Chat.setup_session ~user_data:() ~myjid ~plain_socket ~tls_socket
                        ~password session in
-  Chat.parse session_data >>
-  let module Socket = (val session_data.Chat.socket : Chat.Socket) in
-  Lwt_log.info_f ~section "Disconnecting %s@%s/%s." username server resource >>
-  Socket.close Socket.socket
+
+  (* Run the session. *)
+  (Chat.parse session_data)
+  [%finally
+    (* The XMPP library will replace this socket with the TLS version if
+     * StartTLS was issued so this will close the full stack. *)
+    let module Socket = (val session_data.Chat.socket : Chat.Socket) in
+    Socket.close Socket.socket] >>
+
+  Lwt_log.info_f ~section "Disconnected %s@%s/%s." username server resource
 
 module Chat_version = struct
   include XEP_version.Make (Chat)
