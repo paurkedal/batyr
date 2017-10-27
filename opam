@@ -14,7 +14,7 @@ depends: [
   "caqti-driver-postgresql"
   "caqti-lwt"
   "config-file"
-  "eliom" {>= "5.0.0" & < "6.0.0"}
+  "eliom" {>= "6.0.0" & < "7~"}
   "erm_xmpp"
   "extunix"
   "js_of_ocaml"
