@@ -11,6 +11,8 @@ depends: [
   "adpkg" {build}
   "calendar"
   "caqti"
+  "caqti-driver-postgresql"
+  "caqti-lwt"
   "config-file"
   "eliom" {>= "5.0.0" & < "6.0.0"}
   "erm_xmpp"
@@ -18,8 +20,6 @@ depends: [
   "js_of_ocaml"
   "lwt"
   "ocamlfind" {build}
-  "ocamlbuild-eliom-dev" {build}
-  "postgresql"
   "ppx_deriving"
   "prime"
   "react"
