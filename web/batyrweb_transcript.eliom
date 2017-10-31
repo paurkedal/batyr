@@ -16,10 +16,8 @@
 
 [%%server
   open Batyr_data
-  open Batyr_prereq
   open Batyrweb_server
   open Caqti_lwt
-
 ]
 [%%client
   open Batyrweb_client

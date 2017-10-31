@@ -2,7 +2,6 @@ Batyr_cache
 Batyr_config
 Batyr_data
 Batyr_db
-Batyr_prereq		{internal}
 Batyr_presence
 Batyr_search
 Batyr_search_lexer	{internal}

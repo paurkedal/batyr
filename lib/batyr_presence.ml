@@ -15,9 +15,9 @@
  *)
 
 open Batyr_data
-open Batyr_prereq
 open Batyr_xmpp
 open CalendarLib
+open Lwt.Infix
 open Printf
 open Unprime
 open Unprime_list

@@ -16,9 +16,9 @@
 
 [%%server
   open Batyr_data
-  open Batyr_prereq
   open Batyrweb_server
   open Caqti_lwt
+  open Lwt.Infix
 ]
 [%%shared
   open Eliom_content.Html

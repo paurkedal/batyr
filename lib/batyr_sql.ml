@@ -14,8 +14,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Batyr_prereq
 open Caqti_lwt
+open Lwt.Infix
 open Printf
 open Unprime_list
 

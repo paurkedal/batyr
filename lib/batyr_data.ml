@@ -15,8 +15,8 @@
  *)
 
 open Batyr_cache
-open Batyr_prereq
 open Batyr_xmpp
+open Lwt.Infix
 open Unprime_option
 
 let id_unknown = -1
