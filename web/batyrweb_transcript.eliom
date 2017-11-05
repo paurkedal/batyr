@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -151,7 +151,7 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
       | _ -> raise Caqti_query.Missing_query_string in
     (Batyr_db.use @@ fun (module C : CONNECTION) ->
       C.fold q
-        C.Tuple.(fun t -> List.cons (utc 0 t, int 1 t, option string 2 t,
+        C.Tuple.(fun t -> List.cons (utc_cl 0 t, int 1 t, option string 2 t,
                                      option string 3 t, option string 4 t))
         (Array.map C.Param.string params) []) >>=
     Lwt_list.rev_map_p

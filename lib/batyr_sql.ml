@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -163,7 +163,7 @@ module Muc_room = struct
   let stored_of_node node_id (module C : CONNECTION) =
     C.find_opt stored_of_node'
       C.Tuple.(fun t -> option string 0 t, option string 1 t,
-                        bool 2 t, option utc 3 t)
+                        bool 2 t, option utc_cl 3 t)
       C.Param.[|int node_id|]
 
   let latest_message_time' = prepare_sql_p
@@ -190,7 +190,7 @@ module Presence = struct
                          message_type subject thread body
                          (module C : CONNECTION) =
     C.exec insert_muc_message' C.Param.[|
-      utc seen_time;
+      utc_cl seen_time;
       int sender_id;
       option int author_id;
       int recipient_id;
@@ -213,7 +213,7 @@ module Presence = struct
   let room_presence account_id (module C : CONNECTION) =
     C.fold room_presence'
            C.Tuple.(fun t -> List.cons (int 0 t, option string 1 t,
-                                        option utc 2 t))
+                                        option utc_cl 2 t))
            C.Param.[|int account_id|] []
 
   let active_accounts' = prepare_fun @@ function
