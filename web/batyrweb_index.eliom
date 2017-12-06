@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@ open Batyrweb_server
 open Eliom_content.Html
 
 let index_handler () () =
-  let%lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in
+  let%lwt rooms = Batyr_db.use_exn Batyr_sql.Web.rooms in
   let render_room_link (node_id, domain_name, node_name, alias, transcribe) =
     let node_jid = node_name ^ "@" ^ domain_name in
     let label =

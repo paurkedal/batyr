@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -127,7 +127,7 @@ let on_muc_message cs ms msg =
     let author_id = Option.search Resource.cached_id muc_author in
     let%lwt sender_id = Resource.store (Message.sender msg) in
     let%lwt recipient_id = Resource.store (Message.recipient msg) in
-    Batyr_db.use @@
+    Batyr_db.use_exn @@
       Batyr_sql.Presence.insert_muc_message
         (CalendarLib.Calendar.from_unixfloat (Message.seen_time msg))
         sender_id author_id recipient_id
@@ -389,7 +389,7 @@ module Session = struct
       cs.cs_chat <- Connected chat;
       Lwt_condition.broadcast chat_cond ();
       let account_id = Resource.cached_id account_resource |> Option.get in
-      Batyr_db.use (Batyr_sql.Presence.room_presence account_id) >>=
+      Batyr_db.use_exn (Batyr_sql.Presence.room_presence account_id) >>=
       Lwt_list.iter_s (muc_handler cs)
 
   let account_key account =

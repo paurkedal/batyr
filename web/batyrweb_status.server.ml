@@ -1,4 +1,4 @@
-(* Copyright (C) 2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2016--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ let json_of_string (x : string) = `String x
 let json_of_float (x : float) = `Float x
 
 let room_info (node_id, domain_name, node_name, room_alias, transcribe) =
-  let%lwt lmt = Batyr_db.use (Batyr_sql.Muc_room.latest_message_time node_id) in
+  let%lwt lmt = Batyr_db.use_exn (Batyr_sql.Muc_room.latest_message_time node_id) in
   let room_jid = node_name ^ "@" ^ domain_name in
   let info : Yojson.Basic.json = `Assoc [
     "alias", json_of_option json_of_string room_alias;
@@ -34,7 +34,7 @@ let room_info (node_id, domain_name, node_name, room_alias, transcribe) =
   Lwt.return (room_jid, info)
 
 let status_handler () () =
-  let%lwt rooms = Batyr_db.use Batyr_sql.Web.rooms in
+  let%lwt rooms = Batyr_db.use_exn Batyr_sql.Web.rooms in
   let%lwt assoc = Lwt_list.map_s room_info rooms in
   Lwt.return (Yojson.Basic.pretty_to_string (`Assoc assoc), "application/json")
 

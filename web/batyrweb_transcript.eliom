@@ -17,7 +17,11 @@
 [%%server
   open Batyr_data
   open Batyrweb_server
-  open Caqti_lwt
+  module type CONNECTION = Caqti_lwt.V2.CONNECTION
+  module Caqti_type = struct
+    include Caqti_type
+    include Caqti_type_calendar
+  end
 ]
 [%%client
   open Batyrweb_client
@@ -93,23 +97,25 @@ let fetch_message_counts (room_jid, pat_opt, tz) =
       let open Batyr_db.Expr in
       var "sender.node_id" = int room_id
       |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt in
-    let cond_str, params = Batyr_db.Expr.to_sql ~first_index:2 cond in
-    let q = Caqti_query.oneshot_fun @@ function
-      `Pgsql ->
-        sprintf
-          "SELECT batyr.intenc_date(seen_time AT TIME ZONE 'UTC' \
-                                              AT TIME ZONE $1) AS t, \
-                  count(0) \
-           FROM batyr.messages \
-           JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
-             ON sender_id = sender.resource_id \
-           WHERE %s GROUP BY t"
-           cond_str
-      | _ -> raise Caqti_query.Missing_query_string in
-    Batyr_db.use @@ fun (module C : CONNECTION) ->
-      C.fold q C.Tuple.(fun t -> List.cons (int 0 t, int 1 t))
-             (Array.map C.Param.string (Array.append [|tz|] params)) [] >|=
-    (fun counts -> Ok counts)
+    let cond_str, Batyr_db.Param (params_type, params) =
+      Batyr_db.Expr.to_sql ~first_index:2 cond in
+    let q = Caqti_request.collect ~oneshot:true
+      Caqti_type.(tup2 string params_type)
+      Caqti_type.(tup2 int int)
+      (sprintf
+        "SELECT batyr.intenc_date(seen_time AT TIME ZONE 'UTC' \
+                                            AT TIME ZONE $1) AS t, \
+                count(0) \
+         FROM batyr.messages \
+         JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
+           ON sender_id = sender.resource_id \
+         WHERE %s GROUP BY t"
+         cond_str) in
+    Batyr_db.use
+      (fun (module C : CONNECTION) -> C.fold q List.cons (tz, params) []) >|=
+    (function
+     | Ok _ as r -> r
+     | Error err -> Error (Caqti_error.show err))
   with
    | Batyr_search_types.Syntax_error msg ->
       Lwt.return (Error msg)
@@ -137,33 +143,35 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
         |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
         |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt
       ) in
-    let cond_str, params = Batyr_db.Expr.to_sql cond in
-    let q = Caqti_query.oneshot_fun @@ function
-      | `Pgsql ->
-        (sprintf "SELECT seen_time, sender_id, subject, thread, body \
-                    FROM batyr.messages \
-                    JOIN (batyr.resources NATURAL JOIN batyr.nodes) \
-                      AS sender \
-                      ON sender_id = sender.resource_id \
-                    WHERE %s \
-                    ORDER BY seen_time, message_id LIMIT %d"
-                   cond_str query_limit)
-      | _ -> raise Caqti_query.Missing_query_string in
+    let cond_str, Batyr_db.Param (params_type, params) =
+      Batyr_db.Expr.to_sql cond in
+    let q = Caqti_request.collect ~oneshot:true
+      params_type
+      Caqti_type.(tup2 (tup2 ctime int)
+                       (tup3 (option string) (option string) (option string)))
+      (sprintf
+        "SELECT seen_time, sender_id, subject, thread, body \
+         FROM batyr.messages \
+         JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
+           ON sender_id = sender.resource_id \
+         WHERE %s \
+         ORDER BY seen_time, message_id LIMIT %d"
+        cond_str query_limit) in
     (Batyr_db.use @@ fun (module C : CONNECTION) ->
-      C.fold q
-        C.Tuple.(fun t -> List.cons (utc_cl 0 t, int 1 t, option string 2 t,
-                                     option string 3 t, option string 4 t))
-        (Array.map C.Param.string params) []) >>=
-    Lwt_list.rev_map_p
-      (fun (time, sender_id, subject_opt, thread_opt, body_opt) ->
-        Resource.stored_of_id sender_id >|= fun sender_resource ->
-        { msg_time = CalendarLib.Calendar.to_unixfloat time;
-          msg_sender_cls = "jid";
-          msg_sender = Resource.resource_name sender_resource;
-          msg_subject = subject_opt;
-          msg_thread = thread_opt;
-          msg_body = body_opt }) >|=
-    (fun msgs -> Ok msgs)
+      C.fold q List.cons params []) >>=
+    (function
+     | Ok tuples ->
+        Lwt_list.rev_map_p
+          (fun ((time, sender_id), (subject_opt, thread_opt, body_opt)) ->
+            Resource.stored_of_id sender_id >|= fun sender_resource ->
+            { msg_time = CalendarLib.Calendar.to_unixfloat time;
+              msg_sender_cls = "jid";
+              msg_sender = Resource.resource_name sender_resource;
+              msg_subject = subject_opt;
+              msg_thread = thread_opt;
+              msg_body = body_opt })
+          tuples >|= (fun msgs -> Ok msgs)
+     | Error err -> Lwt.return_error (Caqti_error.show err))
   with
    | Batyr_search_types.Syntax_error msg ->
       Lwt.return (Error msg)

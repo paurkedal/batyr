@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,19 +16,19 @@
 
 (** Concurrency, pooling, etc. for postgresql-ocaml using lwt. *)
 
-open Caqti_lwt
-
-val or_null : string option -> string
+module type CONNECTION = Caqti_lwt.V2.CONNECTION
 
 val escape_like : string -> string
 
 val epoch_of_timestamp : string -> float
 val timestamp_of_epoch : float -> string
 
+type param = Param : 'a Caqti_type.t * 'a -> param
+
 module Expr : sig
   type 'a t
 
-  val to_sql : ?first_index: int -> 'a t -> string * string array
+  val to_sql : ?first_index: int -> 'a t -> string * param
 
   val of_sql : string -> 'a t
   val of_sql_f : ('b, unit, string, 'a t) format4 -> 'b
@@ -77,6 +77,16 @@ module Expr : sig
 end
 
 val use : ?quick: bool ->
-      ((module CONNECTION) -> 'a Lwt.t) -> 'a Lwt.t
+  ((module CONNECTION) -> ('a, ([> Caqti_error.connect]) as 'e) result Lwt.t) ->
+  ('a, 'e) result Lwt.t
+
+val use_exn : ?quick: bool ->
+  ((module CONNECTION) -> ('a, [< Caqti_error.t]) result Lwt.t) -> 'a Lwt.t
+
 val use_accounted : ?quick: bool ->
-      ((module CONNECTION) -> 'a Lwt.t) -> (float * 'a) Lwt.t
+  ((module CONNECTION) -> ('a, ([> Caqti_error.connect]) as 'e) result Lwt.t) ->
+  (float * 'a, 'e) result Lwt.t
+
+val use_accounted_exn : ?quick: bool ->
+  ((module CONNECTION) -> ('a, [< Caqti_error.t]) result Lwt.t) ->
+  (float * 'a) Lwt.t

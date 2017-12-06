@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,11 +16,12 @@
 
 open CalendarLib
 open Lwt.Infix
-open Postgresql
 open Printf
 open Unprime_array
 open Unprime_list
 open Unprime_string
+
+module type CONNECTION = Caqti_lwt.V2.CONNECTION
 
 let section = Lwt_log.Section.make "batyr.db"
 
@@ -28,8 +29,6 @@ exception Runtime_error of string
 exception Response_error of string
 let raise_resperr fmt = ksprintf (fun s -> raise (Response_error s)) fmt
 let fail_resperr fmt = ksprintf (fun s -> Lwt.fail (Response_error s)) fmt
-
-let or_null = function None -> Postgresql.null | Some s -> s
 
 let escape_like s =
   let buf = Buffer.create (String.length s) in
@@ -57,6 +56,8 @@ let epoch_of_timestamp ts =
   let caltime = Printer.Calendar.from_fstring "%F %T%z" (sec ^ "+0000") in
   Calendar.to_unixfloat caltime +. subsec
 
+type param = Param : 'a Caqti_type.t * 'a -> param
+
 module Expr = struct
 
   type op =
@@ -82,14 +83,15 @@ module Expr = struct
 
   type acc = {
     mutable acc_index : int;
-    mutable acc_params : string list;
+    mutable acc_params : param;
     acc_buffer : Buffer.t;
   }
 
   let add_param acc s =
     bprintf acc.acc_buffer "$%d" acc.acc_index;
     acc.acc_index <- acc.acc_index + 1;
-    acc.acc_params <- s :: acc.acc_params
+    let Param (param_type, param) = acc.acc_params in
+    acc.acc_params <- Param (Caqti_type.(tup2 param_type string), (param, s))
 
   let rec to_sql' acc prec = function
     | Literal s -> Buffer.add_string acc.acc_buffer s
@@ -141,11 +143,11 @@ module Expr = struct
   let to_sql ?(first_index = 1) e =
     let acc = {
       acc_index = first_index;
-      acc_params = [];
+      acc_params = Param (Caqti_type.unit, ());
       acc_buffer = Buffer.create 512;
     } in
     to_sql' acc 0 e;
-    (Buffer.contents acc.acc_buffer, Array.of_list (List.rev acc.acc_params))
+    (Buffer.contents acc.acc_buffer, acc.acc_params)
 
   let prefix prec name = Prefix (name, prec, prec)
   let suffix prec name = Suffix (name, prec, prec)
@@ -213,10 +215,16 @@ end
 let pool =
   let open Batyr_config in
   let uri = Uri.of_string db_uri_cp#get in
-  Caqti_lwt.connect_pool uri
+  (match Caqti_lwt.V2.connect_pool uri with
+   | Ok pool -> pool
+   | Error err -> Caqti_error.pp Format.std_formatter err; exit 69)
 
 let use ?(quick = false) f =
-  Caqti_lwt.Pool.use ~priority:(if quick then 1.0 else 0.0) f pool
+  Caqti_lwt.V2.Pool.use ~priority:(if quick then 1.0 else 0.0) f pool
+
+let use_exn ?quick f =
+  let f conn = f conn >|= function (Ok _ | Error (#Caqti_error.t)) as r -> r in
+  use ?quick f >>= Caqti_lwt.of_result
 
 let time_multiplier = 1e6
 
@@ -224,4 +232,10 @@ let use_accounted ?quick f =
   let tS = Unix.time () in
   use ?quick f >|= fun r ->
   let tE = Unix.time () in
-  ((tE -. tS) *. time_multiplier, r)
+  (match r with
+   | Ok y -> Ok ((tE -. tS) *. time_multiplier, y)
+   | Error _ as r -> r)
+
+let use_accounted_exn ?quick f =
+  let f conn = f conn >|= function (Ok _ | Error (#Caqti_error.t)) as r -> r in
+  use_accounted ?quick f >>= Caqti_lwt.of_result

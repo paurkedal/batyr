@@ -11,6 +11,7 @@ true: \
 <{lib,web/server}/*>: thread, \
     package(caqti), \
     package(caqti-lwt), \
+    package(caqti-type-calendar), \
     package(config-file), \
     package(extunix), \
     package(erm_xmpp), \

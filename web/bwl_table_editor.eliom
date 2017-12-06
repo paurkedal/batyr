@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -220,8 +220,8 @@
       begin fun () ->
         try%lwt E.fetch_all () >|= fun entries -> Ok entries
         with
-         | Caqti_errors.Execute_failed (_, _, msg) ->
-            Lwt.return (Error msg)
+         | Caqti_error.Exn err ->
+            Lwt.return (Error (Caqti_error.show err))
          | exn ->
             let msg = sprintf "Failed to fetch %s list." E.which_type in
             Lwt_log.error ~exn ~section msg >> Lwt.return (Error msg)
@@ -235,8 +235,8 @@
           emit (Some (Add entry));
           Ok ()
         with
-         | Caqti_errors.Execute_failed (_, _, msg) ->
-            Lwt.return (Error msg)
+         | Caqti_error.Exn err ->
+            Lwt.return (Error (Caqti_error.show err))
          | exn ->
             let msg = sprintf "Failed to add %s." E.which_type in
             Lwt_log.error ~exn ~section msg >> Lwt.return (Error msg)
@@ -247,8 +247,8 @@
         try%lwt
           E.remove entry >|= fun () -> emit (Some (Remove entry)); Ok ()
         with
-         | Caqti_errors.Execute_failed (_, _, msg) ->
-            Lwt.return (Error msg)
+         | Caqti_error.Exn err ->
+            Lwt.return (Error (Caqti_error.show err))
          | exn ->
             let msg = sprintf "Failed to remove %s." E.which_type in
             Lwt_log.error ~exn ~section msg >> Lwt.return (Error msg)

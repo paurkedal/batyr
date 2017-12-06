@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2017  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 
 [%%server
   open Batyr_data
+  open Batyr_prereq
   open Batyrweb_server
   open Caqti_lwt
   open Lwt.Infix
@@ -191,7 +192,7 @@ module%server Chatroom = struct
   let which_type = "chat room"
 
   let fetch_all () =
-    let%lwt entries = Batyr_db.use Batyr_sql.Admin.fetch_chatrooms in
+    let%lwt entries = Batyr_db.use_exn Batyr_sql.Admin.fetch_chatrooms in
     let chatroom_of_entry
           (node_id, room_alias, room_description, transcribe) =
       let%lwt node = Node.stored_of_id node_id in
@@ -209,13 +210,14 @@ module%server Chatroom = struct
     let%lwt node = Lwt.wrap1 Node.of_string room.room_jid in
     let%lwt node_id = Node.store node in
     let room = {room with room_jid = Node.to_string node} in
-    Batyr_db.use begin fun conn ->
+    Batyr_db.use_exn begin fun conn ->
       Batyr_sql.Admin.upsert_chatroom (old_node_id_opt <> Some node_id)
-        node_id room.room_alias room.room_description room.transcribe conn >>
+        node_id room.room_alias room.room_description room.transcribe conn
+        >>=?? fun () ->
       match old_node_id_opt with
       | Some old_node_id when old_node_id <> node_id ->
         Batyr_sql.Admin.delete_chatroom old_node_id conn
-      | _ -> Lwt.return_unit
+      | _ -> Lwt.return_ok ()
     end >>
     Lwt.return room
 
@@ -225,7 +227,7 @@ module%server Chatroom = struct
       match%lwt Node.stored_id node with
       | None -> Lwt.fail Eliom_common.Eliom_404
       | Some id -> Lwt.return id in
-    Batyr_db.use (Batyr_sql.Admin.delete_chatroom node_id)
+    Batyr_db.use_exn (Batyr_sql.Admin.delete_chatroom node_id)
 end
 
 let%client input_value_opt inp =
@@ -307,7 +309,7 @@ module%server Presence = struct
   let which_type = "presence"
 
   let fetch_all () =
-    Batyr_db.use Batyr_sql.Admin.fetch_presences >|=
+    Batyr_db.use_exn Batyr_sql.Admin.fetch_presences >|=
       List.rev_map (fun (resource_jid, account_jid, is_present, nick) ->
                         {resource_jid; account_jid; is_present; nick})
 
@@ -320,23 +322,22 @@ module%server Presence = struct
     let%lwt resource_id =
       Resource.store (Resource.of_string pres.resource_jid) in
     let%lwt account_id =
-      Resource.stored_id (Resource.of_string pres.account_jid)
-        >|= Option.get in
-    Batyr_db.use begin fun conn ->
+      Resource.stored_id (Resource.of_string pres.account_jid) >|= Option.get in
+    Batyr_db.use_exn begin fun conn ->
       Batyr_sql.Admin.upsert_presence
         (old_resource_id_opt <> Some resource_id)
-        resource_id account_id pres.nick pres.is_present conn >>
+        resource_id account_id pres.nick pres.is_present conn >>=?? fun () ->
       match old_resource_id_opt with
       | Some old_resource_id when old_resource_id <> resource_id ->
         Batyr_sql.Admin.delete_presence old_resource_id conn
-      | _ -> Lwt.return_unit
+      | _ -> Lwt.return_ok ()
     end >>
     Lwt.return pres
   let remove pres =
     let%lwt resource_id =
       Resource.stored_id (Resource.of_string pres.resource_jid)
         >|= Option.get in
-    Batyr_db.use (Batyr_sql.Admin.delete_presence resource_id)
+    Batyr_db.use_exn (Batyr_sql.Admin.delete_presence resource_id)
 end
 
 module%client Presence = struct
