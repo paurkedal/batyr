@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 open Lwt.Infix
 open Printf
 open Unprime_list
-module type CONNECTION = Caqti_lwt.V2.CONNECTION
+module type CONNECTION = Caqti_lwt.CONNECTION
 
 module Caqti_type = struct
   include Caqti_type

@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ open Unprime_array
 open Unprime_list
 open Unprime_string
 
-module type CONNECTION = Caqti_lwt.V2.CONNECTION
+module type CONNECTION = Caqti_lwt.CONNECTION
 
 let section = Lwt_log.Section.make "batyr.db"
 
@@ -215,16 +215,16 @@ end
 let pool =
   let open Batyr_config in
   let uri = Uri.of_string db_uri_cp#get in
-  (match Caqti_lwt.V2.connect_pool uri with
+  (match Caqti_lwt.connect_pool uri with
    | Ok pool -> pool
    | Error err -> Caqti_error.pp Format.std_formatter err; exit 69)
 
 let use ?(quick = false) f =
-  Caqti_lwt.V2.Pool.use ~priority:(if quick then 1.0 else 0.0) f pool
+  Caqti_lwt.Pool.use ~priority:(if quick then 1.0 else 0.0) f pool
 
 let use_exn ?quick f =
   let f conn = f conn >|= function (Ok _ | Error (#Caqti_error.t)) as r -> r in
-  use ?quick f >>= Caqti_lwt.of_result
+  use ?quick f >>= Caqti_lwt.or_fail
 
 let time_multiplier = 1e6
 
@@ -238,4 +238,4 @@ let use_accounted ?quick f =
 
 let use_accounted_exn ?quick f =
   let f conn = f conn >|= function (Ok _ | Error (#Caqti_error.t)) as r -> r in
-  use_accounted ?quick f >>= Caqti_lwt.of_result
+  use_accounted ?quick f >>= Caqti_lwt.or_fail

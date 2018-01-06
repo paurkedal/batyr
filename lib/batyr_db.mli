@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
 (** Concurrency, pooling, etc. for postgresql-ocaml using lwt. *)
 
-module type CONNECTION = Caqti_lwt.V2.CONNECTION
+module type CONNECTION = Caqti_lwt.CONNECTION
 
 val escape_like : string -> string
 
