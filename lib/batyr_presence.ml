@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -225,12 +225,12 @@ let on_presence cs chat stanza =
       (match Chat.(stanza.content.presence_type) with
        | Some pt -> Chat.string_of_presence_type pt
        | None -> "presence")
-      (JID.string_of_jid sender_jid) >>
+      (JID.string_of_jid sender_jid) >>= fun () ->
     begin match Chat.(stanza.content.presence_type) with
     | Some Chat.Subscribe ->
       Chat.send_presence chat ~jid_to:sender_jid ~kind:Chat.Subscribed ()
     | _ -> Lwt.return_unit
-    end >>
+    end >>= fun () ->
     let entered_room_node = Node.of_jid (JID.bare_jid sender_jid) in
     let step = React.Step.create () in          (* NB! No yield until ... *)
     cs.cs_emit_presence ~step stanza;
@@ -281,15 +281,16 @@ let track_presence_of my_jid is_present stanza =
     with
     | [] ->
       Lwt_log.notice_f ~section "I was logged out as %s for unknown reason."
-                       (JID.string_of_jid my_jid) >>
+                       (JID.string_of_jid my_jid) >>= fun () ->
       Lwt.return_false
     | reason :: _ ->
       Lwt_log.notice_f ~section "I was logged out as %s because: %s"
-                       (JID.string_of_jid my_jid) reason >>
+                       (JID.string_of_jid my_jid) reason >>= fun () ->
       Lwt.return_false
     end
   | Some sender_jid, None when sender_jid = my_jid ->
-    Lwt_log.info_f ~section "I logged in as %s." (JID.string_of_jid my_jid) >>
+    Lwt_log.info_f ~section "I logged in as %s." (JID.string_of_jid my_jid)
+      >>= fun () ->
     Lwt.return_true
   | _ ->
     Lwt.return is_present
@@ -304,11 +305,12 @@ let drive_signal
     let backoff = Backoff.create () in
     while%lwt true do
       if React.S.value s
-      then Lwt_condition.wait cond >> Lwt_unix.sleep dt_edge
+      then Lwt_condition.wait cond >>= fun () -> Lwt_unix.sleep dt_edge
       else
         let dt = Backoff.next backoff in
-        f () >>
-        Lwt_log.info_f ~section "Will wait %.3g s before next %s." dt what >>
+        f () >>= fun () ->
+        Lwt_log.info_f ~section "Will wait %.3g s before next %s." dt what
+          >>= fun () ->
         Lwt_unix.sleep dt
     done in
   Lwt.async driver;
@@ -339,12 +341,12 @@ module Session = struct
           begin match !since_r with
           | None ->
             Lwt_log.info_f ~section "Entering %s, no previous logs."
-                           (Resource.to_string resource) >>
+                           (Resource.to_string resource) >>= fun () ->
             Lwt.return_none
           | Some t_disconn ->
             let t = Unix.time () -. t_disconn in
             Lwt_log.info_f ~section "Entering %s, seconds = %f"
-                           (Resource.to_string resource) t >>
+                           (Resource.to_string resource) t >>= fun () ->
             Lwt.return (Some (int_of_float t))
           end in
         Chat_muc.enter_room ?seconds ~nick chat room_jid in
@@ -381,7 +383,7 @@ module Session = struct
     Chat_disco.register_info chat;
     let account_resource = Account.resource cs.cs_account in
     Chat.send_presence chat ~jid_from:(Resource.jid account_resource)
-                       ~show:Chat.ShowDND ~status:"logging" () >>
+                       ~show:Chat.ShowDND ~status:"logging" () >>= fun () ->
     match cs.cs_chat with
     | Connected chat -> assert false
     | Shutdown -> Lwt.return_unit
@@ -415,7 +417,8 @@ module Session = struct
       Lwt_log.error_f ~section "Lost connection."
     | xc ->
       clear_cs ();
-      Lwt_log.error_f ~section "Caught %s." (Printexc.to_string xc) >>
+      Lwt_log.error_f ~section "Caught %s." (Printexc.to_string xc)
+        >>= fun () ->
       Lwt_log.debug ~section (Printexc.get_backtrace ())
 
   let start account =
@@ -436,15 +439,15 @@ module Session = struct
     let backoff = Backoff.create () in
     let rec connect_loop () =
       let t_start = Unix.time () in
-      run_once cs >>
+      run_once cs >>= fun () ->
       let t_dur = Unix.time () -. t_start in
       if cs.cs_chat = Shutdown then
         Lwt_log.info_f ~section "Session shut down after %g s." t_dur
       else
         let t_sleep = Backoff.next backoff in
         Lwt_log.info_f ~section "Session lasted %g s, will re-connect in %g s."
-                       t_dur t_sleep >>
-        Lwt_unix.sleep t_sleep >>
+                       t_dur t_sleep >>= fun () ->
+        Lwt_unix.sleep t_sleep >>= fun () ->
         connect_loop () in
     Lwt.async connect_loop;
     cs
@@ -460,7 +463,7 @@ module Session = struct
   let rec with_chat f cs =
     match cs.cs_chat with
     | Shutdown -> Lwt.fail Session_shutdown
-    | Disconnected cond -> Lwt_condition.wait cond >> with_chat f cs
+    | Disconnected cond -> Lwt_condition.wait cond >>= fun () -> with_chat f cs
     | Connected chat -> f chat
 
   let shutdown cs =

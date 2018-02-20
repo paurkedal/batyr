@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -153,12 +153,12 @@ module%server Account = struct
           end
         else
           Lwt.return_unit
-        end >>
+        end >>= fun () ->
         Batyr_data.Account.update ~resource ~port ?password ~is_active account
           >|= fun () ->
         if is_active then ignore (Batyr_presence.Session.start account)
       end
-    end >>
+    end >>= fun () ->
     Lwt.return (if hide_passwords then {a with client_password = None} else a)
 
   let remove a =
@@ -218,7 +218,7 @@ module%server Chatroom = struct
       | Some old_node_id when old_node_id <> node_id ->
         Batyr_sql.Admin.delete_chatroom old_node_id conn
       | _ -> Lwt.return_ok ()
-    end >>
+    end >>= fun () ->
     Lwt.return room
 
   let remove room =
@@ -331,7 +331,7 @@ module%server Presence = struct
       | Some old_resource_id when old_resource_id <> resource_id ->
         Batyr_sql.Admin.delete_presence old_resource_id conn
       | _ -> Lwt.return_ok ()
-    end >>
+    end >>= fun () ->
     Lwt.return pres
   let remove pres =
     let%lwt resource_id =

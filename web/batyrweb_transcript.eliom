@@ -120,7 +120,7 @@ let fetch_message_counts (room_jid, pat_opt, tz) =
    | Batyr_search_types.Syntax_error msg ->
       Lwt.return (Error msg)
    | exn ->
-      Lwt_log.error_f ~exn "Failed query of transcript list." >>
+      Lwt_log.error_f ~exn "Failed query of transcript list." >>= fun () ->
       Lwt.return (Error "Query failed, see log for details.")
 
 let%client fetch_message_counts =
@@ -130,7 +130,7 @@ let%client fetch_message_counts =
 let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
   try%lwt
     Lwt_log.debug_f ~section "Sending %s transcript%s."
-                    room_jid (phrase_query pat_opt tI_opt tF_opt) >>
+                    room_jid (phrase_query pat_opt tI_opt tF_opt) >>= fun () ->
     let%lwt room = Lwt.wrap1 Node.of_string room_jid in
     let%lwt room_id =
       match%lwt Node.stored_id room with
@@ -176,7 +176,7 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
    | Batyr_search_types.Syntax_error msg ->
       Lwt.return (Error msg)
    | exn ->
-      Lwt_log.error_f ~exn "Failed query of transcript list." >>
+      Lwt_log.error_f ~exn "Failed query of transcript list." >>= fun () ->
       Lwt.return (Error "Query failed, see log for details.")
 
 let%client fetch_transcript =

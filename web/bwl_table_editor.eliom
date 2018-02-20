@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -224,7 +224,7 @@
             Lwt.return (Error (Caqti_error.show err))
          | exn ->
             let msg = sprintf "Failed to fetch %s list." E.which_type in
-            Lwt_log.error ~exn ~section msg >> Lwt.return (Error msg)
+            Lwt_log.error ~exn ~section msg >>= fun () -> Lwt.return (Error msg)
       end
 
     let add = server_function [%json: E.t option * E.t]
@@ -239,7 +239,7 @@
             Lwt.return (Error (Caqti_error.show err))
          | exn ->
             let msg = sprintf "Failed to add %s." E.which_type in
-            Lwt_log.error ~exn ~section msg >> Lwt.return (Error msg)
+            Lwt_log.error ~exn ~section msg >>= fun () -> Lwt.return (Error msg)
       end
 
     let remove = server_function [%json: E.t]
@@ -251,7 +251,7 @@
             Lwt.return (Error (Caqti_error.show err))
          | exn ->
             let msg = sprintf "Failed to remove %s." E.which_type in
-            Lwt_log.error ~exn ~section msg >> Lwt.return (Error msg)
+            Lwt_log.error ~exn ~section msg >>= fun () -> Lwt.return (Error msg)
       end
 
     let serverside = fetch_all, add, remove, update_comet

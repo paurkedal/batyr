@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Lwt.Infix
 open Unprime
 open Unprime_option
 
@@ -28,8 +29,6 @@ module Chat = struct
 end
 type chat = unit Chat.session_data
 
-let (>|=) = Lwt.(>|=)
-
 let make_plain_socket fd =
   let module Socket = struct
     type t = Lwt_unix.file_descr
@@ -41,7 +40,7 @@ let make_plain_socket fd =
   Lwt.return (module Socket : Chat.Socket)
 
 let make_tls_socket host fd =
-  Nocrypto_entropy_lwt.initialize () >>
+  Nocrypto_entropy_lwt.initialize () >>= fun () ->
   let%lwt authenticator =
     X509_lwt.authenticator `No_authentication_I'M_STUPID in
   let config = Tls.Config.client ~authenticator () in
@@ -59,11 +58,12 @@ let make_tls_socket host fd =
       for i = 0 to len' - 1 do
         Bytes.set buf (start + i) (Cstruct.get_char cs i)
       done;
-      Lwt_log.debug_f ~section "In: [%s]" (Bytes.sub buf start len') >>
+      Lwt_log.debug_f ~section "In: [%s]" (Bytes.sub buf start len')
+        >>= fun () ->
       Lwt.return len'
 
     let write socket s =
-      Tls_lwt.Unix.write socket (Cstruct.of_string s) >>
+      Tls_lwt.Unix.write socket (Cstruct.of_string s) >>= fun () ->
       Lwt_log.debug_f ~section "Out: [%s]" s
 
     let close = Tls_lwt.Unix.close
@@ -90,14 +90,14 @@ let with_chat session {server; username; password; resource; port} =
 
   (* Connect fd to server *)
   let myjid = JID.make_jid username server resource in
-  Lwt_log.info_f ~section "Connecting %s@%s/%s." username server resource >>
+  Lwt_log.info_f ~section "Connecting %s@%s/%s." username server resource >>= fun () ->
   let inetaddr =
     try Unix.inet_addr_of_string server
     with Failure _ -> (Unix.gethostbyname server).Unix.h_addr_list.(0) in
   let sockaddr = Unix.ADDR_INET (inetaddr, port) in
   let fd = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
   (try%lwt Lwt_unix.connect fd sockaddr with
-   | exn -> Lwt_unix.close fd >> Lwt.fail exn) >>
+   | exn -> Lwt_unix.close fd >>= fun () -> Lwt.fail exn) >>= fun () ->
 
   (* Create the session. *)
   let%lwt plain_socket = make_plain_socket fd in
@@ -112,7 +112,7 @@ let with_chat session {server; username; password; resource; port} =
     (* The XMPP library will replace this socket with the TLS version if
      * StartTLS was issued so this will close the full stack. *)
     let module Socket = (val session_data.Chat.socket : Chat.Socket) in
-    Socket.close Socket.socket] >>
+    Socket.close Socket.socket] >>= fun () ->
 
   Lwt_log.info_f ~section "Disconnected %s@%s/%s." username server resource
 
@@ -149,12 +149,14 @@ module Chat_disco = struct
         Option.get_else (fun () -> extract_features chat) features in
       match jid_from with
       | Some jid_from ->
-        Lwt_log.info_f ~section "Received disco request from %s." jid_from >>
+        Lwt_log.info_f ~section "Received disco request from %s." jid_from
+          >>= fun () ->
         let els = make_disco_info ~category ~type_ ~name ~features () in
         let el = Xml.Xmlelement ((ns_disco_info, "query"), [], els) in
         Lwt.return (Chat.IQResult (Some el))
       | None ->
-        Lwt_log.warning ~section "Failing disco request lacking from-field." >>
+        Lwt_log.warning ~section "Failing disco request lacking from-field."
+          >>= fun () ->
         Lwt.fail Chat.BadRequest in
     Chat.register_iq_request_handler chat ns_disco_info on_disco
 end
@@ -171,7 +173,7 @@ module Chat_ping = struct
         Lwt.return @@
           match resp with
           | Chat.IQResult r -> ()
-          | Chat.IQError err -> r := Some err) >>
+          | Chat.IQError err -> r := Some err) >>= fun () ->
     Lwt.return !r
 
   let on_ping req jid_from jid_to lang () =
@@ -179,15 +181,16 @@ module Chat_ping = struct
     | Some jid_from ->
       begin match req with
       | Chat.IQGet _ ->
-        Lwt_log.info_f ~section "Received ping from %s." jid_from >>
+        Lwt_log.info_f ~section "Received ping from %s." jid_from >>= fun () ->
         Lwt.return (Chat.IQResult None)
       | Chat.IQSet _ ->
         Lwt_log.warning_f ~section "Failing ping set request from %s."
-                          jid_from >>
+                          jid_from >>= fun () ->
         Lwt.fail Chat.BadRequest
       end
     | None ->
-      Lwt_log.warning ~section "Failing ping request lacking from-field." >>
+      Lwt_log.warning ~section "Failing ping request lacking from-field."
+        >>= fun () ->
       Lwt.fail Chat.BadRequest
 
   let register chat =
