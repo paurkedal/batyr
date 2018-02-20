@@ -1,8 +1,8 @@
 version = "%%VERSION_NUM%%"
 description = "A jabber logger and web interface"
 requires = "
-  caqti calendar config-file eliom erm_xmpp extunix lwt lwt.react
-  postgresql prime prime.unstable tls.lwt
+  caqti calendar config-file eliom erm_xmpp extunix lwt lwt_react
+  prime prime.unstable tls.lwt
 "
 archive(byte) = "batyr.cma"
 archive(native) = "batyr.cmxa"

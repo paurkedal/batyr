@@ -1,6 +1,6 @@
 #! /usr/bin/env ocaml
 
-(* Copyright (C) 2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2016--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,7 +40,7 @@ let build = Pkg.build ~cmd:build_cmd ()
 
 let metas = [Pkg.meta_file "pkg/META"]
 
-let opams = [Pkg.opam_file ~lint_deps_excluding:(Some ["lib"]) "opam"]
+let opams = [Pkg.opam_file ~lint_deps_excluding:(Some ["lib"]) "batyr.opam"]
 
 let save_list ?(pfx = "") fn lines =
   let oc = open_out fn in

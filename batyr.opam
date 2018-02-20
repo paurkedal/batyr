@@ -11,7 +11,6 @@ depends: [
   "adpkg" {build}
   "calendar"
   "caqti" {>= "0.8"}
-  "caqti-driver-postgresql"
   "caqti-dynload"
   "caqti-lwt"
   "caqti-type-calendar"
@@ -20,7 +19,9 @@ depends: [
   "erm_xmpp"
   "extunix"
   "js_of_ocaml"
+  "js_of_ocaml-ppx"
   "lwt"
+  "lwt_react"
   "ocamlfind" {build}
   "ppx_deriving"
   "prime"

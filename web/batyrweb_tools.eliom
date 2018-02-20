@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ module%server D' = struct
     Eliom_tools.D.html ~title ~css:[["css"; "batyr.css"]]
       (body (h1 [pcdata title] :: content))
 
+(*
   let tabbar
         ~(onclick : (int -> string -> Dom_html.mouseEvent Js.t -> unit)
                     Eliom_client_value.t)
@@ -38,6 +39,7 @@ module%server D' = struct
       div ~a:[a_class ["tabs"]] (List.mapi make_tab labels);
       div ~a:[a_class ["header"]] []
     ])
+*)
 end
 
 module%client D' = struct
