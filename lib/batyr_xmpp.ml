@@ -34,7 +34,8 @@ let make_plain_socket fd =
     type t = Lwt_unix.file_descr
     let socket = fd
     let read fd buf start len = Lwt_unix.read fd buf start len
-    let write fd buf = Lwt_unix.write fd buf 0 (String.length buf) >|= ignore
+    let write fd buf =
+      Lwt_unix.write_string fd buf 0 (String.length buf) >|= ignore
     let close fd = Lwt_unix.close fd
   end in
   Lwt.return (module Socket : Chat.Socket)
@@ -58,7 +59,7 @@ let make_tls_socket host fd =
       for i = 0 to len' - 1 do
         Bytes.set buf (start + i) (Cstruct.get_char cs i)
       done;
-      Lwt_log.debug_f ~section "In: [%s]" (Bytes.sub buf start len')
+      Lwt_log.debug_f ~section "In: [%s]" (Bytes.sub_string buf start len')
         >>= fun () ->
       Lwt.return len'
 
