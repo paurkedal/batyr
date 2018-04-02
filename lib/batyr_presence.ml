@@ -129,7 +129,7 @@ let on_muc_message cs ms msg =
     let%lwt recipient_id = Resource.store (Message.recipient msg) in
     Batyr_db.use_exn @@
       Batyr_sql.Presence.insert_muc_message
-        (CalendarLib.Calendar.from_unixfloat (Message.seen_time msg))
+        (Option.get (Ptime.of_float_s (Message.seen_time msg)))
         sender_id author_id recipient_id
         (string_of_message_type (Message.message_type msg))
         (Message.subject msg)

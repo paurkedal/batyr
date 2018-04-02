@@ -9,7 +9,7 @@ true: \
     package(lwt_react), \
     package(prime), package(prime.unstable), \
     package(react)
-<{lib,web/server}/*>: thread, \
+<{lib,web/server}/*> or <logger-slack/*>: thread, \
     package(caqti), \
     package(caqti-dynload), \
     package(caqti-lwt), \
@@ -21,3 +21,20 @@ true: \
     package(ppx_deriving), package(js_of_ocaml-ppx.deriving)
 <web/server/*>: package(eliom.server), package(lib), package(yojson)
 <web/client/*>: package(eliom.client), package(js_of_ocaml.ppx)
+
+<logger-slack/main.*>: package(cmdliner)
+<logger-slack/*>: \
+    package(conduit), \
+    package(conduit-lwt), \
+    package(dns-lwt-unix), \
+    package(logs), \
+    package(logs.fmt), \
+    package(logs.lwt), \
+    package(lru), \
+    package(slacko), \
+    package(kojson), \
+    package(ptime), \
+    package(ppx_compose), \
+    package(uri), \
+    package(websocket), \
+    package(websocket-lwt)

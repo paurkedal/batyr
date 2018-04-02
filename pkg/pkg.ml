@@ -62,6 +62,7 @@ let () = Pkg.describe ~build ~metas ~opams "batyr" @@ fun c ->
     >>= fun batyrweb_mllib ->
   Ok [
     batyr_mllib;
+    Pkg.bin ~dst:"batyr-logger-slack" "logger-slack/main";
     batyrweb_mllib;
     Pkg.share ~dst:"static/" "web/client/batyrweb_main.js";
     Pkg.share ~dst:"static/" "web/client/batyrweb_admin.js";

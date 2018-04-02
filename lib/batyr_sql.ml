@@ -174,7 +174,7 @@ end
 module Presence = struct
   let insert_muc_message_q = Caqti_request.exec
     Caqti_type.(tup2
-      (tup4 ctime int (option int) int)
+      (tup4 ptime int (option int) int)
       (tup4 string (option string) (option string) (option string)))
     "INSERT INTO batyr.messages \
       (seen_time, sender_id, author_id, recipient_id, \
