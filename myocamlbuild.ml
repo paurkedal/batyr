@@ -19,7 +19,7 @@ let sed_rule ~dep ~prod scripts =
       Cmd (S[A"sed"; S script_args; P dep; Sh">"; Px prod]))
 
 let () =
-  sed_rule ~dep:"pkg/META" ~prod:"lib/META"
+  sed_rule ~dep:"pkg/META" ~prod:"lib/META.batyr"
     ["/^\\s*requires =/ s/\\<batyr\\>/lib/g"];
   rule "%.mli & %.idem -> %.ml"
     ~deps:["%.mli"; "%.idem"] ~prod:"%.ml"
@@ -38,8 +38,14 @@ let () =
 
 let () = dispatch @@ fun hook ->
   M.dispatcher ~oasis_executables hook;
-  match hook with
-  | Before_options -> Options.make_links := false
-  | After_rules ->
-    dep ["ocaml"; "ocamldep"; "package(lib)"] ["lib/batyr.otarget"]
-  | _ -> ()
+  (match hook with
+   | Before_options -> Options.make_links := false
+   | After_rules ->
+      dep ["internal_deps"; "ocaml"; "ocamldep"; "use_batyr_lib"]
+          ["lib/batyr.otarget"];
+      List.iter
+        (fun phase ->
+          flag ["external_deps"; "ocaml"; phase; "use_batyr_lib"]
+               (S[A"-package"; A"batyr-lib"]))
+        ["ocamldep"; "compile"; "infer_interface"; "link"]
+   | _ -> ())

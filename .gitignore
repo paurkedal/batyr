@@ -3,3 +3,6 @@
 /_build
 /_var
 /batyr.install
+/batyr-lib.install
+/batyr-logger-slack.install
+/batyr-web.install

@@ -19,6 +19,10 @@ open Printf
 open Unprime_list
 module type CONNECTION = Caqti_lwt.CONNECTION
 
+type connection = (module CONNECTION)
+
+type error = Caqti_error.t
+
 module Caqti_type = struct
   include Caqti_type
   include Caqti_type_calendar
@@ -155,20 +159,6 @@ module Muc_room = struct
      FROM batyr.muc_rooms WHERE node_id = $1"
   let stored_of_node node_id (module C : CONNECTION) =
     C.find_opt stored_of_node_q node_id
-
-  let latest_message_time_q = Caqti_request.find
-    Caqti_type.int Caqti_type.(option ptime)
-    "SELECT max(seen_time)
-      FROM batyr.messages
-      JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
-        ON sender_id = sender.resource_id
-     WHERE node_id = ?"
-  let latest_message_time node_id (module C : CONNECTION) =
-    C.find latest_message_time_q node_id >|=
-    (function
-     | Ok (Some t) -> Ok (Some (Ptime.to_float_s t))
-     | Ok None -> Ok None
-     | Error _ as r -> r)
 end
 
 module Presence = struct
@@ -208,80 +198,4 @@ module Presence = struct
      WHERE is_active = true"
   let active_accounts (module C : CONNECTION) =
     C.fold active_accounts_q List.cons () []
-end
-
-module Web = struct
-  let rooms_q = Caqti_request.collect
-    Caqti_type.unit
-    Caqti_type.(tup2 (tup4 int string string (option string)) bool)
-    "SELECT DISTINCT node_id, domain_name, node_name, room_alias, \
-                     transcribe \
-     FROM batyr.muc_rooms NATURAL JOIN batyr.nodes \
-                          NATURAL JOIN batyr.domains \
-     ORDER BY domain_name DESC, node_name DESC, room_alias DESC"
-  let rooms (module C : CONNECTION) =
-    C.fold rooms_q
-      (fun ((node_id, domain_name, node_name, room_alias), transcribe) ->
-        List.cons (node_id, domain_name, node_name, room_alias, transcribe))
-      () []
-end
-
-module Admin = struct
-  let fetch_chatrooms_q = Caqti_request.collect
-    Caqti_type.unit
-    Caqti_type.(tup4 int (option string) (option string) bool)
-    "SELECT node_id, room_alias, room_description, transcribe \
-     FROM batyr.muc_rooms"
-  let fetch_chatrooms (module C : CONNECTION) =
-    C.fold fetch_chatrooms_q List.cons () []
-
-  let update_chatroom_q = Caqti_request.exec
-    Caqti_type.(tup4 int (option string) (option string) bool)
-    "UPDATE batyr.muc_rooms \
-     SET room_alias = $2, room_description = $3, transcribe = $4 \
-     WHERE node_id = $1"
-  let insert_chatroom_q = Caqti_request.exec
-    Caqti_type.(tup4 int (option string) (option string) bool)
-    "INSERT INTO batyr.muc_rooms \
-      (node_id, room_alias, room_description, transcribe) \
-     VALUES ($1, $2, $3, $4)"
-  let upsert_chatroom do_ins node_id room_alias room_description transcribe
-                      (module C : CONNECTION) =
-    C.exec (if do_ins then insert_chatroom_q else update_chatroom_q)
-           (node_id, room_alias, room_description, transcribe)
-  let delete_chatroom_q = Caqti_request.exec Caqti_type.int
-    "DELETE FROM batyr.muc_rooms WHERE node_id = $1"
-  let delete_chatroom node_id (module C : CONNECTION) =
-    C.exec delete_chatroom_q node_id
-
-  let fetch_presences_q = Caqti_request.collect
-    Caqti_type.unit
-    Caqti_type.(tup4 string string bool (option string))
-    "SELECT resource.jid, account.jid, is_present, nick \
-     FROM batyr.muc_presence NATURAL JOIN batyr.resource_jids AS resource \
-                               INNER JOIN batyr.resource_jids AS account \
-                                       ON account_id = account.resource_id"
-  let fetch_presences (module C : CONNECTION) =
-    C.fold fetch_presences_q List.cons () []
-
-  let update_presence_q = Caqti_request.exec
-    Caqti_type.(tup4 int int (option string) bool)
-    "UPDATE batyr.muc_presence \
-     SET account_id = $2, nick = $3, is_present = $4 \
-     WHERE resource_id = $1"
-  let insert_presence_q = Caqti_request.exec
-    Caqti_type.(tup4 int int (option string) bool)
-    "INSERT INTO batyr.muc_presence \
-        (resource_id, account_id, nick, is_present) \
-     VALUES ($1, $2, $3, $4)"
-  let upsert_presence do_ins resource_id account_id nick is_present
-                      (module C : CONNECTION) =
-    C.exec (if do_ins then insert_presence_q else update_presence_q)
-           (resource_id, account_id, nick, is_present)
-
-  let delete_presence_q = Caqti_request.exec
-    Caqti_type.int
-    "DELETE FROM batyr.muc_presence WHERE resource_id = $1"
-  let delete_presence resource_id (module C : CONNECTION) =
-    C.exec delete_presence_q resource_id
 end

@@ -1,14 +1,19 @@
 opam-version: "1.2"
-name: "batyr"
+name: "batyr-web"
 authors: [ "Petter A. Urkedal" ]
 maintainer: "paurkedal@gmail.com"
 homepage: "https://github.com/paurkedal/batyr/"
 bug-reports: "https://github.com/paurkedal/batyr/issues"
 dev-repo: "https://github.com/paurkedal/batyr.git"
 license: "GPL-3"
-build: ["ocaml" "pkg/pkg.ml" "build" "--pinned" "%{pinned}%"]
+build: [
+  "ocaml" "pkg/pkg.ml" "build"
+          "--pkg-name" name
+          "--dev-pkg" "%{pinned}%"
+]
 depends: [
   "adpkg" {build}
+  "batyr"
   "calendar"
   "caqti" {>= "0.8"}
   "caqti-dynload"
@@ -17,12 +22,12 @@ depends: [
   "config-file"
   "eliom" {>= "6.0.0" & < "7~"}
   "erm_xmpp"
-  "extunix"
   "js_of_ocaml"
   "js_of_ocaml-ppx"
   "lwt"
   "lwt_react"
   "ocamlfind" {build}
+  "ppx_compose"
   "ppx_deriving"
   "prime"
   "react"

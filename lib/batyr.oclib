@@ -8,6 +8,6 @@ Batyr_search
 Batyr_search_lexer	{internal}
 Batyr_search_parser	{internal}
 Batyr_search_types
+Batyr_sql		{internal}
 Batyr_version
 Batyr_xmpp
-Batyr_sql		{internal}

@@ -1,14 +1,18 @@
 true: bin_annot, eliom_ppx
 false: package(adpkg)
 
-"lib": include
+# common
 
 true: \
     package(calendar), \
     package(lwt.ppx), \
     package(lwt_react), \
+    package(ppx_compose), \
     package(prime), package(prime.unstable), \
     package(react)
+
+# common except JS
+
 <{lib,web/server}/*> or <logger-slack/*>: thread, \
     package(caqti), \
     package(caqti-dynload), \
@@ -18,12 +22,19 @@ true: \
     package(extunix), \
     package(erm_xmpp), \
     package(tls), \
-    package(ppx_deriving), package(js_of_ocaml-ppx.deriving)
-<web/server/*>: package(eliom.server), package(lib), package(yojson)
+    package(ppx_deriving), \
+    package(js_of_ocaml-ppx.deriving)
+
+# batyr-web
+
+<web/server/*>: package(eliom.server), use_batyr_lib, package(yojson)
 <web/client/*>: package(eliom.client), package(js_of_ocaml.ppx)
 
-<logger-slack/main.*>: package(cmdliner)
+# batyr-logger-slack
+
 <logger-slack/*>: \
+    use_batyr_lib, \
+    package(cmdliner), \
     package(conduit), \
     package(conduit-lwt), \
     package(dns-lwt-unix), \
@@ -34,7 +45,6 @@ true: \
     package(slacko), \
     package(kojson), \
     package(ptime), \
-    package(ppx_compose), \
     package(uri), \
     package(websocket), \
     package(websocket-lwt)
