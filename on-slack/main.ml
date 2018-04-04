@@ -70,7 +70,7 @@ let store_message {cache; team_info; sender_domain; recipient} message =
         ~seen_time:message.ts
         ~sender
         ~recipient
-        ~message_type:Batyr_xmpp.Chat.Groupchat (* FIXME *)
+        ~message_type:`Groupchat (* FIXME *)
         ~body:message.text ()
    | Some t ->
       Logs_lwt.info (fun m -> m "Ignoring message of type %s." t)) >>= fun () ->

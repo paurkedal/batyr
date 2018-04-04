@@ -16,7 +16,6 @@
 
 open Batyr_cache
 open Batyr_prereq
-open Batyr_xmpp
 open Lwt.Infix
 open Unprime_option
 
@@ -66,16 +65,6 @@ module Node = struct
 
   let domain_name {domain_name} = domain_name
   let node_name {node_name} = node_name
-
-  let of_jid {JID.ldomain; JID.lnode; JID.lresource} =
-    if lresource <> "" then
-      invalid_arg "Batyr_data.Node.of_jid: Non-empty resource.";
-    create ~domain_name:ldomain ~node_name:lnode ()
-
-  let jid {domain_name; node_name} = JID.make_jid node_name domain_name ""
-
-  let to_string node_name = JID.string_of_jid (jid node_name)
-  let of_string s = of_jid (JID.of_string s)
 
   let equal = (==)
   let hash {domain_name; node_name} = Hashtbl.hash (domain_name, node_name)
@@ -172,15 +161,6 @@ module Resource = struct
   let node_name {node_name} = node_name
   let resource_name {resource_name} = resource_name
   let node {domain_name; node_name} = Node.create ~domain_name ~node_name ()
-
-  let of_jid {JID.ldomain; JID.lnode; JID.lresource} =
-    create ~domain_name:ldomain ~node_name:lnode ~resource_name:lresource ()
-
-  let jid {domain_name; node_name; resource_name} =
-    JID.make_jid node_name domain_name resource_name
-
-  let to_string p = JID.string_of_jid (jid p)
-  let of_string s = of_jid (JID.of_string s)
 
   let equal = (==)
   let hash {domain_name; node_name; resource_name} =
@@ -338,27 +318,6 @@ module Account = struct
   let hash {resource} = Resource.hash resource
 end
 
-module Muc_user = struct
-  type t = {
-    nick : string;
-    resource : Resource.t option;
-    role : Chat_muc.role;
-    affiliation : Chat_muc.affiliation
-  }
-  let make ~nick ?jid ~role ~affiliation () =
-    let resource = Option.map Resource.of_jid jid in
-    {nick; resource; role; affiliation}
-  let nick {nick} = nick
-  let jid {resource} = Option.map Resource.jid resource
-  let resource {resource} = resource
-  let role {role} = role
-  let affiliation {affiliation} = affiliation
-  let to_string = function
-    | {nick; resource = None} -> nick
-    | {nick; resource = Some resource} ->
-      nick ^ " <" ^ Resource.to_string resource ^ ">"
-end
-
 module Muc_room = struct
   type t = {
     node : Node.t;
@@ -385,7 +344,6 @@ module Muc_room = struct
   let description {description} = description
   let transcribe {transcribe} = transcribe
   let min_message_time {min_message_time} = min_message_time
-  let to_string {node} = Node.to_string node
 
   let make_dummy node = {
     node; alias = None; description = None; transcribe = false;
@@ -418,18 +376,20 @@ module Muc_room = struct
       end
 end
 
+type message_type = [`Normal | `Chat | `Groupchat | `Headline]
+
 let string_of_message_type = function
-  | Chat.Normal -> "normal"
-  | Chat.Chat -> "chat"
-  | Chat.Groupchat -> "groupchat"
-  | Chat.Headline -> "headline"
+ | `Normal -> "normal"
+ | `Chat -> "chat"
+ | `Groupchat -> "groupchat"
+ | `Headline -> "headline"
 
 module Message = struct
   type t = {
     seen_time : Ptime.t;
     sender : Resource.t;
     recipient : Resource.t;
-    message_type : Chat.message_type;
+    message_type : message_type;
     subject : string option;
     thread : string option;
     body : string option;
@@ -451,7 +411,7 @@ module Message = struct
     let%lwt sender_id = Resource.store (sender msg) in
     let%lwt recipient_id = Resource.store (recipient msg) in
     Batyr_db.use_exn @@
-      Batyr_sql.Presence.insert_muc_message
+      Batyr_sql.Message.store
         (seen_time msg)
         sender_id author_id recipient_id
         (string_of_message_type (message_type msg))

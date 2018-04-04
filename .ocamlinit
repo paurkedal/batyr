@@ -1,20 +1,22 @@
 #use "topfind"
 #thread
 #require "calendar"
-#require "caqti.lwt"
+#require "caqti-driver-postgresql"
+#require "caqti-type-calendar"
+#require "caqti-lwt"
 #require "config-file"
 #require "prime"
-#require "prime.testing"
+#require "prime.unstable"
 #require "lwt"
 #require "lwt.unix"
-#require "lwt.react"
-#require "lwt.ssl"
+#require "lwt_react"
+#require "lwt_ssl"
 #require "erm_xmpp"
 #require "extunix"
 #require "postgresql"
 #require "tls.lwt"
 #directory "_build/lib"
-#load "batyr.cma"
+#load "batyr-lib.cma"
 
 open Unprime
 open Unprime_array

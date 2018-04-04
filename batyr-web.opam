@@ -13,7 +13,8 @@ build: [
 ]
 depends: [
   "adpkg" {build}
-  "batyr"
+  "batyr-lib"
+  "batyr-on-xmpp"
   "calendar"
   "caqti" {>= "0.8"}
   "caqti-dynload"

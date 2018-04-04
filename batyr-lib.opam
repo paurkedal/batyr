@@ -19,7 +19,6 @@ depends: [
   "caqti-lwt"
   "caqti-type-calendar"
   "config-file"
-  "erm_xmpp"
   "extunix"
   "lwt"
   "lwt_react"

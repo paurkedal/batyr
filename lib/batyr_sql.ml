@@ -161,8 +161,8 @@ module Muc_room = struct
     C.find_opt stored_of_node_q node_id
 end
 
-module Presence = struct
-  let insert_muc_message_q = Caqti_request.exec
+module Message = struct
+  let store_q = Caqti_request.exec
     Caqti_type.(tup2
       (tup4 ptime int (option int) int)
       (tup4 string (option string) (option string) (option string)))
@@ -170,32 +170,10 @@ module Presence = struct
       (seen_time, sender_id, author_id, recipient_id, \
        message_type, subject, thread, body) \
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-  let insert_muc_message seen_time sender_id author_id recipient_id
-                         message_type subject thread body
-                         (module C : CONNECTION) =
-    C.exec insert_muc_message_q
+  let store seen_time sender_id author_id recipient_id
+            message_type subject thread body
+            (module C : CONNECTION) =
+    C.exec store_q
       ((seen_time, sender_id, author_id, recipient_id),
        (message_type, subject, thread, body))
-
-  let room_presence_q = Caqti_request.collect
-    Caqti_type.int
-    Caqti_type.(tup3 int (option string) (option ctime))
-    "SELECT resource_id, nick, \
-            (SELECT max(seen_time) \
-               FROM batyr.messages JOIN batyr.resources AS sender \
-                 ON sender_id = sender.resource_id \
-             WHERE sender.node_id = node_id) \
-     FROM batyr.muc_presence NATURAL JOIN batyr.resources \
-     WHERE account_id = ? AND is_present = true"
-  let room_presence account_id (module C : CONNECTION) =
-    C.fold room_presence_q List.cons account_id []
-
-  let active_accounts_q = Caqti_request.collect
-    Caqti_type.unit
-    Caqti_type.(tup3 int int string)
-    "SELECT resource_id, server_port, client_password \
-     FROM batyr.accounts NATURAL JOIN batyr.resources \
-     WHERE is_active = true"
-  let active_accounts (module C : CONNECTION) =
-    C.fold active_accounts_q List.cons () []
 end

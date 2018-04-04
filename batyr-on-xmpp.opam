@@ -1,5 +1,5 @@
 opam-version: "1.2"
-name: "batyr-on-slack"
+name: "batyr-on-xmpp"
 authors: [ "Petter A. Urkedal" ]
 maintainer: "paurkedal@gmail.com"
 homepage: "https://github.com/paurkedal/batyr/"
@@ -19,27 +19,15 @@ depends: [
   "caqti-dynload"
   "caqti-lwt"
   "caqti-type-calendar"
-  "cmdliner"
-  "conduit"
-  "conduit-lwt"
   "config-file"
-  "dns-lwt-unix"
-  "kojson"
-  "logs"
-  "lru"
+  "erm_xmpp"
   "lwt"
   "lwt_react"
   "ocamlfind" {build}
-  "ppx_compose"
-  "ppx_deriving"
+  "ppx_compose" {build}
+  "ppx_deriving" {build}
   "prime"
-  "ptime"
   "react"
-  "slacko"
   "tls"
   "topkg" {build}
-  "uri"
-  "websocket"
-  "websocket-lwt"
-  "yojson"
 ]

@@ -29,9 +29,10 @@ let build_cmd c os targets =
   let build_dir = Conf.build_dir c in
   let self_dep =
     (match Conf.pkg_name c with
-     | "batyr" -> ["-I"; "lib"; "-tag"; "internal_deps"]
+     | "batyr" -> ["-I"; "lib"; "-I"; "on-xmpp"; "-tag"; "internal_deps"]
      | "batyr-lib" -> []
-     | "batyr-web" | "batyr-on-slack" -> ["-tag"; "external_deps"]
+     | "batyr-web" | "batyr-on-slack" | "batyr-on-xmpp" ->
+        ["-tag"; "external_deps"]
      | _ -> assert false) in
   OS.Cmd.run @@
   Cmd.(ocamlbuild
@@ -40,11 +41,14 @@ let build_cmd c os targets =
         % "-build-dir" % build_dir
         %% of_list self_dep
         %% of_list targets)
-let () = Unix.putenv "OCAMLPATH" "lib"
 
 let build = Pkg.build ~cmd:build_cmd ()
 
-let metas = [Pkg.meta_file "pkg/META"]
+let metas = [
+  Pkg.meta_file ~install:false "pkg/META.batyr-lib";
+  Pkg.meta_file ~install:false "pkg/META.batyr-on-xmpp";
+  Pkg.meta_file ~install:false "pkg/META.web";
+]
 
 let batyr_lib_only_deps = [
   "extunix";
@@ -75,6 +79,8 @@ let batyr_lib_nondeps =
   ["yojson"] @ batyr_web_only_deps @ batyr_on_slack_only_deps
 let batyr_web_nondeps =
   ["batyr"] @ batyr_lib_only_deps @ batyr_on_slack_only_deps
+let batyr_on_xmpp_nondeps =
+  ["batyr"] @ batyr_lib_only_deps @ batyr_web_only_deps
 let batyr_on_slack_nondeps =
   ["batyr"; "erm_xmpp"] @ batyr_lib_only_deps @ batyr_web_only_deps
 
@@ -83,10 +89,12 @@ let opams =
   Pkg.[
     opam_file ~install ~lint_deps_excluding:(Some batyr_lib_nondeps)
       "batyr-lib.opam";
-    opam_file ~install ~lint_deps_excluding:(Some batyr_web_nondeps)
-      "batyr-web.opam";
+    opam_file ~install ~lint_deps_excluding:(Some batyr_on_xmpp_nondeps)
+      "batyr-on-xmpp.opam";
     opam_file ~install ~lint_deps_excluding:(Some batyr_on_slack_nondeps)
       "batyr-on-slack.opam";
+    opam_file ~install ~lint_deps_excluding:(Some batyr_web_nondeps)
+      "batyr-web.opam";
   ]
 
 let save_list ?(pfx = "") fn lines =
@@ -97,7 +105,7 @@ let save_list ?(pfx = "") fn lines =
 let internal_tag = Tags.singleton "internal"
 
 let () = Pkg.describe ~build ~metas ~opams "batyr" @@ fun c ->
-  Modules.of_file "lib/batyr.oclib"
+  Modules.of_file "lib/batyr-lib.oclib"
     >>= fun batyr_modules ->
   Modules.save batyr_modules "doc/api.odocl"
     >>= fun () ->
@@ -107,27 +115,40 @@ let () = Pkg.describe ~build ~metas ~opams "batyr" @@ fun c ->
     >>= fun batyr_web_mllib ->
   Modules.save Modules.(union batyr_modules batyr_web_modules) "doc/dev.odocl"
     >>= fun () ->
-  Modules.mllib batyr_modules "lib/batyr.mllib"
+  Modules.mllib batyr_modules "lib/batyr-lib.mllib"
     >>= fun batyr_mllib ->
-  let batyr_targets = [
-    Pkg.lib "pkg/META";
+  Modules.of_file "on-xmpp/batyr-on-xmpp.oclib"
+    >>= fun batyr_on_xmpp_modules ->
+  Modules.mllib batyr_on_xmpp_modules "on-xmpp/batyr-on-xmpp.mllib"
+    >>= fun batyr_on_xmpp_mllib ->
+  let batyr_lib_targets = [
     Pkg.lib "batyr-lib.opam" ~dst:"opam";
+    Pkg.lib "pkg/META.batyr-lib" ~dst:"META";
     batyr_mllib;
   ] in
   let batyr_web_targets = [
-    batyr_web_mllib;
     Pkg.lib "batyr-web.opam" ~dst:"opam";
+    Pkg.lib "pkg/META.batyr-web" ~dst:"META";
+    batyr_web_mllib;
     Pkg.share ~dst:"static/" "web/client/batyrweb_main.js";
     Pkg.share ~dst:"static/" "web/client/batyrweb_admin.js";
     Pkg.share ~dst:"static/css/" "web/static/css/batyr.css";
+  ] in
+  let batyr_on_xmpp_targets = [
+    Pkg.lib "batyr-on-xmpp.opam" ~dst:"opam";
+    Pkg.lib "pkg/META.batyr-on-xmpp" ~dst:"META";
+    batyr_on_xmpp_mllib;
   ] in
   let batyr_on_slack_targets = [
     Pkg.lib "batyr-on-slack.opam" ~dst:"opam";
     Pkg.bin ~dst:"batyr-on-slack" "on-slack/main";
   ] in
   (match Conf.pkg_name c with
-   | "batyr" -> Ok (batyr_targets @ batyr_web_targets @ batyr_on_slack_targets)
-   | "batyr-lib" -> Ok batyr_targets
-   | "batyr-web" -> Ok batyr_web_targets
+   | "batyr" ->
+      Ok (batyr_lib_targets @ batyr_on_xmpp_targets @ batyr_on_slack_targets @
+          batyr_web_targets)
+   | "batyr-lib" -> Ok batyr_lib_targets
+   | "batyr-on-xmpp" -> Ok batyr_on_xmpp_targets
    | "batyr-on-slack" -> Ok batyr_on_slack_targets
+   | "batyr-web" -> Ok batyr_web_targets
    | other -> R.error_msgf "unknown package name: %s" other)

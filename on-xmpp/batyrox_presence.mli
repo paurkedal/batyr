@@ -17,7 +17,7 @@
 (** XMPP presence management and logger. *)
 
 open Batyr_data
-open Batyr_xmpp
+open Batyrox_xmpp
 
 exception Session_shutdown
 

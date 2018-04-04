@@ -5,4 +5,5 @@
 /batyr.install
 /batyr-lib.install
 /batyr-on-slack.install
+/batyr-on-xmpp.install
 /batyr-web.install

@@ -16,17 +16,11 @@
 
 (** High-level access to database tables. *)
 
-open Batyr_xmpp
-
 module Node : sig
   type t
   val create : domain_name: string -> ?node_name: string -> unit -> t
   val domain_name : t -> string
   val node_name : t -> string
-  val of_jid : JID.t -> t
-  val jid : t -> JID.t
-  val to_string : t -> string
-  val of_string : string -> t
 
   val equal : t -> t -> bool
   val hash : t -> int
@@ -46,10 +40,6 @@ module Resource : sig
   val node_name : t -> string
   val resource_name : t -> string
   val node : t -> Node.t
-  val of_jid : JID.t -> t
-  val jid : t -> JID.t
-  val to_string : t -> string
-  val of_string : string -> t
 
   val equal : t -> t -> bool
   val hash : t -> int
@@ -83,18 +73,6 @@ module Account : sig
   val hash : t -> int
 end
 
-module Muc_user : sig
-  type t
-  val make : nick: string -> ?jid: JID.t -> role: Chat_muc.role ->
-             affiliation: Chat_muc.affiliation -> unit -> t
-  val nick : t -> string
-  val jid : t -> JID.t option
-  val resource : t -> Resource.t option
-  val role : t -> Chat_muc.role
-  val affiliation : t -> Chat_muc.affiliation
-  val to_string : t -> string
-end
-
 module Muc_room : sig
   type t
   val cached_of_node : Node.t -> t option
@@ -103,9 +81,12 @@ module Muc_room : sig
   val alias : t -> string option
   val description : t -> string option
   val transcribe : t -> bool
-  val to_string : t -> string
   val min_message_time : t -> float option
 end
+
+type message_type = [`Normal | `Chat | `Groupchat | `Headline]
+
+val string_of_message_type : message_type -> string
 
 (** High-level view of a row of the [messages] table. *)
 module Message : sig
@@ -116,7 +97,7 @@ module Message : sig
     seen_time: Ptime.t ->
     sender: Resource.t ->
     recipient: Resource.t ->
-    message_type: Chat.message_type ->
+    message_type: message_type ->
     ?subject: string ->
     ?thread: string ->
     ?body: string ->
@@ -125,7 +106,7 @@ module Message : sig
   val seen_time : t -> Ptime.t
   val sender : t -> Resource.t
   val recipient : t -> Resource.t
-  val message_type : t -> Chat.message_type
+  val message_type : t -> message_type
   val subject : t -> string option
   val thread : t -> string option
   val body : t -> string option

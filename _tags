@@ -14,23 +14,23 @@ true: \
 
 # common except JS
 
-<{lib,web/server}/*> or <on-slack/*>: thread, \
+<{lib,web/server}/*> or <on-slack/*> or <on-xmpp/*>: thread, \
     package(caqti), \
     package(caqti-dynload), \
     package(caqti-lwt), \
     package(caqti-type-calendar), \
     package(config-file), \
     package(extunix), \
-    package(erm_xmpp), \
     package(tls), \
     package(ppx_deriving), \
     package(ptime.clock.os), \
     package(js_of_ocaml-ppx.deriving)
 
-# batyr-web
+# batyr-on-xmpp
 
-<web/server/*>: package(eliom.server), use_batyr_lib, package(yojson)
-<web/client/*>: package(eliom.client), package(js_of_ocaml.ppx)
+<on-xmpp/*>: \
+    use_batyr_lib, \
+    package(erm_xmpp)
 
 # batyr-on-slack
 
@@ -49,3 +49,15 @@ true: \
     package(uri), \
     package(websocket), \
     package(websocket-lwt)
+
+# batyr-web
+
+<web/server/*>: \
+    use_batyr_lib, \
+    use_batyr_on_xmpp, \
+    package(eliom.server), \
+    package(yojson)
+
+<web/client/*>: \
+    package(eliom.client), \
+    package(js_of_ocaml.ppx)

@@ -15,7 +15,8 @@
  *)
 
 open Batyr_data
-open Batyr_xmpp
+open Batyrox_data
+open Batyrox_xmpp
 open CalendarLib
 open Lwt.Infix
 open Printf
@@ -99,6 +100,12 @@ let on_muc_message cs ms msg =
   else
     Lwt.return_unit
 
+let message_type_of_xmpp = function
+ | Chat.Normal -> `Normal
+ | Chat.Chat -> `Chat
+ | Chat.Groupchat -> `Groupchat
+ | Chat.Headline -> `Headline
+
 let on_message cs chat stanza =
   let open Xml in
   List.iter
@@ -137,8 +144,11 @@ let on_message cs chat stanza =
     let body = stanza.Chat.content.Chat.body in
     if subject = None && thread = None && body = None then Lwt.return_unit else
     begin
-      let msg = Message.make ~seen_time ~sender ~recipient ~message_type
-                             ?subject ?thread ?body () in
+      let msg =
+        Message.make
+          ~seen_time ~sender ~recipient
+          ~message_type:(message_type_of_xmpp message_type)
+          ?subject ?thread ?body () in
       let step = React.Step.create () in        (* NB! No yield until ... *)
       cs.cs_emit_message ~step msg;
       emit_message ~step msg;
@@ -354,7 +364,7 @@ module Session = struct
       cs.cs_chat <- Connected chat;
       Lwt_condition.broadcast chat_cond ();
       let account_id = Resource.cached_id account_resource |> Option.get in
-      Batyr_db.use_exn (Batyr_sql.Presence.room_presence account_id) >>=
+      Batyr_db.use_exn (Batyrox_sql.Presence.room_presence account_id) >>=
       Lwt_list.iter_s (muc_handler cs)
 
   let account_key account =
@@ -374,7 +384,7 @@ module Session = struct
       if cs.cs_chat <> Shutdown then
         cs.cs_chat <- Disconnected (Lwt_condition.create ());
       Hashtbl.clear cs.cs_rooms in
-    try%lwt Batyr_xmpp.with_chat (chat_handler cs) params with
+    try%lwt Batyrox_xmpp.with_chat (chat_handler cs) params with
     | End_of_file ->
       clear_cs ();
       Lwt_log.error_f ~section "Lost connection."

@@ -1,0 +1,24 @@
+version = "%%VERSION_NUM%%"
+description = "A chat logger"
+directory = "."
+requires = "
+  calendar
+  caqti
+  caqti-dynload
+  caqti-lwt
+  caqti-type-calendar
+  config-file
+  extunix
+  lwt
+  lwt_react
+  prime
+  prime.unstable
+  react
+  tls
+  tls.lwt
+"
+archive(byte) = "batyr-lib.cma"
+archive(native) = "batyr-lib.cmxa"
+plugin(byte) = "batyr-lib.cma"
+plugin(native) = "batyr-lib.cmxs"
+exists_if = "batyr-lib.cma"

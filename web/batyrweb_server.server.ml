@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,4 +41,4 @@ let status_service =
   let get = Eliom_parameter.unit in
   Eliom_service.(create ~path:(Path ["status"]) ~meth:(Get get) ())
 
-let () = Lwt.async Batyr_presence.Session.start_all
+let () = Lwt.async Batyrox_presence.Session.start_all

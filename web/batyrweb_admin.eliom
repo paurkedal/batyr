@@ -15,8 +15,9 @@
  *)
 
 [%%server
-  open Batyr_data
   open Batyr_prereq
+  open Batyr_data
+  open Batyrox_data
   open Batyrweb_server
   open Caqti_lwt
   open Lwt.Infix
@@ -140,23 +141,23 @@ module%server Account = struct
         | Some pw -> Lwt.return pw in
       Batyr_data.Account.create ~resource ~port ~password ~is_active ()
         >|= fun account ->
-      if is_active then ignore (Batyr_presence.Session.start account)
+      if is_active then ignore (Batyrox_presence.Session.start account)
     | Some old_account ->
       let old_resource = Resource.of_string old_account.account_jid in
       begin match%lwt Batyr_data.Account.of_resource old_resource with
       | None -> Lwt.return_unit
       | Some account ->
         begin if Account.is_active account then
-          begin match Batyr_presence.Session.find account with
+          begin match Batyrox_presence.Session.find account with
           | None -> Lwt.return_unit
-          | Some old_session -> Batyr_presence.Session.shutdown old_session
+          | Some old_session -> Batyrox_presence.Session.shutdown old_session
           end
         else
           Lwt.return_unit
         end >>= fun () ->
         Batyr_data.Account.update ~resource ~port ?password ~is_active account
           >|= fun () ->
-        if is_active then ignore (Batyr_presence.Session.start account)
+        if is_active then ignore (Batyrox_presence.Session.start account)
       end
     end >>= fun () ->
     Lwt.return (if hide_passwords then {a with client_password = None} else a)

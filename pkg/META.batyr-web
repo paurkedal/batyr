@@ -1,0 +1,14 @@
+version = "%%VERSION_NUM%%"
+description = "A web interface for Batyr"
+directory = "."
+requires = "
+  batyr-lib
+  batyr-on-xmpp
+  eliom.server
+  yojson
+"
+archive(byte) = "batyrweb.cma"
+archive(native) = "batyrweb.cmxa"
+plugin(byte) = "batyrweb.cma"
+plugin(native) = "batyrweb.cmxs"
+exists_if = "batyrweb.cma"

@@ -16,6 +16,7 @@
 
 [%%server
   open Batyr_data
+  open Batyrox_data
   open Batyrweb_server
   module type CONNECTION = Caqti_lwt.CONNECTION
   module Caqti_type = struct
@@ -437,7 +438,7 @@ let transcript_handler (room_jid, pat) () =
     ref [d##getFullYear - y_min; d##getMonth; d##getDate - 1]
   ] in
   let relevant_message msg =
-    let open Batyr_presence in
+    let open Batyrox_presence in
     Lwt.return begin
       if Resource.node (Message.sender msg) != room_node then None else
       Some {
@@ -450,7 +451,7 @@ let transcript_handler (room_jid, pat) () =
       }
     end in
   let update_events =
-    Lwt_react.E.fmap_s relevant_message Batyr_presence.messages in
+    Lwt_react.E.fmap_s relevant_message Batyrox_presence.messages in
   let update_comet =
     Eliom_comet.Channel.create (Lwt_react.E.to_stream update_events) in
   let info_span = span ~a:[a_class ["error"]] [] in
