@@ -4,5 +4,5 @@
 /_var
 /batyr.install
 /batyr-lib.install
-/batyr-logger-slack.install
+/batyr-on-slack.install
 /batyr-web.install

@@ -14,7 +14,7 @@ true: \
 
 # common except JS
 
-<{lib,web/server}/*> or <logger-slack/*>: thread, \
+<{lib,web/server}/*> or <on-slack/*>: thread, \
     package(caqti), \
     package(caqti-dynload), \
     package(caqti-lwt), \
@@ -32,9 +32,9 @@ true: \
 <web/server/*>: package(eliom.server), use_batyr_lib, package(yojson)
 <web/client/*>: package(eliom.client), package(js_of_ocaml.ppx)
 
-# batyr-logger-slack
+# batyr-on-slack
 
-<logger-slack/*>: \
+<on-slack/*>: \
     use_batyr_lib, \
     package(cmdliner), \
     package(conduit), \

@@ -1,5 +1,5 @@
 opam-version: "1.2"
-name: "batyr-logger-slack"
+name: "batyr-on-slack"
 authors: [ "Petter A. Urkedal" ]
 maintainer: "paurkedal@gmail.com"
 homepage: "https://github.com/paurkedal/batyr/"
