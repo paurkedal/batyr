@@ -9,6 +9,7 @@ true: \
     package(lwt_react), \
     package(ppx_compose), \
     package(prime), package(prime.unstable), \
+    package(ptime), \
     package(react)
 
 # common except JS
@@ -23,6 +24,7 @@ true: \
     package(erm_xmpp), \
     package(tls), \
     package(ppx_deriving), \
+    package(ptime.clock.os), \
     package(js_of_ocaml-ppx.deriving)
 
 # batyr-web
@@ -44,7 +46,6 @@ true: \
     package(lru), \
     package(slacko), \
     package(kojson), \
-    package(ptime), \
     package(uri), \
     package(websocket), \
     package(websocket-lwt)

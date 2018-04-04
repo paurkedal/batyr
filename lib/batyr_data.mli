@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -105,4 +105,30 @@ module Muc_room : sig
   val transcribe : t -> bool
   val to_string : t -> string
   val min_message_time : t -> float option
+end
+
+(** High-level view of a row of the [messages] table. *)
+module Message : sig
+
+  type t
+
+  val make :
+    seen_time: Ptime.t ->
+    sender: Resource.t ->
+    recipient: Resource.t ->
+    message_type: Chat.message_type ->
+    ?subject: string ->
+    ?thread: string ->
+    ?body: string ->
+    unit -> t
+
+  val seen_time : t -> Ptime.t
+  val sender : t -> Resource.t
+  val recipient : t -> Resource.t
+  val message_type : t -> Chat.message_type
+  val subject : t -> string option
+  val thread : t -> string option
+  val body : t -> string option
+
+  val store : ?muc_author: Resource.t -> t -> unit Lwt.t
 end

@@ -49,10 +49,10 @@ type monitor_state = {
   cache: Slack_cache.t;
   team_info: Slack_rtm.team_info;
   sender_domain: string;
-  recipient_id: int;
+  recipient: Resource.t;
 }
 
-let store_message {cache; team_info; sender_domain; recipient_id} message =
+let store_message {cache; team_info; sender_domain; recipient} message =
   let open Slack_rtm in
   let channel_id = string_of_channel message.channel in
   Slack_cache.channel_obj_of_id cache channel_id >>=? fun channel_obj ->
@@ -64,15 +64,14 @@ let store_message {cache; team_info; sender_domain; recipient_id} message =
     Resource.create
       ~domain_name:sender_domain ~node_name:channel_name
       ~resource_name:user_name () in
-  let%lwt sender_id = Resource.store sender in
   (match message.subtype with
    | None ->
-      Batyr_db.use_exn @@
-        Batyr_sql.Presence.insert_muc_message
-          message.ts
-          sender_id None recipient_id
-          "groupchat" (* TODO: Sort out message types. *)
-          None None (Some message.text)
+      Message.store @@ Message.make
+        ~seen_time:message.ts
+        ~sender
+        ~recipient
+        ~message_type:Batyr_xmpp.Chat.Groupchat (* FIXME *)
+        ~body:message.text ()
    | Some t ->
       Logs_lwt.info (fun m -> m "Ignoring message of type %s." t)) >>= fun () ->
   Lwt.return_ok ()
@@ -108,12 +107,11 @@ let main config_path =
         let user_info = Slack_rtm.user_info conn in
         let user_name = user_info.Slack_rtm.name in
         let sender_domain = sprintf "conference.%s.xmpp.slack.com" team_name in
-        let recipient_resource =
+        let recipient =
           let domain_name = team_name ^ ".xmpp.slack.com" in
           let resource_name = "batyr-logger-slack" in
           Resource.create ~domain_name ~node_name:user_name ~resource_name () in
-        let%lwt recipient_id = Resource.store recipient_resource in
-        monitor {cache; team_info; sender_domain; recipient_id} conn
+        monitor {cache; team_info; sender_domain; recipient} conn
      | Error (`Msg s) -> Logs_lwt.err (fun m -> m "%s" s) >|= fun () -> 69)
 
 let main_cmd =

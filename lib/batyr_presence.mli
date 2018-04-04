@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2015  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,19 +20,6 @@ open Batyr_data
 open Batyr_xmpp
 
 exception Session_shutdown
-
-(** High-level view of a row of the [messages] table. *)
-module Message : sig
-  type t
-
-  val seen_time : t -> float
-  val sender : t -> Resource.t
-  val recipient : t -> Resource.t
-  val message_type : t -> Chat.message_type
-  val subject : t -> string option
-  val thread : t -> string option
-  val body : t -> string option
-end
 
 val messages : Message.t Lwt_react.E.t
 (** This emits an events as new message are detected. *)

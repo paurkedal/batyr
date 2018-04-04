@@ -57,29 +57,6 @@ module Backoff = struct
              *. (1.0 +. b.fuzz *. (1.0 -. Random.float 2.0))
 end
 
-module Message = struct
-  type t = {
-    seen_time : float;
-    sender : Resource.t;
-    recipient : Resource.t;
-    message_type : Chat.message_type;
-    subject : string option;
-    thread : string option;
-    body : string option;
-  }
-
-  let seen_time {seen_time} = seen_time
-  let make ~seen_time ~sender ~recipient
-           ~message_type ?subject ?thread ?body () =
-    {seen_time; sender; recipient; message_type; subject; thread; body}
-  let sender {sender} = sender
-  let recipient {recipient} = recipient
-  let message_type {message_type} = message_type
-  let subject {subject} = subject
-  let thread {thread} = thread
-  let body {body} = body
-end
-
 type muc_session = {
   ms_room : Muc_room.t;
   ms_users_by_nick : (string, Muc_user.t) Hashtbl.t;
@@ -110,12 +87,6 @@ type chat_session = {
 
 let chat_sessions = Hashtbl.create 11
 
-let string_of_message_type = function
-  | Chat.Normal -> "normal"
-  | Chat.Chat -> "chat"
-  | Chat.Groupchat -> "groupchat"
-  | Chat.Headline -> "headline"
-
 let messages, emit_message = Lwt_react.E.create ()
 
 let on_muc_message cs ms msg =
@@ -124,18 +95,9 @@ let on_muc_message cs ms msg =
     try Muc_user.resource (Hashtbl.find ms.ms_users_by_nick nick)
     with Not_found -> None in
   if Muc_room.transcribe ms.ms_room then
-    let author_id = Option.search Resource.cached_id muc_author in
-    let%lwt sender_id = Resource.store (Message.sender msg) in
-    let%lwt recipient_id = Resource.store (Message.recipient msg) in
-    Batyr_db.use_exn @@
-      Batyr_sql.Presence.insert_muc_message
-        (Option.get (Ptime.of_float_s (Message.seen_time msg)))
-        sender_id author_id recipient_id
-        (string_of_message_type (Message.message_type msg))
-        (Message.subject msg)
-        (Message.thread msg)
-        (Message.body msg)
-  else Lwt.return_unit
+    Message.store ?muc_author msg
+  else
+    Lwt.return_unit
 
 let on_message cs chat stanza =
   let open Xml in
@@ -153,19 +115,20 @@ let on_message cs chat stanza =
   | Some sender, Some recipient, Some message_type ->
     let seen_time =
       match Chat.(stanza.content.message_delay) with
-      | None -> Unix.time ()
+      | None -> Ptime_clock.now ()
       | Some {Chat.delay_stamp; Chat.delay_legacy} ->
         Lwt_log.ign_debug_f ~section "Got delay stamp %s." delay_stamp;
         try
           let fmt = if delay_legacy then "%Y%m%dT%T%z" else "%FT%TZ%z" in
           let t =
-          Calendar.to_unixfloat
-                (Printer.Calendar.from_fstring fmt (delay_stamp ^ "+0000")) in
-          Lwt_log.ign_debug_f ~section "Converted to %f" t; t
+            Printer.Calendar.from_fstring fmt (delay_stamp ^ "+0000")
+              |> Calendar.to_unixfloat
+              |> Ptime.of_float_s |> Option.get in
+          Lwt_log.ign_debug_f ~section "Converted to %s" (Ptime.to_rfc3339 t); t
         with Invalid_argument msg ->
           Lwt_log.ign_error_f ~section "Received invalid <delay/> stamp: %s"
                               msg;
-          Unix.time () in
+          Ptime_clock.now () in
     let sender = Resource.of_jid sender in
     let muc_room = Muc_room.cached_of_node (Resource.node sender) in
     let recipient = Resource.of_jid (JID.of_string recipient) in

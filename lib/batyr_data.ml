@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -416,4 +416,46 @@ module Muc_room = struct
             Node_cache.merge node_cache room)
           qr
       end
+end
+
+let string_of_message_type = function
+  | Chat.Normal -> "normal"
+  | Chat.Chat -> "chat"
+  | Chat.Groupchat -> "groupchat"
+  | Chat.Headline -> "headline"
+
+module Message = struct
+  type t = {
+    seen_time : Ptime.t;
+    sender : Resource.t;
+    recipient : Resource.t;
+    message_type : Chat.message_type;
+    subject : string option;
+    thread : string option;
+    body : string option;
+  }
+
+  let seen_time {seen_time} = seen_time
+  let make ~seen_time ~sender ~recipient
+           ~message_type ?subject ?thread ?body () =
+    {seen_time; sender; recipient; message_type; subject; thread; body}
+  let sender {sender} = sender
+  let recipient {recipient} = recipient
+  let message_type {message_type} = message_type
+  let subject {subject} = subject
+  let thread {thread} = thread
+  let body {body} = body
+
+  let store ?muc_author msg =
+    let author_id = Option.search Resource.cached_id muc_author in
+    let%lwt sender_id = Resource.store (sender msg) in
+    let%lwt recipient_id = Resource.store (recipient msg) in
+    Batyr_db.use_exn @@
+      Batyr_sql.Presence.insert_muc_message
+        (seen_time msg)
+        sender_id author_id recipient_id
+        (string_of_message_type (message_type msg))
+        (subject msg)
+        (thread msg)
+        (body msg)
 end
