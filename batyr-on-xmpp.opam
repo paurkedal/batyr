@@ -30,4 +30,5 @@ depends: [
   "react"
   "tls"
   "topkg" {build}
+  "x509"
 ]

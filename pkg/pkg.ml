@@ -47,7 +47,7 @@ let build = Pkg.build ~cmd:build_cmd ()
 let metas = [
   Pkg.meta_file ~install:false "pkg/META.batyr-lib";
   Pkg.meta_file ~install:false "pkg/META.batyr-on-xmpp";
-  Pkg.meta_file ~install:false "pkg/META.web";
+  Pkg.meta_file ~install:false "pkg/META.batyr-web";
 ]
 
 let batyr_lib_only_deps = [
@@ -75,14 +75,24 @@ let batyr_on_slack_only_deps = [
   "websocket-lwt";
 ]
 
+let batyr_on_xmpp_only_deps = [
+  "erm_xmpp";
+  "tls";
+  "x509";
+]
+
 let batyr_lib_nondeps =
-  ["yojson"] @ batyr_web_only_deps @ batyr_on_slack_only_deps
+  ["yojson"] @ batyr_web_only_deps @
+  batyr_on_slack_only_deps @ batyr_on_xmpp_only_deps
 let batyr_web_nondeps =
-  ["batyr"] @ batyr_lib_only_deps @ batyr_on_slack_only_deps
+  ["batyr-lib"; "batyr-on-xmpp"] @ batyr_lib_only_deps @
+  batyr_on_slack_only_deps @ batyr_on_xmpp_only_deps
 let batyr_on_xmpp_nondeps =
-  ["batyr"] @ batyr_lib_only_deps @ batyr_web_only_deps
+  ["batyr-lib"; "yojson"] @ batyr_lib_only_deps @ batyr_web_only_deps @
+  batyr_on_slack_only_deps
 let batyr_on_slack_nondeps =
-  ["batyr"; "erm_xmpp"] @ batyr_lib_only_deps @ batyr_web_only_deps
+  ["batyr-lib"] @ batyr_lib_only_deps @ batyr_web_only_deps @
+  batyr_on_xmpp_only_deps
 
 let opams =
   let install = false in

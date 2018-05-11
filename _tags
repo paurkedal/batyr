@@ -21,7 +21,6 @@ true: \
     package(caqti-type-calendar), \
     package(config-file), \
     package(extunix), \
-    package(tls), \
     package(ppx_deriving), \
     package(ptime.clock.os), \
     package(js_of_ocaml-ppx.deriving)
@@ -30,7 +29,9 @@ true: \
 
 <on-xmpp/*>: \
     use_batyr_lib, \
-    package(erm_xmpp)
+    package(erm_xmpp), \
+    package(tls), \
+    package(x509)
 
 # batyr-on-slack
 
