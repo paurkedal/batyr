@@ -65,6 +65,9 @@ module Node = struct
 
   let domain_name {domain_name} = domain_name
   let node_name {node_name} = node_name
+  let to_string node =
+    if node.node_name = "" then node.domain_name else
+    node.node_name ^ "@" ^ node.domain_name
 
   let equal = (==)
   let hash {domain_name; node_name} = Hashtbl.hash (domain_name, node_name)
@@ -156,6 +159,10 @@ module Resource = struct
       (Beacon.embed Batyr_cache.Grade.basic
         (fun beacon ->
          {id = id_unknown; domain_name; node_name; resource_name; beacon}))
+
+  let create_on_node node resource_name =
+    create ~domain_name:(Node.domain_name node)
+           ~node_name:(Node.node_name node) ~resource_name ()
 
   let domain_name {domain_name} = domain_name
   let node_name {node_name} = node_name

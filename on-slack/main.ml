@@ -48,11 +48,11 @@ let (>>=?) m f =
 type monitor_state = {
   cache: Slack_cache.t;
   team_info: Slack_rtm.team_info;
-  sender_domain: string;
+  conference_domain: string;
   recipient: Resource.t;
 }
 
-let store_message {cache; team_info; sender_domain; recipient} message =
+let store_message {cache; team_info; conference_domain; recipient} message =
   let open Slack_rtm in
   let channel_id = string_of_channel message.channel in
   Slack_cache.channel_obj_of_id cache channel_id >>=? fun channel_obj ->
@@ -60,21 +60,30 @@ let store_message {cache; team_info; sender_domain; recipient} message =
   Slack_cache.user_obj_of_id cache user_id >>=? fun user_obj ->
   let channel_name = channel_obj.Slacko.name in
   let user_name = user_obj.Slacko.name in
-  let sender =
-    Resource.create
-      ~domain_name:sender_domain ~node_name:channel_name
-      ~resource_name:user_name () in
-  (match message.subtype with
+  let channel_node =
+    Node.create ~domain_name:conference_domain ~node_name:channel_name () in
+  let sender = Resource.create_on_node channel_node user_name in
+  (match%lwt Muc_room.stored_of_node channel_node with
    | None ->
-      Message.store @@ Message.make
-        ~seen_time:message.ts
-        ~sender
-        ~recipient
-        ~message_type:`Groupchat (* FIXME *)
-        ~body:message.text ()
-   | Some t ->
-      Logs_lwt.info (fun m -> m "Ignoring message of type %s." t)) >>= fun () ->
-  Lwt.return_ok ()
+      Logs_lwt.debug (fun m ->
+        m "No record of %s." (Node.to_string channel_node)) >>= fun () ->
+      Lwt.return_ok ()
+   | Some muc_room when not (Muc_room.transcribe muc_room) ->
+      Logs_lwt.debug (fun m -> m "Ignoring message for room.") >>= fun () ->
+      Lwt.return_ok ()
+   | Some muc_room ->
+      (match message.subtype with
+       | None ->
+          Logs_lwt.debug (fun m -> m "Storing message.") >>= fun () ->
+          Message.store @@ Message.make
+            ~seen_time:message.ts
+            ~sender
+            ~recipient
+            ~message_type:`Groupchat (* FIXME *)
+            ~body:message.text ()
+       | Some t ->
+          Logs_lwt.info (fun m -> m "Ignoring message of type %s." t))
+      >>= Lwt.return_ok)
 
 let rec monitor state conn =
   (match%lwt Slack_rtm.receive conn with
@@ -93,7 +102,7 @@ let rec monitor state conn =
       Lwt.return 0
    | Error (`Msg msg) ->
       Logs_lwt.err (fun m -> m "%s" msg) >>= fun () ->
-      Lwt.return 69)
+      monitor state conn)
 
 let main config_path =
   let config = load_config config_path in
@@ -106,12 +115,14 @@ let main config_path =
         let team_name = team_info.Slack_rtm.name in
         let user_info = Slack_rtm.user_info conn in
         let user_name = user_info.Slack_rtm.name in
-        let sender_domain = sprintf "conference.%s.xmpp.slack.com" team_name in
+        let conference_domain =
+          sprintf "conference.%s.xmpp.slack.com"
+            (String.lowercase_ascii team_name) in
         let recipient =
           let domain_name = team_name ^ ".xmpp.slack.com" in
           let resource_name = "batyr-logger-slack" in
           Resource.create ~domain_name ~node_name:user_name ~resource_name () in
-        monitor {cache; team_info; sender_domain; recipient} conn
+        monitor {cache; team_info; conference_domain; recipient} conn
      | Error (`Msg s) -> Logs_lwt.err (fun m -> m "%s" s) >|= fun () -> 69)
 
 let main_cmd =

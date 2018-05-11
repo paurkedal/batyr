@@ -154,14 +154,20 @@ let on_message cs chat stanza =
       emit_message ~step msg;
       match muc_room with
       | None ->
-        React.Step.execute step;                (* ... here, and *)
+        React.Step.execute step;                (* ... here and *)
         Lwt.return_unit
       | Some muc_room ->
-        let room_id = Option.get (Node.cached_id (Muc_room.node muc_room)) in
-        let ms = Hashtbl.find cs.cs_rooms room_id in
-        ms.ms_emit_message ~step msg;
-        React.Step.execute step;                (* ... here. *)
-        on_muc_message cs ms msg
+        let room_node = Muc_room.node muc_room in
+        let room_id = Option.get (Node.cached_id room_node) in
+        (match Hashtbl.find cs.cs_rooms room_id with
+         | exception Not_found ->
+            React.Step.execute step;            (* ... here and *)
+            Lwt_log.error_f "No MUC session established for %s."
+                            (Node.to_string room_node)
+         | ms ->
+            ms.ms_emit_message ~step msg;
+            React.Step.execute step;            (* ... here. *)
+            on_muc_message cs ms msg)
     end
   | _ -> Lwt.return_unit
 

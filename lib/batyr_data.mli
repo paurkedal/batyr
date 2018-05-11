@@ -21,6 +21,7 @@ module Node : sig
   val create : domain_name: string -> ?node_name: string -> unit -> t
   val domain_name : t -> string
   val node_name : t -> string
+  val to_string : t -> string
 
   val equal : t -> t -> bool
   val hash : t -> int
@@ -36,6 +37,8 @@ module Resource : sig
   type t
   val create : domain_name: string -> ?node_name: string ->
                ?resource_name: string -> unit -> t
+  val create_on_node : Node.t -> string -> t
+
   val domain_name : t -> string
   val node_name : t -> string
   val resource_name : t -> string
