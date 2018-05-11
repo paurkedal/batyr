@@ -162,15 +162,20 @@ let receive_json conn =
    | Error err -> Lwt.return_error err)
 
 let ptime_of_string ts =
-  (match String.split_on_char '.' ts with
-   | [s] | [s; ""] -> Ptime.v (int_of_string s, 0L)
-   | [s; s'] ->
-      let n' = String.length s' in
-      let n', s' = if n' <= 12 then 12, s' else n', String.sub s' 0 12 in
-      let ns_scale = Prime_int64.pow 10L (12 - (String.length s')) in
-      let ns = Int64.(mul (of_string s') ns_scale) in
-      Ptime.v (int_of_string s, ns)
-   | _ -> failwith "Slack_rtm.ptime_of_string")
+  let s, ps =
+    (match String.split_on_char '.' ts with
+     | [s] | [s; ""] ->
+        (int_of_string s, 0L)
+     | [s; s'] ->
+        let n' = String.length s' in
+        let n', s' = if n' <= 12 then 12, s' else n', String.sub s' 0 12 in
+        let ps_scale = Prime_int64.pow 10L (12 - (String.length s')) in
+        let ps = Int64.(mul (of_string s') ps_scale) in
+        (int_of_string s, ps)
+     | _ -> failwith "Slack_rtm.ptime_of_string") in
+  let d = s / 86400 in
+  let ps = Int64.(add ps (mul (of_int (s mod 86400)) 1_000_000_000_000L)) in
+  Ptime.v (d, ps)
 
 let message_of_json json =
   let open Kojson_pattern in
@@ -181,10 +186,9 @@ let message_of_json json =
         "channel"^: K.string %> fun channel ->
         "user"^: K.string %> fun user ->
         "text"^: K.string %> fun text ->
-        "ts"^: K.string %> fun ts ->
+        "ts"^: K.convert_string "timestamp" ptime_of_string %> fun ts ->
         "source_team"^?: Option.map K.string %> fun source_team ->
         "team"^?: Option.map K.string %> fun team ->
-        let ts = ptime_of_string ts in
         Ka.stop (`Message {subtype; channel; user; text; ts; source_team; team})
      | _ -> Ka.stop `Unknown
   end
