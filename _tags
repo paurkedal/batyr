@@ -45,6 +45,7 @@ true: \
     package(logs.fmt), \
     package(logs.lwt), \
     package(lru), \
+    package(re re.pcre), \
     package(slacko), \
     package(kojson), \
     package(uri), \

@@ -75,12 +75,14 @@ let store_message {cache; team_info; conference_domain; recipient} message =
       (match message.subtype with
        | None ->
           Logs_lwt.debug (fun m -> m "Storing message.") >>= fun () ->
+          let%lwt body = Slack_utils.demarkup cache message.text in
           Message.store @@ Message.make
             ~seen_time:message.ts
             ~sender
             ~recipient
             ~message_type:`Groupchat (* FIXME *)
-            ~body:message.text ()
+            ~body
+            ()
        | Some t ->
           Logs_lwt.info (fun m -> m "Ignoring message of type %s." t))
       >>= Lwt.return_ok)
