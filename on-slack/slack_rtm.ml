@@ -198,7 +198,8 @@ let rec receive conn =
    | Ok json ->
       (match message_of_json json with
        | exception Kojson.Mismatch (path, expectation) ->
-          let msg = Kojson.string_of_mismatch (path, expectation) in
+          let msg = Kojson.string_of_mismatch (path, expectation)
+                  ^ " while parsing " ^ Yojson.Basic.to_string json in
           Lwt.return_error (`Msg msg)
        | (`Message _ as msg) -> Lwt.return_ok msg
        | `Unknown -> receive conn)
