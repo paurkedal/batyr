@@ -69,7 +69,9 @@ let batyr_on_slack_only_deps = [
   "lru";
   "slacko";
   "kojson";
+  "ppx_regexp";
   "ptime";
+  "re";
   "uri";
   "websocket";
   "websocket-lwt";

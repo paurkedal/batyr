@@ -16,51 +16,99 @@
 
 open Lwt.Infix
 
-let strip_markup_re =
-  Re.compile @@ Re.Pcre.re "<(https?://)([^|<>]+)\\|([^|<>]+)>"
+module Message = struct
 
-let strip_markup s =
-  let f groups =
-    let prot = Re.Group.get groups 1 in
-    let addr = Re.Group.get groups 2 in
-    let text = Re.Group.get groups 3 in
-    (* Note trailing space added by Slack conversion to XMPP. *)
-    if addr = text then prot ^ addr ^ " " else text ^ " " ^ prot ^ addr ^ " " in
-  Re.replace ~f strip_markup_re s
+  type frag =
+   | L of string
+   | U of {userid: string; username: string option}
+   | C of {channelid: string; channelname: string option}
 
-let bare_url_re = Re.compile @@ Re.Perl.re "<(https?://[^|<>]+)>"
-let bare_url_repl g = Re.Group.get g 1
+  type t = frag list
 
-let user_re = Re.compile @@ Re.Perl.re "<@(U[0-9A-Z]+)>"
-let user_repl name_of_userid g = "@" ^ name_of_userid (Re.Group.get g 1)
+  let to_string msg =
+    let buf = Buffer.create 80 in
+    let aux = function
+     | L s -> Buffer.add_string buf s
+     | U {userid; username = None} ->
+        Buffer.add_char buf '@'; Buffer.add_string buf userid
+     | U {userid; username = Some username} ->
+        Buffer.add_char buf '@'; Buffer.add_string buf username
+     | C {channelid; channelname = None} ->
+        Buffer.add_char buf '#'; Buffer.add_string buf channelid
+     | C {channelid; channelname = Some channelname} ->
+        Buffer.add_char buf '#'; Buffer.add_string buf channelname
+    in
+    List.iter aux msg;
+    Buffer.contents buf
 
-let named_user_re = Re.compile @@ Re.Perl.re "<@(U[0-9A-Z]+)\\|([^<|>]+)>"
-let named_user_repl g = "@" ^ Re.Group.get g 2
+  let resolve cache =
+    let resolve_frag = function
+     | L s -> Lwt.return (L s)
+     | U {userid; username} as orig ->
+        (match%lwt Slack_cache.user_obj_of_id cache userid with
+         | Ok user ->
+            (match username with
+             | Some username -> assert (username = user.Slacko.name)
+             | None -> ());
+            Lwt.return (U {userid; username = Some user.Slacko.name})
+         | Error err ->
+            (match username with
+             | Some username ->
+                Logs_lwt.warn (fun m ->
+                  m "Failed to verify user id %s as %s." userid username)
+             | None ->
+                Logs_lwt.err (fun m -> m "Failed to expand user id %s." userid))
+            >|= fun () -> orig)
+     | C {channelid; channelname} as orig ->
+        (match%lwt Slack_cache.channel_obj_of_id cache channelid with
+         | Ok channel ->
+            (match channelname with
+             | Some channelname -> assert (channelname = channel.Slacko.name)
+             | None -> ());
+            Lwt.return (C {channelid; channelname = Some channel.Slacko.name})
+         | Error err ->
+            (match channelname with
+             | Some channelname ->
+                Logs_lwt.warn (fun m ->
+                  m "Failed to verify channel id %s as %s."
+                    channelid channelname)
+             | None ->
+                Logs_lwt.err (fun m ->
+                  m "Failed to expand channel id %s." channelid))
+            >|= fun () -> orig)
+    in
+    Lwt_list.map_s resolve_frag
 
-let channel_re = Re.compile @@ Re.Perl.re "<!channel>"
-let channel_repl = "@channel"
+  let parse =
+    let special_frag_re = Re.Pcre.regexp {|<([^<>]+)>|} in
+    let parse_frag = function
+     | `Text s -> L s
+     | `Delim g_frag ->
+        let orig = Re.Group.get g_frag 0 in
+        (match%pcre Re.Group.get g_frag 1 with
+         | {|^(?<prot>https?://)(?<addr>[^|<>]+)\|(?<text>[^|<>]+)$|} ->
+            (* Note trailing space added by Slack conversion to XMPP. *)
+            L ((if addr = text then prot^addr else text^" "^prot^addr)^" ")
+         | {|^(?<addr>https?://[^|<>]+)$|} ->
+            L addr
+         | {|^@(?<userid>U[0-9A-Z]+)$|} ->
+            U {userid; username = None}
+         | {|^@(?<userid>U[0-9A-Z]+)\|(?<username>[^<|>]+)$|} ->
+            U {userid; username = Some username}
+         | {|^!channel$|} ->
+            L "@channel"
+         | {|^#(?<channelid>C[0-9A-Z]+)\|(?<channelname>[^<|>]+)$|} ->
+            C {channelid; channelname = Some channelname}
+         | {|^mailto:(?<email>[^|]+)\|(?<label>[^|]+)|} ->
+            if email = label then L email else
+            (Logs.warn (fun m -> m "Email %S labelled %S." email label); L orig)
+         | _ ->
+            Logs.err (fun m -> m "Unrecognized markup %S." orig);
+            L orig)
+    in
+    Re.split_full special_frag_re %> List.map parse_frag
+end
 
 let demarkup cache msg =
-  let%lwt name_of_userid =
-    let users = Hashtbl.create 7 in
-    let add g =
-      let id = Re.Group.get g 1 in
-      (match%lwt Slack_cache.user_obj_of_id cache id with
-       | Ok user_obj ->
-          let name = user_obj.Slacko.name in
-          Logs_lwt.debug (fun m -> m "Mapped %s to %s." id name) >|= fun () ->
-          Hashtbl.add users id name
-       | Error _ ->
-          Logs_lwt.err (fun m -> m "Failed to look up %s." id) >|= fun () ->
-          Hashtbl.add users id id)
-    in
-    Lwt_list.iter_s add (Re.all user_re msg) >|= fun () ->
-    Hashtbl.find users in
-  msg
-   |> Re.replace user_re ~f:(user_repl name_of_userid)
-   |> Re.replace named_user_re ~f:named_user_repl
-   |> Re.replace_string channel_re ~by:channel_repl
-   |> strip_markup
-   |> Re.replace bare_url_re ~f:bare_url_repl
-   |> String.trim
-   |> Lwt.return
+  let%lwt msg = Message.resolve cache (Message.parse msg) in
+  Lwt.return (String.trim (Message.to_string msg))

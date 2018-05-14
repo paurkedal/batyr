@@ -32,8 +32,10 @@ depends: [
   "ocamlfind" {build}
   "ppx_compose"
   "ppx_deriving"
+  "ppx_regexp"
   "prime"
   "ptime"
+  "re"
   "react"
   "slacko"
   "tls"
