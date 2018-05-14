@@ -55,6 +55,8 @@ type error_or_closed = [error | `Closed]
 
 val connect : token: string -> unit -> (t, error) result Lwt.t
 
+val disconnect : t -> unit Lwt.t
+
 val team_info : t -> team_info
 
 val user_info : t -> user_info

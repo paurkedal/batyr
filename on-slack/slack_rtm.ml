@@ -138,9 +138,8 @@ module Frame = Websocket.Frame
 module Opcode = Websocket.Frame.Opcode
 
 let send_json conn json =
-  let opcode = Opcode.Text in
   let content = Yojson.Basic.to_string json in
-  conn.send (Frame.create ~opcode ~content ())
+  conn.send (Frame.create ~opcode:Opcode.Text ~content ())
 
 let rec receive_text conn =
   let%lwt frame = conn.receive () in
@@ -176,6 +175,11 @@ let ptime_of_string ts =
   let d = s / 86400 in
   let ps = Int64.(add ps (mul (of_int (s mod 86400)) 1_000_000_000_000L)) in
   Ptime.v (d, ps)
+
+let disconnect conn =
+  let content = {|{"type": "goodbye"}|} in
+  conn.send (Frame.create ~opcode:Opcode.Text ~content ()) >>= fun () ->
+  conn.send (Frame.close 1001)
 
 let message_of_json json =
   let open Kojson_pattern in

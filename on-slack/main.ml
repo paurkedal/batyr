@@ -113,6 +113,9 @@ let main config_path =
   Lwt_main.run
     (match%lwt Slack_rtm.connect ~token:config.token () with
      | Ok conn ->
+        let disconnected, disconnect = Lwt.wait () in
+        let kill_handler = Lwt_unix.on_signal 2
+          (fun _ -> Lwt.wakeup_later disconnect 0) in
         let team_info = Slack_rtm.team_info conn in
         let team_name = team_info.Slack_rtm.name in
         let user_info = Slack_rtm.user_info conn in
@@ -124,7 +127,13 @@ let main config_path =
           let domain_name = team_name ^ ".xmpp.slack.com" in
           let resource_name = "batyr-logger-slack" in
           Resource.create ~domain_name ~node_name:user_name ~resource_name () in
-        monitor {cache; team_info; conference_domain; recipient} conn
+        let state = {cache; team_info; conference_domain; recipient} in
+        let%lwt exitcode = Lwt.choose [monitor state conn; disconnected] in
+        Lwt_unix.disable_signal_handler kill_handler;
+        Logs_lwt.info (fun m -> m "Disconnecting and exiting with %d." exitcode)
+          >>= fun () ->
+        Slack_rtm.disconnect conn >|= fun () ->
+        exitcode
      | Error (`Msg s) -> Logs_lwt.err (fun m -> m "%s" s) >|= fun () -> 69)
 
 let main_cmd =
