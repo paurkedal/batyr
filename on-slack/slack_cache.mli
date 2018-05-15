@@ -25,6 +25,10 @@ val create :
   ?user_cap: int ->
   token: string -> unit -> t
 
-val channel_obj_of_id : t -> string -> (Slacko.channel_obj, error) result Lwt.t
+val session : t -> Slacko.session
 
-val user_obj_of_id : t -> string -> (Slacko.user_obj, error) result Lwt.t
+val channel_obj_of_channel :
+  t -> Slacko.channel -> (Slacko.channel_obj, error) result Lwt.t
+
+val user_obj_of_user :
+  t -> Slacko.user -> (Slacko.user_obj, error) result Lwt.t

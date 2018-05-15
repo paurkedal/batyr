@@ -45,7 +45,8 @@ module Message = struct
     let resolve_frag = function
      | L s -> Lwt.return (L s)
      | U {userid; username} as orig ->
-        (match%lwt Slack_cache.user_obj_of_id cache userid with
+        let user = Slacko.user_of_string userid in
+        (match%lwt Slack_cache.user_obj_of_user cache user with
          | Ok user ->
             (match username with
              | Some username -> assert (username = user.Slacko.name)
@@ -60,7 +61,8 @@ module Message = struct
                 Logs_lwt.err (fun m -> m "Failed to expand user id %s." userid))
             >|= fun () -> orig)
      | C {channelid; channelname} as orig ->
-        (match%lwt Slack_cache.channel_obj_of_id cache channelid with
+        let channel = Slacko.channel_of_string channelid in
+        (match%lwt Slack_cache.channel_obj_of_channel cache channel with
          | Ok channel ->
             (match channelname with
              | Some channelname -> assert (channelname = channel.Slacko.name)

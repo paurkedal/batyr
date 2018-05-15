@@ -52,12 +52,10 @@ type monitor_state = {
   recipient: Resource.t;
 }
 
-let store_message {cache; team_info; conference_domain; recipient} message =
-  let open Slack_rtm in
-  let channel_id = string_of_channel message.channel in
-  Slack_cache.channel_obj_of_id cache channel_id >>=? fun channel_obj ->
-  let user_id = string_of_user message.user in
-  Slack_cache.user_obj_of_id cache user_id >>=? fun user_obj ->
+let store_message {cache; team_info; conference_domain; recipient}
+    ~channel ~user ~subtype ~text ~ts () =
+  Slack_cache.channel_obj_of_channel cache channel >>=? fun channel_obj ->
+  Slack_cache.user_obj_of_user cache user >>=? fun user_obj ->
   let channel_name = channel_obj.Slacko.name in
   let user_name = user_obj.Slacko.name in
   let channel_node =
@@ -72,12 +70,12 @@ let store_message {cache; team_info; conference_domain; recipient} message =
       Logs_lwt.debug (fun m -> m "Ignoring message for room.") >>= fun () ->
       Lwt.return_ok ()
    | Some muc_room ->
-      (match message.subtype with
+      (match subtype with
        | None ->
           Logs_lwt.debug (fun m -> m "Storing message.") >>= fun () ->
-          let%lwt body = Slack_utils.demarkup cache message.text in
+          let%lwt body = Slack_utils.demarkup cache text in
           Message.store @@ Message.make
-            ~seen_time:message.ts
+            ~seen_time:ts
             ~sender
             ~recipient
             ~message_type:`Groupchat (* FIXME *)
@@ -87,13 +85,23 @@ let store_message {cache; team_info; conference_domain; recipient} message =
           Logs_lwt.info (fun m -> m "Ignoring message of type %s." t))
       >>= Lwt.return_ok)
 
+let store_rtm_message state message =
+  let open Slack_rtm in
+  store_message state
+    ~channel:(Slacko.channel_of_string (string_of_channel message.channel))
+    ~user:(Slacko.user_of_string (string_of_user message.user))
+    ~subtype:message.subtype
+    ~text:message.text
+    ~ts:message.ts
+    ()
+
 let rec monitor state conn =
   (match%lwt Slack_rtm.receive conn with
    | Ok (`Message message) ->
       Logs_lwt.debug Slack_rtm.(fun m ->
         m "message from %s: %s" (string_of_user message.user) message.text)
         >>= fun () ->
-      (match%lwt store_message state message with
+      (match%lwt store_rtm_message state message with
        | Ok () -> Lwt.return_unit
        | Error error ->
           (* TODO: Report properly. *)
