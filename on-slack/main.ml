@@ -208,7 +208,6 @@ let main config_path =
           Resource.create ~domain_name ~node_name:user_name ~resource_name () in
         let state = {cache; team_info; conference_domain; recipient} in
         let recent_fetcher = fetch_all_recent state in
-        fetch_all_recent state >>= fun () ->
         Lwt.join [
           recent_fetcher;
           Lwt.choose [monitor state conn; disconnected]
