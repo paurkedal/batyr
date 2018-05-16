@@ -1,4 +1,4 @@
--- Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+-- Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -64,7 +64,7 @@ CREATE TABLE batyr.messages (
     sender_id integer NOT NULL REFERENCES batyr.resources,
     author_id integer REFERENCES batyr.resources,
     recipient_id integer REFERENCES batyr.resources,
-    message_type batyr.message_type,
+    message_type batyr.message_type NOT NULL,
     subject text,
     thread text,
     body text
