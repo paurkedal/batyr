@@ -16,6 +16,16 @@
 
 open Lwt.Infix
 
+type showable_error =
+  [ Slacko.parsed_auth_error
+  | Slacko.channel_error
+  | Slacko.timestamp_error ]
+
+let show_error = function
+ | #Slacko.parsed_auth_error -> "parsed_auth_error"
+ | #Slacko.channel_error -> "channel_error"
+ | #Slacko.timestamp_error -> "timestamp_error"
+
 module Message = struct
 
   type frag =

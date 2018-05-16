@@ -17,6 +17,7 @@
 open Batyr_data
 open Lwt.Infix
 open Printf
+open Unprime_list
 open Unprime_option
 
 type config = {
@@ -95,6 +96,77 @@ let store_rtm_message state message =
     ~ts:message.ts
     ()
 
+let store_slacko_message state ~channel (message_obj : Slacko.message_obj) =
+  let open Slacko in
+  (match Ptime.of_float_s message_obj.ts with
+   | Some ts ->
+      (match%lwt
+        store_message state
+          ~channel
+          ~user:message_obj.user
+          ~subtype:None
+          ~text:message_obj.text
+          ~ts ()
+       with
+       | Ok () -> Lwt.return_unit
+       | Error err ->
+          Logs_lwt.err (fun m -> m "Failed to store message"))
+   | None ->
+      Logs_lwt.err (fun m -> m "Invalid time float %g." message_obj.ts))
+
+let rec fetch_recent state channelname oldest =
+  let session = Slack_cache.session state.cache in
+  let channel = Slacko.channel_of_string ("#" ^ channelname) in
+  (match%lwt Slacko.channels_history session ~oldest ~inclusive:false channel
+   with
+   | `Success history_obj ->
+      let messages = history_obj.Slacko.messages in
+      Logs_lwt.info (fun m ->
+        m "Received %d past messages for %s."
+          (List.length messages) channelname) >>= fun () ->
+      Lwt_list.iter_s (store_slacko_message state ~channel) messages
+        >>= fun () ->
+      if history_obj.has_more then
+        let latest =
+          List.fold
+            Slacko.(fun (message_obj : message_obj) -> max message_obj.ts)
+            messages oldest in
+        fetch_recent state channelname latest
+      else
+        Lwt.return_unit
+   | #Slacko.parsed_auth_error
+   | #Slacko.channel_error
+   | #Slacko.timestamp_error as err ->
+      (* FIXME: Decode error. *)
+      Logs_lwt.err (fun m -> m "Failed to fetch history for %s: %s"
+        channelname (Slack_utils.show_error err)))
+
+let transcribed_rooms_q = Caqti_request.collect
+  Caqti_type.string Caqti_type.(tup2 string (option ptime))
+  {|
+    SELECT
+      room_node.node_name,
+      ( SELECT max(seen_time) FROM batyr.messages msg
+        JOIN batyr.resources sender ON sender.resource_id = msg.sender_id
+        WHERE sender.node_id = room_node.node_id )
+    FROM batyr.muc_rooms AS room
+    JOIN batyr.nodes   AS room_node ON room_node.node_id  = room.node_id
+    JOIN batyr.domains AS room_dom  ON room_dom.domain_id = room_node.domain_id
+    WHERE room.transcribe = true AND room_dom.domain_name = ?
+  |}
+
+let fetch_all_recent state =
+  Batyr_db.use_exn
+    (fun (module C) ->
+      C.collect_list transcribed_rooms_q state.conference_domain)
+  >>= Lwt_list.iter_s
+    (function
+     | channelname, None ->
+        Logs_lwt.info
+          (fun m -> m "Not fetching history for new channel %s." channelname)
+     | channelname, Some latest ->
+        fetch_recent state channelname (Ptime.to_float_s latest))
+
 let rec monitor state conn =
   (match%lwt Slack_rtm.receive conn with
    | Ok (`Message message) ->
@@ -108,8 +180,7 @@ let rec monitor state conn =
           Logs_lwt.err (fun m -> m "Failed to store message.")) >>= fun () ->
       monitor state conn
    | Error `Closed ->
-      Logs_lwt.info (fun m -> m "Connection closed.") >>= fun () ->
-      Lwt.return 0
+      Logs_lwt.info (fun m -> m "Connection closed.")
    | Error (`Msg msg) ->
       Logs_lwt.err (fun m -> m "%s" msg) >>= fun () ->
       monitor state conn)
@@ -123,7 +194,7 @@ let main config_path =
      | Ok conn ->
         let disconnected, disconnect = Lwt.wait () in
         let kill_handler = Lwt_unix.on_signal 2
-          (fun _ -> Lwt.wakeup_later disconnect 0) in
+          (fun _ -> Lwt.wakeup_later disconnect ()) in
         let team_info = Slack_rtm.team_info conn in
         let team_name = team_info.Slack_rtm.name in
         let user_info = Slack_rtm.user_info conn in
@@ -136,13 +207,19 @@ let main config_path =
           let resource_name = "batyr-logger-slack" in
           Resource.create ~domain_name ~node_name:user_name ~resource_name () in
         let state = {cache; team_info; conference_domain; recipient} in
-        let%lwt exitcode = Lwt.choose [monitor state conn; disconnected] in
+        let recent_fetcher = fetch_all_recent state in
+        fetch_all_recent state >>= fun () ->
+        Lwt.join [
+          recent_fetcher;
+          Lwt.choose [monitor state conn; disconnected]
+        ] >>= fun () ->
         Lwt_unix.disable_signal_handler kill_handler;
-        Logs_lwt.info (fun m -> m "Disconnecting and exiting with %d." exitcode)
-          >>= fun () ->
+        Logs_lwt.info (fun m -> m "Disconnecting and exiting.") >>= fun () ->
         Slack_rtm.disconnect conn >|= fun () ->
-        exitcode
-     | Error (`Msg s) -> Logs_lwt.err (fun m -> m "%s" s) >|= fun () -> 69)
+        0 (* exit code *)
+     | Error (`Msg s) ->
+        Logs_lwt.err (fun m -> m "%s" s) >|= fun () ->
+        69 (* exit code *))
 
 let main_cmd =
   let open Cmdliner in
