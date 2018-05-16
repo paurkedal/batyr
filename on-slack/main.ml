@@ -114,6 +114,16 @@ let store_slacko_message state ~channel (message_obj : Slacko.message_obj) =
    | None ->
       Logs_lwt.err (fun m -> m "Invalid time float %g." message_obj.ts))
 
+let messages_ts_range message_objs =
+  let aux (message_obj : Slacko.message_obj) (ts_min, ts_max) =
+    let ts = message_obj.Slacko.ts in
+    (min ts_min ts, max ts_max ts) in
+  List.fold aux message_objs (max_float, 0.0)
+
+let pp_ptime_opt ppf = function
+ | None -> Format.pp_print_string ppf "?"
+ | Some t -> Ptime.pp ppf t
+
 let rec fetch_recent state channelname oldest =
   let session = Slack_cache.session state.cache in
   let channel = Slacko.channel_of_string ("#" ^ channelname) in
@@ -121,19 +131,28 @@ let rec fetch_recent state channelname oldest =
    with
    | `Success history_obj ->
       let messages = history_obj.Slacko.messages in
-      Logs_lwt.info (fun m ->
-        m "Received %d past messages for %s."
-          (List.length messages) channelname) >>= fun () ->
-      Lwt_list.iter_s (store_slacko_message state ~channel) messages
-        >>= fun () ->
-      if history_obj.has_more then
-        let latest =
-          List.fold
-            Slacko.(fun (message_obj : message_obj) -> max message_obj.ts)
-            messages oldest in
-        fetch_recent state channelname latest
-      else
-        Lwt.return_unit
+      if messages = [] then
+        Logs_lwt.info (fun m ->
+          m "Received no past messages for %s." channelname)
+      else begin
+        let ts_min, ts_max = messages_ts_range messages in
+        Logs_lwt.info (fun m ->
+          m "Received %d messages for %s in time range [%a, %a]."
+            (List.length messages) channelname
+            pp_ptime_opt (Ptime.of_float_s ts_min)
+            pp_ptime_opt (Ptime.of_float_s ts_max))
+          >>= fun () ->
+        Lwt_list.iter_s (store_slacko_message state ~channel) messages
+          >>= fun () ->
+        if history_obj.has_more then
+          let latest =
+            List.fold
+              Slacko.(fun (message_obj : message_obj) -> max message_obj.ts)
+              messages oldest in
+          fetch_recent state channelname latest
+        else
+          Lwt.return_unit
+      end
    | #Slacko.parsed_auth_error
    | #Slacko.channel_error
    | #Slacko.timestamp_error as err ->
@@ -165,6 +184,9 @@ let fetch_all_recent state =
         Logs_lwt.info
           (fun m -> m "Not fetching history for new channel %s." channelname)
      | channelname, Some latest ->
+        Logs_lwt.info (fun m ->
+          m "Requesting messages since %a for %s."
+            Ptime.pp latest channelname) >>= fun () ->
         fetch_recent state channelname (Ptime.to_float_s latest))
 
 let rec monitor state conn =
