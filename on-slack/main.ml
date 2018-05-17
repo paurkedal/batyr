@@ -22,6 +22,7 @@ open Unprime_option
 
 type config = {
   token: string;
+  bot_token: string;
   log_level: Logs.level option;
 }
 
@@ -35,10 +36,11 @@ let load_config path =
   let json = Yojson.Basic.from_file path in
   Kojson.jin_of_json json |> K.assoc begin
     "token"^: K.string %> fun token ->
+    "bot_token"^?: Option.map K.string %> fun bot_token ->
     "log-level"^?:
       Option.fmap (K.convert_string "Logs.level" log_level_of_string)
         %> fun log_level ->
-    Ka.stop {token; log_level}
+    Ka.stop {token; bot_token = Option.get_or token bot_token; log_level}
   end
 
 let (>>=?) m f =
@@ -212,7 +214,7 @@ let main config_path =
   Logs.set_level config.log_level;
   let cache = Slack_cache.create ~token:config.token () in
   Lwt_main.run
-    (match%lwt Slack_rtm.connect ~token:config.token () with
+    (match%lwt Slack_rtm.connect ~token:config.bot_token () with
      | Ok conn ->
         let disconnected, disconnect = Lwt.wait () in
         let kill_handler = Lwt_unix.on_signal 2
