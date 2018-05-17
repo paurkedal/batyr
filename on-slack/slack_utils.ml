@@ -93,8 +93,15 @@ module Message = struct
 
   let parse =
     let special_frag_re = Re.Pcre.regexp {|<([^<>]+)>|} in
+    let entity_re = Re.Pcre.regexp {|&(amp|lt|gt);|} in
+    let entity_repl g =
+      (match Re.Group.get g 1 with
+       | "amp" -> "&"
+       | "lt" -> "<"
+       | "gt" -> ">"
+       | _ -> assert false) in
     let parse_frag = function
-     | `Text s -> L s
+     | `Text s -> L (Re.replace entity_re ~f:entity_repl s)
      | `Delim g_frag ->
         let orig = Re.Group.get g_frag 0 in
         (match%pcre Re.Group.get g_frag 1 with
