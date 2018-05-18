@@ -24,8 +24,8 @@ depends: [
   "lwt"
   "lwt_react"
   "ocamlfind" {build}
-  "ppx_compose" {build}
-  "ppx_deriving" {build}
+  "ppx_compose"
+  "ppx_deriving"
   "prime"
   "react"
   "tls"
