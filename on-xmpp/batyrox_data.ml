@@ -20,7 +20,7 @@ open Unprime_option
 module Node = struct
   include Batyr_data.Node
 
-  let of_jid {JID.ldomain; JID.lnode; JID.lresource} =
+  let of_jid JID.{ldomain; lnode; lresource; _} =
     if lresource <> "" then
       invalid_arg "Batyr_data.Node.of_jid: Non-empty resource.";
     create ~domain_name:ldomain ~node_name:lnode ()
@@ -34,7 +34,7 @@ end
 module Resource = struct
   include Batyr_data.Resource
 
-  let of_jid {JID.ldomain; JID.lnode; JID.lresource} =
+  let of_jid JID.{ldomain; lnode; lresource; _} =
     create ~domain_name:ldomain ~node_name:lnode ~resource_name:lresource ()
 
   let jid resource =
@@ -55,14 +55,14 @@ module Muc_user = struct
   let make ~nick ?jid ~role ~affiliation () =
     let resource = Option.map Resource.of_jid jid in
     {nick; resource; role; affiliation}
-  let nick {nick} = nick
-  let jid {resource} = Option.map Resource.jid resource
-  let resource {resource} = resource
-  let role {role} = role
-  let affiliation {affiliation} = affiliation
+  let nick {nick; _} = nick
+  let jid {resource; _} = Option.map Resource.jid resource
+  let resource {resource; _} = resource
+  let role {role; _} = role
+  let affiliation {affiliation; _} = affiliation
   let to_string = function
-    | {nick; resource = None} -> nick
-    | {nick; resource = Some resource} ->
+    | {nick; resource = None; _} -> nick
+    | {nick; resource = Some resource; _} ->
       nick ^ " <" ^ Resource.to_string resource ^ ">"
 end
 

@@ -14,7 +14,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Lwt.Infix
 open Printf
 open Unprime_list
 module type CONNECTION = Caqti_lwt.CONNECTION
@@ -30,7 +29,7 @@ end
 
 let missing_id tn id =
   ksprintf (fun s -> Lwt.fail (Failure s)) "Missing # %d of %s." id tn
-let required tn id = function
+let required _tn id = function
   | None -> missing_id "batyr.domains" id
   | Some r -> Lwt.return r
 

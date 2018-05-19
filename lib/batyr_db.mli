@@ -47,6 +47,8 @@ module Expr : sig
   val not : bool t -> bool t
   val (&&) : bool t -> bool t -> bool t
   val (||) : bool t -> bool t -> bool t
+  val is_null : 'a t -> bool t
+  val is_not_null : 'a t -> bool t
   val (=) : 'a t -> 'a t -> bool t
   val (<>) : 'a t -> 'a t -> bool t
   val (<=) : 'a t -> 'a t -> bool t

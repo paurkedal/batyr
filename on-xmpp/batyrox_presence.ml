@@ -83,14 +83,13 @@ type chat_session = {
   cs_presences : Chat.presence_content Chat.stanza React.E.t;
   cs_emit_message : ?step: React.step -> Message.t -> unit;
   cs_messages : Message.t React.E.t;
-  mutable cs_retained_events : (unit -> unit) list;
 }
 
 let chat_sessions = Hashtbl.create 11
 
 let messages, emit_message = Lwt_react.E.create ()
 
-let on_muc_message cs ms msg =
+let on_muc_message _cs ms msg =
   let muc_author =
     let nick = Resource.resource_name (Message.sender msg) in
     try Muc_user.resource (Hashtbl.find ms.ms_users_by_nick nick)
@@ -106,13 +105,13 @@ let message_type_of_xmpp = function
  | Chat.Groupchat -> `Groupchat
  | Chat.Headline -> `Headline
 
-let on_message cs chat stanza =
+let on_message cs _chat stanza =
   let open Xml in
   List.iter
     (function
-      | Xmlelement ((None, tag), attrs, els) ->
+      | Xmlelement ((None, tag), _attrs, _els) ->
         Lwt_log.ign_debug_f ~section "Unprocessed tag %s" tag
-      | Xmlelement ((Some ns, tag), attrs, els) ->
+      | Xmlelement ((Some ns, tag), _attrs, _els) ->
         Lwt_log.ign_debug_f ~section "Unprocessed tag [%s]:%s" ns tag
       | Xmlcdata s ->
         Lwt_log.ign_debug_f ~section "Unprocessed cdata \"%s\""
@@ -123,7 +122,7 @@ let on_message cs chat stanza =
     let seen_time =
       match Chat.(stanza.content.message_delay) with
       | None -> Ptime_clock.now ()
-      | Some {Chat.delay_stamp; Chat.delay_legacy} ->
+      | Some Chat.{delay_stamp; delay_legacy; _} ->
         Lwt_log.ign_debug_f ~section "Got delay stamp %s." delay_stamp;
         try
           let fmt = if delay_legacy then "%Y%m%dT%T%z" else "%FT%TZ%z" in
@@ -174,7 +173,7 @@ let on_message cs chat stanza =
 let extract_muc_user nick =
   List.search
     begin function
-    | Xml.Xmlelement ((ns_muc_user, "x"), _, _) as el ->
+    | Xml.Xmlelement ((_ns_muc_user, "x"), _, _) as el ->
       let user = Chat_muc.User.decode el in
       begin match user.Chat_muc.User.item with
       | None -> None
@@ -237,7 +236,7 @@ let on_presence cs chat stanza =
       end
     end
 
-let on_error ~kind cs ?id ?jid_from ?jid_to ?lang error =
+let on_error ~kind _cs ?id ?jid_from ?jid_to ?lang:_ error =
   let jid_from = Option.map JID.string_of_jid jid_from in
   let props = []
     |> Option.fold (fun s acc -> sprintf "recipient = %s" s :: acc) jid_to
@@ -245,9 +244,6 @@ let on_error ~kind cs ?id ?jid_from ?jid_to ?lang error =
     |> Option.fold (fun s acc -> sprintf "id = %s" s :: acc) id in
   Lwt_log.error_f ~section "%s error; %s; %s" kind
                   (String.concat ", " props) error.StanzaError.err_text
-
-let retain_event cs ev =
-  cs.cs_retained_events <- (fun () -> ev; ()) :: cs.cs_retained_events
 
 let track_presence_of my_jid is_present stanza =
   match Chat.(stanza.jid_from, stanza.content.presence_type) with
@@ -274,6 +270,7 @@ let track_presence_of my_jid is_present stanza =
   | _ ->
     Lwt.return is_present
 
+[@@@ocaml.warning "-27"]
 let drive_signal
       ?(what = "reconnect")
       ?(fuzz = 0.1) ?(dt_edge = 1.0)
@@ -294,6 +291,7 @@ let drive_signal
     done in
   Lwt.async driver;
   React.S.trace (fun v -> if not v then Lwt_condition.signal cond ()) s
+[@@@ocaml.warning "+27"]
 
 module Session = struct
   type t = chat_session
@@ -364,7 +362,7 @@ module Session = struct
     Chat.send_presence chat ~jid_from:(Resource.jid account_resource)
                        ~show:Chat.ShowDND ~status:"logging" () >>= fun () ->
     match cs.cs_chat with
-    | Connected chat -> assert false
+    | Connected _chat -> assert false
     | Shutdown -> Lwt.return_unit
     | Disconnected chat_cond ->
       cs.cs_chat <- Connected chat;
@@ -376,14 +374,14 @@ module Session = struct
   let account_key account =
     let resource = Account.resource account in
     let port = Account.port account in
-    let {JID.lnode; JID.ldomain; JID.lresource} = Resource.jid resource in
+    let JID.{lnode; ldomain; lresource; _} = Resource.jid resource in
     (ldomain, port, lnode, lresource)
 
   let run_once cs =
     let resource = Account.resource cs.cs_account in
     let port = Account.port cs.cs_account in
     let password = Account.password cs.cs_account in
-    let {JID.lnode; JID.ldomain; JID.lresource} = Resource.jid resource in
+    let JID.{lnode; ldomain; lresource; _} = Resource.jid resource in
     let params = Chat_params.make ~server:ldomain ~port ~username:lnode
                                   ~password ~resource:lresource () in
     let clear_cs () =
@@ -412,7 +410,6 @@ module Session = struct
       cs_rooms = Hashtbl.create 23;
       cs_emit_presence; cs_presences;
       cs_emit_message;  cs_messages;
-      cs_retained_events = [];
     } in
     Hashtbl.add chat_sessions key cs;
     let backoff = Backoff.create () in

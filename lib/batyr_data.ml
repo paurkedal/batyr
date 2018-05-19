@@ -33,20 +33,20 @@ module Node = struct
   module Data_bijection = struct
     type domain = t
     type codomain = string * string
-    let f {domain_name; node_name} = (domain_name, node_name)
+    let f {domain_name; node_name; _} = (domain_name, node_name)
     let f_inv (domain_name, node_name) =
       {id = id_unknown; domain_name; node_name;
        beacon = Beacon.dummy}
-    let beacon {beacon} = beacon
+    let beacon {beacon; _} = beacon
   end
 
   module Id_bijection = struct
     type domain = t
     type codomain = int
-    let f {id} = assert (id >= 0); id
+    let f {id; _} = assert (id >= 0); id
     let f_inv id =
       {id; domain_name = ""; node_name = ""; beacon = Beacon.dummy}
-    let beacon {beacon} = beacon
+    let beacon {beacon; _} = beacon
   end
 
   module Data_cache = Batyr_cache.Cache_of_bijection (Data_bijection)
@@ -54,27 +54,23 @@ module Node = struct
   let data_cache = Data_cache.create 23
   let id_cache = Id_cache.create 23
 
-  let dummy =
-    {id = id_unknown; domain_name = ""; node_name = "";
-     beacon = Beacon.dummy}
-
   let create ~domain_name ?(node_name = "") () =
     Data_cache.merge data_cache
       (Beacon.embed Batyr_cache.Grade.basic
         (fun beacon -> {id = id_unknown; domain_name; node_name; beacon}))
 
-  let domain_name {domain_name} = domain_name
-  let node_name {node_name} = node_name
+  let domain_name {domain_name; _} = domain_name
+  let node_name {node_name; _} = node_name
   let to_string node =
     if node.node_name = "" then node.domain_name else
     node.node_name ^ "@" ^ node.domain_name
 
   let equal = (==)
-  let hash {domain_name; node_name} = Hashtbl.hash (domain_name, node_name)
+  let hash {domain_name; node_name; _} = Hashtbl.hash (domain_name, node_name)
 
   let cached_of_id id =
     try Some (Id_cache.find_key id_cache id) with Not_found -> None
-  let cached_id {id} = if id >= 0 then Some id else None
+  let cached_id {id; _} = if id >= 0 then Some id else None
 
   let stored_of_id id =
     try Lwt.return (Id_cache.find_key id_cache id)
@@ -132,21 +128,21 @@ module Resource = struct
   module Data_bijection = struct
     type domain = t
     type codomain = string * string * string
-    let f {domain_name; node_name; resource_name} =
+    let f {domain_name; node_name; resource_name; _} =
       (domain_name, node_name, resource_name)
     let f_inv (domain_name, node_name, resource_name) = {
       id = id_unknown; domain_name; node_name; resource_name;
       beacon = Beacon.dummy;
     }
-    let beacon {beacon} = beacon
+    let beacon {beacon; _} = beacon
   end
 
   module Id_bijection = struct
     type domain = t
     type codomain = int
-    let f {id} = assert (id >= 0); id
+    let f {id; _} = assert (id >= 0); id
     let f_inv id = {dummy with id}
-    let beacon {beacon} = beacon
+    let beacon {beacon; _} = beacon
   end
 
   module Data_cache = Batyr_cache.Cache_of_bijection (Data_bijection)
@@ -164,19 +160,19 @@ module Resource = struct
     create ~domain_name:(Node.domain_name node)
            ~node_name:(Node.node_name node) ~resource_name ()
 
-  let domain_name {domain_name} = domain_name
-  let node_name {node_name} = node_name
-  let resource_name {resource_name} = resource_name
-  let node {domain_name; node_name} = Node.create ~domain_name ~node_name ()
+  let domain_name {domain_name; _} = domain_name
+  let node_name {node_name; _} = node_name
+  let resource_name {resource_name; _} = resource_name
+  let node {domain_name; node_name; _} = Node.create ~domain_name ~node_name ()
 
   let equal = (==)
-  let hash {domain_name; node_name; resource_name} =
+  let hash {domain_name; node_name; resource_name; _} =
     Hashtbl.hash (domain_name, node_name, resource_name)
 
   let dummy_of_id id = {dummy with id}
   let cached_of_id id =
     try Some (Id_cache.find_key id_cache id) with Not_found -> None
-  let cached_id {id} = if id >= 0 then Some id else None
+  let cached_id {id; _} = if id >= 0 then Some id else None
 
   let stored_of_id id =
     try Lwt.return (Id_cache.find_key id_cache id)
@@ -228,13 +224,13 @@ module Account = struct
   module Id_bijection = struct
     type domain = t
     type codomain = int
-    let f {resource} = Resource.cached_id resource |> Option.get
+    let f {resource; _} = Resource.cached_id resource |> Option.get
     let f_inv resource_id = {
       resource = Resource.dummy_of_id resource_id;
       port = 0; password = ""; is_active = false;
       beacon = Beacon.dummy;
     }
-    let beacon {beacon} = beacon
+    let beacon {beacon; _} = beacon
   end
   module Id_cache = Batyr_cache.Cache_of_bijection (Id_bijection)
   let id_cache = Id_cache.create 11
@@ -315,14 +311,14 @@ module Account = struct
     let cost = cost_all /. float_of_int (List.length rows) in
     Lwt_list.map_s (merge cost) rows
 
-  let resource {resource} = resource
-  let host {resource} = Resource.domain_name resource
-  let port {port} = port
-  let password {password} = password
-  let is_active {is_active} = is_active
+  let resource {resource; _} = resource
+  let host {resource; _} = Resource.domain_name resource
+  let port {port; _} = port
+  let password {password; _} = password
+  let is_active {is_active; _} = is_active
 
-  let equal {resource = r0} {resource = r1} = Resource.equal r0 r1
-  let hash {resource} = Resource.hash resource
+  let equal {resource = r0; _} {resource = r1; _} = Resource.equal r0 r1
+  let hash {resource; _} = Resource.hash resource
 end
 
 module Muc_room = struct
@@ -339,18 +335,18 @@ module Muc_room = struct
   module Node_hashable = struct
     type t = t'
     let equal roomA roomB = Node.equal roomA.node roomB.node
-    let hash {node} = Node.hash node
-    let beacon {beacon} = beacon
+    let hash {node; _} = Node.hash node
+    let beacon {beacon; _} = beacon
   end
 
   module Node_cache = Batyr_cache.Cache_of_hashable (Node_hashable)
   let node_cache = Node_cache.create 23
 
-  let node {node} = node
-  let alias {alias} = alias
-  let description {description} = description
-  let transcribe {transcribe} = transcribe
-  let min_message_time {min_message_time} = min_message_time
+  let node {node; _} = node
+  let alias {alias; _} = alias
+  let description {description; _} = description
+  let transcribe {transcribe; _} = transcribe
+  let min_message_time {min_message_time; _} = min_message_time
 
   let make_dummy node = {
     node; alias = None; description = None; transcribe = false;
@@ -402,16 +398,16 @@ module Message = struct
     body : string option;
   }
 
-  let seen_time {seen_time} = seen_time
+  let seen_time {seen_time; _} = seen_time
   let make ~seen_time ~sender ~recipient
            ~message_type ?subject ?thread ?body () =
     {seen_time; sender; recipient; message_type; subject; thread; body}
-  let sender {sender} = sender
-  let recipient {recipient} = recipient
-  let message_type {message_type} = message_type
-  let subject {subject} = subject
-  let thread {thread} = thread
-  let body {body} = body
+  let sender {sender; _} = sender
+  let recipient {recipient; _} = recipient
+  let message_type {message_type; _} = message_type
+  let subject {subject; _} = subject
+  let thread {thread; _} = thread
+  let body {body; _} = body
 
   let store ?muc_author msg =
     let author_id = Option.search Resource.cached_id muc_author in

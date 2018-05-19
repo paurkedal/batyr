@@ -15,7 +15,6 @@
  *)
 
 open Lwt.Infix
-open Unprime
 open Unprime_option
 
 let section = Lwt_log.Section.make "batyr.xmpp"
@@ -120,7 +119,7 @@ let with_chat session {server; username; password; resource; port} =
 module Chat_version = struct
   include XEP_version.Make (Chat)
 
-  let on_version result req jid_from jid_to lang () =
+  let on_version result req _jid_from _jid_to _lang () =
     match req with
     | Chat.IQGet _ -> result
     | Chat.IQSet _ -> Lwt.fail Chat.BadRequest
@@ -137,15 +136,15 @@ module Chat_disco = struct
 
   let extract_features chat =
     let open Chat in
-    [] |> IQRequestCallback.fold (fun ns v acc -> Option.get ns :: acc)
+    [] |> IQRequestCallback.fold (fun ns _v acc -> Option.get ns :: acc)
                                  chat.iq_request
-       |> StanzaHandler.fold (fun (ns, _) v acc -> Option.get ns :: acc)
+       |> StanzaHandler.fold (fun (ns, _) _v acc -> Option.get ns :: acc)
                              chat.stanza_handlers
 
   let register_info
       ?(category = "client") ?(type_ = "bot")
       ?(name = "Batyr") ?features chat =
-    let on_disco req jid_from jid_to lang () =
+    let on_disco _req jid_from _jid_to _lang () =
       let features =
         Option.get_else (fun () -> extract_features chat) features in
       match jid_from with
@@ -170,14 +169,14 @@ module Chat_ping = struct
     Chat.make_iq_request chat
       ~jid_from ~jid_to
       (Chat.IQGet Xml.(Xmlelement ((ns_ping, "ping"), [], [])))
-      (fun resp jid_from' jid_to' lang () ->
+      (fun resp _jid_from _jid_to _lang () ->
         Lwt.return @@
           match resp with
-          | Chat.IQResult r -> ()
+          | Chat.IQResult _ -> ()
           | Chat.IQError err -> r := Some err) >>= fun () ->
     Lwt.return !r
 
-  let on_ping req jid_from jid_to lang () =
+  let on_ping req jid_from _jid_to _lang () =
     match jid_from with
     | Some jid_from ->
       begin match req with

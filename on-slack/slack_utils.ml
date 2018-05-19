@@ -37,7 +37,9 @@ module Message = struct
    | U of {userid: string; username: string option}
    | C of {channelid: string; channelname: string option}
 
+  [@@@ocaml.warning "-34"]
   type t = frag list
+  [@@@ocaml.warning "+34"]
 
   let to_string msg =
     let buf = Buffer.create 80 in
@@ -45,11 +47,11 @@ module Message = struct
      | L s -> Buffer.add_string buf s
      | U {userid; username = None} ->
         Buffer.add_char buf '@'; Buffer.add_string buf userid
-     | U {userid; username = Some username} ->
+     | U {username = Some username; _} ->
         Buffer.add_char buf '@'; Buffer.add_string buf username
      | C {channelid; channelname = None} ->
         Buffer.add_char buf '#'; Buffer.add_string buf channelid
-     | C {channelid; channelname = Some channelname} ->
+     | C {channelname = Some channelname; _} ->
         Buffer.add_char buf '#'; Buffer.add_string buf channelname
     in
     List.iter aux msg;

@@ -55,7 +55,7 @@ type monitor_state = {
   recipient: Resource.t;
 }
 
-let store_message {cache; team_info; conference_domain; recipient}
+let store_message {cache; conference_domain; recipient; _}
     ~channel ~user ~subtype ~text ~ts () =
   Slack_cache.channel_obj_of_channel cache channel >>=? fun channel_obj ->
   Slack_cache.user_obj_of_user cache user >>=? fun user_obj ->
@@ -72,7 +72,7 @@ let store_message {cache; team_info; conference_domain; recipient}
    | Some muc_room when not (Muc_room.transcribe muc_room) ->
       Logs_lwt.debug (fun m -> m "Ignoring message for room.") >>= fun () ->
       Lwt.return_ok ()
-   | Some muc_room ->
+   | Some _ ->
       (match subtype with
        | None ->
           Logs_lwt.debug (fun m -> m "Storing message.") >>= fun () ->

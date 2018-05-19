@@ -166,8 +166,7 @@ let ptime_of_string ts =
      | [s] | [s; ""] ->
         (int_of_string s, 0L)
      | [s; s'] ->
-        let n' = String.length s' in
-        let n', s' = if n' <= 12 then 12, s' else n', String.sub s' 0 12 in
+        let s' = if String.length s' <= 12 then s' else String.sub s' 0 12 in
         let ps_scale = Prime_int64.pow 10L (12 - (String.length s')) in
         let ps = Int64.(mul (of_string s') ps_scale) in
         (int_of_string s, ps)

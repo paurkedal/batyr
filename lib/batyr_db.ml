@@ -17,18 +17,10 @@
 open CalendarLib
 open Lwt.Infix
 open Printf
-open Unprime_array
 open Unprime_list
 open Unprime_string
 
 module type CONNECTION = Caqti_lwt.CONNECTION
-
-let section = Lwt_log.Section.make "batyr.db"
-
-exception Runtime_error of string
-exception Response_error of string
-let raise_resperr fmt = ksprintf (fun s -> raise (Response_error s)) fmt
-let fail_resperr fmt = ksprintf (fun s -> Lwt.fail (Response_error s)) fmt
 
 let escape_like s =
   let buf = Buffer.create (String.length s) in
@@ -154,7 +146,6 @@ module Expr = struct
   let infixA prec name = Infix (name, prec, [prec; prec])
   let infixB prec name = Infix (name, prec, [prec + 1; prec + 1])
   let infixL prec name = Infix (name, prec, [prec; prec + 1])
-  let infixR prec name = Infix (name, prec, [prec + 1; prec])
   let call1 op e0 = Call (op, [e0])
   let call2 op e0 e1 = Call (op, [e0; e1])
   let func1 name e0 = Call (Func name, [e0])
