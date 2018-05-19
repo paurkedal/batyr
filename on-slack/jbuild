@@ -1,0 +1,23 @@
+(jbuild_version 1)
+
+(executable
+ ((name main)
+  (libraries
+   (batyr-lib
+    cmdliner
+    dns-lwt-unix
+    kojson
+    logs
+    logs.fmt
+    lru
+    re
+    re.pcre
+    slacko
+    websocket
+    websocket.lwt))
+  (preprocess (pps (lwt_ppx ppx_compose ppx_regexp)))))
+
+(install
+ ((package batyr-on-slack)
+  (section bin)
+  (files ((main.exe as batyr-on-slack)))))

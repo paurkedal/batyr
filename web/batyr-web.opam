@@ -7,12 +7,12 @@ bug-reports: "https://github.com/paurkedal/batyr/issues"
 dev-repo: "https://github.com/paurkedal/batyr.git"
 license: "GPL-3"
 build: [
-  "ocaml" "pkg/pkg.ml" "build"
-          "--pkg-name" name
-          "--dev-pkg" "%{pinned}%"
+  ["cd" "web"]
+  ["ocaml" "pkg/pkg.ml" "build"
+           "--pkg-name" name
+           "--dev-pkg" "%{pinned}%"]
 ]
 depends: [
-  "adpkg" {build}
   "batyr-lib"
   "batyr-on-xmpp"
   "calendar"
@@ -22,7 +22,6 @@ depends: [
   "caqti-type-calendar"
   "config-file"
   "eliom" {>= "6.0.0" & < "7~"}
-  "erm_xmpp"
   "js_of_ocaml"
   "js_of_ocaml-ppx"
   "lwt"
@@ -31,8 +30,8 @@ depends: [
   "ppx_compose"
   "ppx_deriving"
   "prime"
+  "ptime"
   "react"
-  "tls"
   "topkg" {build}
   "yojson"
 ]

@@ -1,0 +1,20 @@
+(jbuild_version 1)
+
+(library
+ ((name batyr_on_xmpp)
+  (public_name batyr-on-xmpp)
+  (wrapped false)
+  (modules
+   (Batyrox_data
+    Batyrox_presence
+    Batyrox_sql         ; internal
+    Batyrox_xmpp))
+  (libraries
+   (batyr_lib
+    caqti
+    caqti-lwt
+    caqti-type-calendar
+    erm_xmpp
+    tls
+    x509))
+  (preprocess (pps (lwt_ppx)))))

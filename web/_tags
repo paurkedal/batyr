@@ -1,0 +1,29 @@
+true: bin_annot, eliom_ppx
+
+true: \
+    package(calendar), \
+    package(lwt.ppx), \
+    package(lwt_react), \
+    package(ppx_compose), \
+    package(prime prime.unstable), \
+    package(ptime), \
+    package(react)
+
+<server/*>: \
+    thread, \
+    package(batyr-lib), \
+    package(batyr-on-xmpp), \
+    package(caqti), \
+    package(caqti-dynload), \
+    package(caqti-lwt), \
+    package(caqti-type-calendar), \
+    package(config-file), \
+    package(eliom.server), \
+    package(js_of_ocaml-ppx.deriving), \
+    package(ppx_deriving), \
+    package(ptime.clock.os), \
+    package(yojson)
+
+<client/*>: \
+    package(eliom.client), \
+    package(js_of_ocaml.ppx)
