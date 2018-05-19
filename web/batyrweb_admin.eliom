@@ -439,7 +439,7 @@ let admin_handler () () =
                                ~%Presence_editor.serverside
   ];
 
-  Lwt.return @@ Batyrweb_tools.D.page "Administration" [
+  Lwt.return @@ Batyrweb_content.page "Administration" [
     D.h2 [D.pcdata "Accounts"];
     accounts_editor;
     D.h2 [D.pcdata "Presence"];

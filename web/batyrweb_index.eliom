@@ -32,6 +32,6 @@ let index_handler () () =
       D.li [D.a ~service:transcript_service label (node_jid, None)] in
   let%lwt room_lis = Lwt_list.map_p render_room_link rooms in
   let rooms_ul = D.ul room_lis in
-  Lwt.return (Batyrweb_tools.D.page "Chatrooms" [rooms_ul])
+  Lwt.return (Batyrweb_content.page "Chatrooms" [rooms_ul])
 
 let () = Main_app.register ~service:index_service index_handler

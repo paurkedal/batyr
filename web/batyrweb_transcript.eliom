@@ -363,7 +363,7 @@ let%client render_page ~room ~min_time ?pat ~page transcript_dom update_comet =
       let date = new%js Js.date_month (y_min + iY) iM in
       let mcM = Message_counts.get mcY iM in
       let label iD = sprintf "%d" (iD + 1) in
-      Batyrweb_tools.D.pager
+      Batyrweb_content_js.pager
         ~default_index:iD
         ~count:(fun iD -> Message_counts.(card (get mcM iD)))
         (Array.init (Caltime.days_in_month date) label)
@@ -378,7 +378,7 @@ let%client render_page ~room ~min_time ?pat ~page transcript_dom update_comet =
       render_transcript ~room ~tI ~tF ?pat update_comet
    | iM :: iDs ->
       let mcY = Message_counts.get mcA iY in
-      Batyrweb_tools.D.pager
+      Batyrweb_content_js.pager
         ~default_index:iM
         ~count:(fun iM -> Message_counts.(card (get mcY iM)))
         Caltime.month_names
@@ -389,7 +389,7 @@ let%client render_page ~room ~min_time ?pat ~page transcript_dom update_comet =
       render_transcript ~room ?pat update_comet
    | iY :: iMDs ->
       let label iY = sprintf "%04d" (y_min + iY) in
-      Batyrweb_tools.D.pager
+      Batyrweb_content_js.pager
         ~default_index:iY
         ~count:(fun iY -> Message_counts.(card (get mcA iY)))
         (Array.init (y_now - y_min + 1) label)
@@ -534,7 +534,7 @@ let transcript_handler (room_jid, pat) () =
       vn"pat"; sp; vn"pat"; sp; bop"|"; sp;
       vn"pat"; sp; op"|"; sp; vn"pat"
     ] in
-  Lwt.return (Batyrweb_tools.D.page
+  Lwt.return (Batyrweb_content.page
     (sprintf "Transcript of %s" room_jid)
     [ div
       [ pcdata "Show "; clear_button;
