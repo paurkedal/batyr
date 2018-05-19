@@ -16,7 +16,11 @@
 
 (** Cached fetching of Slack objects. *)
 
-type error
+type error =
+  [ Slacko.parsed_auth_error
+  | Slacko.channel_error
+  | Slacko.user_error
+  | Slacko.user_visibility_error ]
 
 type t
 

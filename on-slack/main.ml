@@ -112,7 +112,8 @@ let store_slacko_message state ~channel (message_obj : Slacko.message_obj) =
        with
        | Ok () -> Lwt.return_unit
        | Error err ->
-          Logs_lwt.err (fun m -> m "Failed to store message"))
+          Logs_lwt.err (fun m ->
+            m "Failed to store message: %s" (Slack_utils.show_error err)))
    | None ->
       Logs_lwt.err (fun m -> m "Invalid time float %g." message_obj.ts))
 
@@ -158,7 +159,6 @@ let rec fetch_recent state channelname oldest =
    | #Slacko.parsed_auth_error
    | #Slacko.channel_error
    | #Slacko.timestamp_error as err ->
-      (* FIXME: Decode error. *)
       Logs_lwt.err (fun m -> m "Failed to fetch history for %s: %s"
         channelname (Slack_utils.show_error err)))
 
@@ -200,8 +200,8 @@ let rec monitor state conn =
       (match%lwt store_rtm_message state message with
        | Ok () -> Lwt.return_unit
        | Error error ->
-          (* TODO: Report properly. *)
-          Logs_lwt.err (fun m -> m "Failed to store message.")) >>= fun () ->
+          Logs_lwt.err (fun m ->
+            m "Failed to store message: %s" (Slack_utils.show_error error))) >>= fun () ->
       monitor state conn
    | Error `Closed ->
       Logs_lwt.info (fun m -> m "Connection closed.")

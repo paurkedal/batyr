@@ -19,11 +19,15 @@ open Lwt.Infix
 type showable_error =
   [ Slacko.parsed_auth_error
   | Slacko.channel_error
+  | Slacko.user_error
+  | Slacko.user_visibility_error
   | Slacko.timestamp_error ]
 
 let show_error = function
  | #Slacko.parsed_auth_error -> "parsed_auth_error"
  | #Slacko.channel_error -> "channel_error"
+ | #Slacko.user_error -> "user_error"
+ | #Slacko.user_visibility_error -> "user_visibility_error"
  | #Slacko.timestamp_error -> "timestamp_error"
 
 module Message = struct
@@ -68,7 +72,8 @@ module Message = struct
                 Logs_lwt.warn (fun m ->
                   m "Failed to verify user id %s as %s." userid username)
              | None ->
-                Logs_lwt.err (fun m -> m "Failed to expand user id %s." userid))
+                Logs_lwt.err (fun m -> m "Failed to expand user id %s: %s"
+                  userid (show_error err)))
             >|= fun () -> orig)
      | C {channelid; channelname} as orig ->
         let channel = Slacko.channel_of_string channelid in
@@ -82,11 +87,12 @@ module Message = struct
             (match channelname with
              | Some channelname ->
                 Logs_lwt.warn (fun m ->
-                  m "Failed to verify channel id %s as %s."
-                    channelid channelname)
+                  m "Failed to verify channel id %s as %s: %s"
+                    channelid channelname (show_error err))
              | None ->
                 Logs_lwt.err (fun m ->
-                  m "Failed to expand channel id %s." channelid))
+                  m "Failed to expand channel id %s: %s"
+                    channelid (show_error err)))
             >|= fun () -> orig)
     in
     Lwt_list.map_s resolve_frag

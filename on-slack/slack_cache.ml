@@ -19,7 +19,6 @@ type error =
   | Slacko.channel_error
   | Slacko.user_error
   | Slacko.user_visibility_error ]
-(* TODO: show_error *)
 
 module Make_cache (K : Hashtbl.HashedType) (V : Lru.Weighted) = struct
   include Lru.M.Make (K) (V)

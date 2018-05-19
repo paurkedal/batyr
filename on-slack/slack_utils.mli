@@ -18,7 +18,10 @@
 type showable_error =
   [ Slacko.parsed_auth_error
   | Slacko.channel_error
+  | Slacko.user_error
+  | Slacko.user_visibility_error
   | Slacko.timestamp_error ]
-val show_error : showable_error -> string
+
+val show_error : [< showable_error] -> string
 
 val demarkup : Slack_cache.t -> string -> string Lwt.t
