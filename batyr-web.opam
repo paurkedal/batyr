@@ -7,10 +7,9 @@ bug-reports: "https://github.com/paurkedal/batyr/issues"
 dev-repo: "https://github.com/paurkedal/batyr.git"
 license: "GPL-3"
 build: [
-  ["cd" "web"]
-  ["ocaml" "pkg/pkg.ml" "build"
-           "--pkg-name" name
-           "--dev-pkg" "%{pinned}%"]
+  "ocaml" "pkg/pkg_web.ml" "build"
+          "--pkg-name" name
+          "--dev-pkg" "%{pinned}%"
 ]
 depends: [
   "batyr-lib"

@@ -1,15 +1,17 @@
-.PHONY: all clean run-web
+.PHONY: all clean lint run-web
 
 srcdir = $(shell pwd)
 
 all:
 	jbuilder build --dev
 	export OCAMLPATH=$(srcdir)/_build/install/default/lib \
-	  && cd web \
-	  && ocaml pkg/pkg.ml build --build-dir $(srcdir)/_build/web
+	  && ocaml pkg/pkg_web.ml build --build-dir _build/web
 
 clean:
 	jbuilder clean
+
+lint:
+	topkg lint; topkg lint --pkg-file=pkg/pkg_web.ml
 
 run-web: all
 	install -d -m755 _var/{lib,log,run} _config

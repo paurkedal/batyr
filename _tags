@@ -9,7 +9,7 @@ true: \
     package(ptime), \
     package(react)
 
-<server/*>: \
+<web/server/*>: \
     thread, \
     package(batyr-lib), \
     package(batyr-on-xmpp), \
@@ -24,6 +24,6 @@ true: \
     package(ptime.clock.os), \
     package(yojson)
 
-<client/*>: \
+<web/client/*>: \
     package(eliom.client), \
     package(js_of_ocaml.ppx)
