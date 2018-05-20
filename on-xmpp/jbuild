@@ -10,7 +10,7 @@
     Batyrox_sql         ; internal
     Batyrox_xmpp))
   (libraries
-   (batyr_lib
+   (batyr-lib
     caqti
     caqti-lwt
     caqti-type-calendar
