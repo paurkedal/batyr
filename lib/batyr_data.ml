@@ -390,6 +390,7 @@ let string_of_message_type = function
 module Message = struct
   type t = {
     seen_time : Ptime.t;
+    edit_time : Ptime.t option;
     sender : Resource.t;
     recipient : Resource.t;
     message_type : message_type;
@@ -399,9 +400,11 @@ module Message = struct
   }
 
   let seen_time {seen_time; _} = seen_time
-  let make ~seen_time ~sender ~recipient
+  let edit_time {edit_time; _} = edit_time
+  let make ~seen_time ?edit_time ~sender ~recipient
            ~message_type ?subject ?thread ?body () =
-    {seen_time; sender; recipient; message_type; subject; thread; body}
+    {seen_time; edit_time;
+     sender; recipient; message_type; subject; thread; body}
   let sender {sender; _} = sender
   let recipient {recipient; _} = recipient
   let message_type {message_type; _} = message_type

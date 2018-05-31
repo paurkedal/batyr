@@ -8,6 +8,7 @@ body {
 .sender.jid { font-family: monospace; }
 .sender.meta { font-family: monospace; }
 p.message { margin: 1mm 0; padding-left: 5mm; text-indent: -5mm; }
+span.edited { font-size: smaller; color: #999; }
 
 a:link, .b-link { color: #07c; text-decoration: none; cursor: pointer; }
 a:hover, .b-link:hover { text-decoration: underline; }

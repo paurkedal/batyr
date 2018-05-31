@@ -72,6 +72,7 @@ let%client fragment_date = React.S.map
 
 type%shared message = {
   msg_time : Ptime.t;
+  msg_edit_time : Ptime.t option;
   msg_sender_cls : string;
   msg_sender : string;
   msg_subject : string option;
@@ -148,10 +149,10 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
       Batyr_db.Expr.to_sql cond in
     let q = Caqti_request.collect ~oneshot:true
       params_type
-      Caqti_type.(tup2 (tup2 ptime int)
+      Caqti_type.(tup2 (tup3 ptime (option ptime) int)
                        (tup3 (option string) (option string) (option string)))
       (sprintf
-        "SELECT seen_time, sender_id, subject, thread, body \
+        "SELECT seen_time, edit_time, sender_id, subject, thread, body \
          FROM batyr.messages \
          JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
            ON sender_id = sender.resource_id \
@@ -163,9 +164,11 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
     (function
      | Ok tuples ->
         Lwt_list.rev_map_p
-          (fun ((time, sender_id), (subject_opt, thread_opt, body_opt)) ->
+          (fun ((time, edit_time, sender_id),
+                (subject_opt, thread_opt, body_opt)) ->
             Resource.stored_of_id sender_id >|= fun sender_resource ->
             { msg_time = time;
+              msg_edit_time = edit_time;
               msg_sender_cls = "jid";
               msg_sender = Resource.resource_name sender_resource;
               msg_subject = subject_opt;
@@ -261,6 +264,14 @@ module%client Transcript = struct
       | None -> msg_frag
       | Some st_frag ->
         F.span ~a:[F.a_class ["subject"]] st_frag :: msg_frag in
+    let msg_frag =
+      (match msg.msg_edit_time with
+       | None -> msg_frag
+       | Some _ ->
+          msg_frag @ [
+            F.pcdata " ";
+            F.span ~a:[F.a_class ["edited"]] [F.pcdata "(edited)"]
+          ]) in
     let jstime = new%js Js.date_fromTimeValue
       ((Ptime.to_float_s msg.msg_time) *. 1000.0) in
     let day = jstime##getFullYear, jstime##getMonth + 1, jstime##getDate in
@@ -443,6 +454,7 @@ let transcript_handler (room_jid, pat) () =
       if Resource.node (Message.sender msg) != room_node then None else
       Some {
         msg_time = Message.seen_time msg;
+        msg_edit_time = Message.edit_time msg;
         msg_sender_cls = "jid";
         msg_sender = Resource.resource_name (Message.sender msg);
         msg_subject = Message.subject msg;

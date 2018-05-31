@@ -98,6 +98,7 @@ module Message : sig
 
   val make :
     seen_time: Ptime.t ->
+    ?edit_time: Ptime.t ->
     sender: Resource.t ->
     recipient: Resource.t ->
     message_type: message_type ->
@@ -107,6 +108,7 @@ module Message : sig
     unit -> t
 
   val seen_time : t -> Ptime.t
+  val edit_time : t -> Ptime.t option
   val sender : t -> Resource.t
   val recipient : t -> Resource.t
   val message_type : t -> message_type
