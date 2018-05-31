@@ -30,6 +30,9 @@ let show_error = function
  | #Slacko.user_visibility_error -> "user_visibility_error"
  | #Slacko.timestamp_error -> "timestamp_error"
 
+let pp_error ppf error =
+  Format.pp_print_string ppf (show_error error)
+
 module Message = struct
 
   type frag =

@@ -32,7 +32,7 @@ val create :
 val session : t -> Slacko.session
 
 val channel_obj_of_channel :
-  t -> Slacko.channel -> (Slacko.channel_obj, error) result Lwt.t
+  t -> Slacko.channel -> (Slacko.channel_obj, [> error]) result Lwt.t
 
 val user_obj_of_user :
-  t -> Slacko.user -> (Slacko.user_obj, error) result Lwt.t
+  t -> Slacko.user -> (Slacko.user_obj, [> error]) result Lwt.t

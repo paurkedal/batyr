@@ -20,6 +20,12 @@ open Printf
 open Unprime_list
 open Unprime_option
 
+let pp_ptime = Ptime.pp_human ~frac_s:6 ()
+
+let require what = function
+ | None -> Error (`Msg ("Did not find " ^ what ^ "."))
+ | Some x -> Ok x
+
 type config = {
   token: string;
   bot_token: string;
@@ -55,15 +61,109 @@ type monitor_state = {
   recipient: Resource.t;
 }
 
-let store_message {cache; conference_domain; recipient; _}
-    ~channel ~user ~subtype ~text ~ts () =
-  Slack_cache.channel_obj_of_channel cache channel >>=? fun channel_obj ->
+let find_message_id =
+  let q = Caqti_request.find
+    Caqti_type.(tup3 int ptime int)
+    Caqti_type.int32
+    "SELECT message_id FROM batyr.messages \
+     WHERE recipient_id = ? AND seen_time = ? AND sender_id = ?" in
+  fun recipient seen_time sender ->
+    (Resource.stored_id recipient >|= require "recipient")
+      >>=? fun recipient_id ->
+    (Resource.stored_id sender >|= require "sender")
+      >>=? fun sender_id ->
+    Logs_lwt.debug (fun m ->
+      m "Locating message from #%d to #%d at %a."
+        sender_id recipient_id pp_ptime seen_time) >>= fun () ->
+    Batyr_db.use
+      (fun (module C) -> C.find q (recipient_id, seen_time, sender_id))
+
+let delete_message_id =
+  let q = Caqti_request.exec
+    Caqti_type.int32
+    "DELETE FROM batyr.messages WHERE message_id = ?" in
+  fun message_id -> Batyr_db.use (fun (module C) -> C.exec q message_id)
+
+let update_message_id =
+  let q = Caqti_request.exec
+    Caqti_type.(tup4 ptime int string int32)
+    "UPDATE batyr.messages SET edit_time = ?, sender_id = ?, body = ? \
+     WHERE message_id = ?" in
+  fun message_id ~new_ts ~new_subtype ~new_sender ~new_text () ->
+    (Resource.stored_id new_sender >|= require "sender")
+      >>=? fun new_sender_id ->
+    let body =
+      (match new_subtype with
+       | None | Some "message" -> Ok new_text
+       | Some "me_message" -> Ok ("/me " ^ new_text)
+       | _ -> Error (`Msg "Unhandled subtype for new message.")) in
+    (match body with
+     | Ok body ->
+        Batyr_db.use
+          (fun (module C) -> C.exec q (new_ts, new_sender_id, body, message_id))
+     | Error err -> Lwt.return_error err)
+
+let store_message {cache; recipient; _}
+    ~channel_node ~user ~subtype ~text ~ts () =
   Slack_cache.user_obj_of_user cache user >>=? fun user_obj ->
-  let channel_name = channel_obj.Slacko.name in
   let user_name = user_obj.Slacko.name in
-  let channel_node =
-    Node.create ~domain_name:conference_domain ~node_name:channel_name () in
   let sender = Resource.create_on_node channel_node user_name in
+  let store body =
+    let message_type = `Groupchat in
+    Message.store @@
+      Message.make ~seen_time:ts ~sender ~recipient ~message_type ~body ()
+  in
+  (match subtype with
+   | None ->
+      Logs_lwt.debug (fun m -> m "Storing message.") >>= fun () ->
+      let%lwt body = Slack_utils.demarkup cache text in
+      store body
+   | Some "me_message" ->
+      Logs_lwt.debug (fun m -> m "Storing /me message.") >>= fun () ->
+      let%lwt body = Slack_utils.demarkup cache text in
+      store ("/me " ^ body)
+   | Some t ->
+      Logs_lwt.info (fun m -> m "Ignoring message of type %s." t))
+  >>= Lwt.return_ok
+
+let update_message {cache; recipient; _}
+    ~channel_node ~old_ts ~old_user ~new_ts ~new_user ~new_subtype ~new_text
+    () =
+  Logs_lwt.debug (fun m -> m "Updating message.") >>= fun () ->
+
+  Slack_cache.user_obj_of_user cache old_user >>=? fun old_user_obj ->
+  let old_user_name = old_user_obj.Slacko.name in
+  let old_sender = Resource.create_on_node channel_node old_user_name in
+
+  Slack_cache.user_obj_of_user cache new_user >>=? fun new_user_obj ->
+  let new_user_name = new_user_obj.Slacko.name in
+  let new_sender = Resource.create_on_node channel_node new_user_name in
+
+  find_message_id recipient old_ts old_sender >>=? fun message_id ->
+  Logs_lwt.debug (fun m -> m "Updating message #%ld." message_id) >>= fun () ->
+  update_message_id message_id ~new_ts ~new_subtype ~new_sender ~new_text ()
+
+let delete_message {cache; recipient; _}
+    ~channel_node ~old_ts ~old_user () =
+
+  Slack_cache.user_obj_of_user cache old_user >>=? fun old_user_obj ->
+  let old_user_name = old_user_obj.Slacko.name in
+  let old_sender = Resource.create_on_node channel_node old_user_name in
+
+  find_message_id recipient old_ts old_sender >>=? fun message_id ->
+  Logs_lwt.debug (fun m -> m "Deleting message #%ld." message_id) >>= fun () ->
+  delete_message_id message_id
+
+let store_rtm_message state message_event =
+  let open Slack_rtm in
+  let channel =
+    Slacko.channel_of_string (string_of_channel message_event.channel) in
+  Slack_cache.channel_obj_of_channel state.cache channel >>=? fun channel_obj ->
+  let channel_name = channel_obj.Slacko.name in
+  let channel_node =
+    Node.create
+      ~domain_name:state.conference_domain
+      ~node_name:channel_name () in
   (match%lwt Muc_room.stored_of_node channel_node with
    | None ->
       Logs_lwt.debug (fun m ->
@@ -73,41 +173,52 @@ let store_message {cache; conference_domain; recipient; _}
       Logs_lwt.debug (fun m -> m "Ignoring message for room.") >>= fun () ->
       Lwt.return_ok ()
    | Some _ ->
-      let store body =
-        let message_type = `Groupchat in
-        Message.store @@
-          Message.make ~seen_time:ts ~sender ~recipient ~message_type ~body ()
-      in
-      (match subtype with
-       | None ->
-          Logs_lwt.debug (fun m -> m "Storing message.") >>= fun () ->
-          let%lwt body = Slack_utils.demarkup cache text in
-          store body
-       | Some "me_message" ->
-          Logs_lwt.debug (fun m -> m "Storing /me message.") >>= fun () ->
-          let%lwt body = Slack_utils.demarkup cache text in
-          store ("/me " ^ body)
-       | Some t ->
-          Logs_lwt.info (fun m -> m "Ignoring message of type %s." t))
-      >>= Lwt.return_ok)
-
-let store_rtm_message state message =
-  let open Slack_rtm in
-  store_message state
-    ~channel:(Slacko.channel_of_string (string_of_channel message.channel))
-    ~user:(Slacko.user_of_string (string_of_user message.user))
-    ~subtype:message.subtype
-    ~text:message.text
-    ~ts:message.ts
-    ()
+      (match message_event.sub with
+       | `Add msg ->
+          store_message state
+            ~channel_node
+            ~ts:message_event.ts
+            ~user:(Slacko.user_of_string (string_of_user msg.user))
+            ~subtype:msg.subtype
+            ~text:msg.text
+            ()
+       | `Change msg ->
+          update_message state
+            ~channel_node
+            ~old_ts:msg.previous_message.ts
+            ~old_user:
+              (Slacko.user_of_string (string_of_user msg.previous_message.user))
+            ~new_ts:msg.message.edited_ts
+            ~new_user:(Slacko.user_of_string (string_of_user msg.message.user))
+            ~new_subtype:msg.message.subtype
+            ~new_text:msg.message.text
+            ()
+       | `Delete msg ->
+          delete_message state
+            ~channel_node
+            ~old_ts:msg.previous_message.ts
+            ~old_user:
+              (Slacko.user_of_string (string_of_user msg.previous_message.user))
+          ()
+       | `Other json ->
+          Logs_lwt.debug (fun m ->
+            m "Unhandled event %s" (Yojson.Basic.to_string json)) >|= fun () ->
+          Ok ()))
 
 let store_slacko_message state ~channel (message_obj : Slacko.message_obj) =
   let open Slacko in
   (match Ptime.of_float_s message_obj.ts with
    | Some ts ->
       (match%lwt
+        Slack_cache.channel_obj_of_channel state.cache channel
+          >>=? fun channel_obj ->
+        let channel_name = channel_obj.Slacko.name in
+        let channel_node =
+          Node.create
+            ~domain_name:state.conference_domain
+            ~node_name:channel_name () in
         store_message state
-          ~channel
+          ~channel_node
           ~user:message_obj.user
           ~subtype:None
           ~text:message_obj.text
@@ -196,15 +307,19 @@ let fetch_all_recent state =
 
 let rec monitor state conn =
   (match%lwt Slack_rtm.receive conn with
-   | Ok (`Message message) ->
-      Logs_lwt.debug Slack_rtm.(fun m ->
-        m "message from %s: %s" (string_of_user message.user) message.text)
-        >>= fun () ->
-      (match%lwt store_rtm_message state message with
+   | Ok message_event ->
+      (match%lwt store_rtm_message state message_event with
        | Ok () -> Lwt.return_unit
-       | Error error ->
+       | Error (#Slack_cache.error as error) ->
           Logs_lwt.err (fun m ->
-            m "Failed to store message: %s" (Slack_utils.show_error error))) >>= fun () ->
+            m "Failed to capture message event: %a" Slack_utils.pp_error error)
+       | Error (#Caqti_error.t as error) ->
+          Logs_lwt.err (fun m ->
+            m "Failed to update database: %a" Caqti_error.pp error)
+       | Error (`Msg msg) ->
+          Logs_lwt.err (fun m ->
+            m "Failed to assimilate message event: %s" msg))
+      >>= fun () ->
       monitor state conn
    | Error `Closed ->
       Logs_lwt.info (fun m -> m "Connection closed.")

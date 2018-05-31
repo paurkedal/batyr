@@ -33,6 +33,27 @@ type user = string
 let string_of_user = ident
 let user_of_string = ident
 
+let ptime_of_string ts =
+  let s, ps =
+    (match String.split_on_char '.' ts with
+     | [s] | [s; ""] ->
+        (int_of_string s, 0L)
+     | [s; s'] ->
+        let s' = if String.length s' <= 12 then s' else String.sub s' 0 12 in
+        let ps_scale = Prime_int64.pow 10L (12 - (String.length s')) in
+        let ps = Int64.(mul (of_string s') ps_scale) in
+        (int_of_string s, ps)
+     | _ -> failwith "Slack_rtm.ptime_of_string") in
+  let d = s / 86400 in
+  let ps = Int64.(add ps (mul (of_int (s mod 86400)) 1_000_000_000_000L)) in
+  Ptime.v (d, ps)
+
+open Kojson_pattern
+module K = struct
+  include Kojson_pattern.K
+  let ptime = Kojson_pattern.K.convert_string "timestamp" ptime_of_string
+end
+
 type user_info = {
   id: string;
   name: string;
@@ -50,15 +71,111 @@ type connect_response = {
   url: Uri.t;
 }
 
-type message = {
+type add_message = {
   subtype: string option;
-  channel: channel;
   user: user;
   text: string;
-  ts: Ptime.t;
   source_team: team option;
   team: team option;
 }
+
+let add_message_decoder subtype =
+  "user"^: K.string %> fun user ->
+  "text"^: K.string %> fun text ->
+  "source_team"^?: Option.map K.string %> fun source_team ->
+  "team"^?: Option.map K.string %> fun team ->
+  Ka.stop (`Add {subtype; user; text; source_team; team})
+
+type previous_message = {
+  ts: Ptime.t;
+  subtype: string option;
+  user: user;
+  text: string;
+}
+
+let previous_message_decoder =
+  K.assoc begin
+    "ts"^: K.ptime %> fun ts ->
+    "subtype"^?: Option.map K.string %> fun subtype ->
+    "user"^: K.string %> fun user ->
+    "text"^: K.string %> fun text ->
+    Ka.stop {ts; subtype; user; text}
+  end
+
+type edited_message = {
+  ts: Ptime.t;
+  subtype: string option;
+  user: user;
+  text: string;
+  edited_user: user;
+  edited_ts: Ptime.t;
+}
+
+let edited_message_decoder =
+  K.assoc begin
+    "ts"^: K.ptime %> fun ts ->
+    "subtype"^?: Option.map K.string %> fun subtype ->
+    "user"^: K.string %> fun user ->
+    "text"^: K.string %> fun text ->
+    "edited"^:
+      K.assoc begin
+        "ts"^: K.ptime %> fun ts ->
+        "user"^: K.string %> fun user ->
+        Ka.stop (ts, user)
+      end %> fun (edited_ts, edited_user) ->
+    Ka.stop {ts; subtype; user; text; edited_ts; edited_user}
+  end
+
+type change_message = {
+  event_ts: Ptime.t option;
+  previous_message: previous_message;
+  message: edited_message;
+}
+
+let change_message_decoder =
+  "event_ts"^?: Option.map K.ptime %> fun event_ts ->
+  "message"^: edited_message_decoder %> fun message ->
+  "previous_message"^: previous_message_decoder %> fun previous_message ->
+  Ka.stop (`Change {event_ts; message; previous_message})
+
+type delete_message = {
+  event_ts: Ptime.t option;
+  previous_message: previous_message;
+}
+
+let delete_message_decoder =
+  "event_ts"^?: Option.map K.ptime %> fun event_ts ->
+  "previous_message"^: previous_message_decoder %> fun previous_message ->
+  Ka.stop (`Delete {event_ts; previous_message})
+
+type message_subevent =
+  [ `Add of add_message
+  | `Change of change_message
+  | `Delete of delete_message
+  | `Other of Yojson.Basic.json ]
+
+type message_event = {
+  channel: channel;
+  ts: Ptime.t;
+  sub: message_subevent;
+}
+
+let message_of_json json =
+  Kojson.jin_of_json json |> K.assoc begin
+    "type"^: K.string %> function
+     | "message" ->
+        "channel"^: K.string %> fun channel ->
+        "ts"^: K.ptime %> fun ts ->
+        "subtype"^?: Option.map K.string %> fun subtype ->
+        (match subtype with
+         | None | Some "me_message" as subtype -> add_message_decoder subtype
+         | Some "message_changed" -> change_message_decoder
+         | Some "message_deleted" -> delete_message_decoder
+         | Some _ -> Ka.stop (`Other json)) %> fun sub ->
+        `Message_event {channel; ts; sub}
+     | _ ->
+        Ka.stop `Other_event
+  end
 
 type t = {
   team: team_info;
@@ -71,7 +188,6 @@ type error = [`Msg of string]
 type error_or_closed = [error | `Closed]
 
 let decode_connect json =
-  let open Kojson_pattern in
   Kojson.jin_of_json json |> K.assoc begin
     "ok"^: K.bool %> fun ok ->
       if ok then
@@ -160,41 +276,10 @@ let receive_json conn =
    | Ok msg -> Lwt.return_ok (Yojson.Basic.from_string msg)
    | Error err -> Lwt.return_error err)
 
-let ptime_of_string ts =
-  let s, ps =
-    (match String.split_on_char '.' ts with
-     | [s] | [s; ""] ->
-        (int_of_string s, 0L)
-     | [s; s'] ->
-        let s' = if String.length s' <= 12 then s' else String.sub s' 0 12 in
-        let ps_scale = Prime_int64.pow 10L (12 - (String.length s')) in
-        let ps = Int64.(mul (of_string s') ps_scale) in
-        (int_of_string s, ps)
-     | _ -> failwith "Slack_rtm.ptime_of_string") in
-  let d = s / 86400 in
-  let ps = Int64.(add ps (mul (of_int (s mod 86400)) 1_000_000_000_000L)) in
-  Ptime.v (d, ps)
-
 let disconnect conn =
   let content = {|{"type": "goodbye"}|} in
   conn.send (Frame.create ~opcode:Opcode.Text ~content ()) >>= fun () ->
   conn.send (Frame.close 1001)
-
-let message_of_json json =
-  let open Kojson_pattern in
-  Kojson.jin_of_json json |> K.assoc begin
-    "type"^: K.string %> function
-     | "message" ->
-        "subtype"^?: Option.map K.string %> fun subtype ->
-        "channel"^: K.string %> fun channel ->
-        "user"^: K.string %> fun user ->
-        "text"^: K.string %> fun text ->
-        "ts"^: K.convert_string "timestamp" ptime_of_string %> fun ts ->
-        "source_team"^?: Option.map K.string %> fun source_team ->
-        "team"^?: Option.map K.string %> fun team ->
-        Ka.stop (`Message {subtype; channel; user; text; ts; source_team; team})
-     | _ -> Ka.stop `Unknown
-  end
 
 let rec receive conn =
   (match%lwt receive_json conn with
@@ -204,6 +289,6 @@ let rec receive conn =
           let msg = Kojson.string_of_mismatch (path, expectation)
                   ^ " while parsing " ^ Yojson.Basic.to_string json in
           Lwt.return_error (`Msg msg)
-       | (`Message _ as msg) -> Lwt.return_ok msg
-       | `Unknown -> receive conn)
+       | `Message_event msg -> Lwt.return_ok msg
+       | `Other_event -> receive conn)
    | Error _ as r -> Lwt.return r)

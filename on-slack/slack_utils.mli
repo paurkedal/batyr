@@ -24,4 +24,6 @@ type showable_error =
 
 val show_error : [< showable_error] -> string
 
+val pp_error : Format.formatter -> [< showable_error] -> unit
+
 val demarkup : Slack_cache.t -> string -> string Lwt.t

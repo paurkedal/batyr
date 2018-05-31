@@ -39,14 +39,51 @@ type user_info = {
   name: string;
 }
 
-type message = {
+type add_message = {
   subtype: string option;
-  channel: channel;
   user: user;
   text: string;
-  ts: Ptime.t;
   source_team: team option;
   team: team option;
+}
+
+type previous_message = {
+  ts: Ptime.t;
+  subtype: string option;
+  user: user;
+  text: string;
+}
+
+type edited_message = {
+  ts: Ptime.t;
+  subtype: string option;
+  user: user;
+  text: string;
+  edited_user: user;
+  edited_ts: Ptime.t;
+}
+
+type change_message = {
+  event_ts: Ptime.t option;
+  previous_message: previous_message;
+  message: edited_message;
+}
+
+type delete_message = {
+  event_ts: Ptime.t option;
+  previous_message: previous_message;
+}
+
+type message_subevent =
+  [ `Add of add_message
+  | `Change of change_message
+  | `Delete of delete_message
+  | `Other of Yojson.Basic.json ]
+
+type message_event = {
+  channel: channel;
+  ts: Ptime.t;
+  sub: message_subevent;
 }
 
 type t
@@ -65,4 +102,4 @@ val send_json : t -> Yojson.Basic.json -> unit Lwt.t
 
 val receive_json : t -> (Yojson.Basic.json, error_or_closed) result Lwt.t
 
-val receive : t -> ([`Message of message], error_or_closed) result Lwt.t
+val receive : t -> (message_event, error_or_closed) result Lwt.t
