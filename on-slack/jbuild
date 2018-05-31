@@ -3,7 +3,8 @@
 (executable
  ((name main)
   (libraries
-   (batyr-lib
+   (caqti-dynload ; OBS! Must be linked before batyr-lib.
+    batyr-lib
     cmdliner
     dns-lwt-unix
     kojson
