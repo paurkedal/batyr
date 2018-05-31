@@ -73,17 +73,20 @@ let store_message {cache; conference_domain; recipient; _}
       Logs_lwt.debug (fun m -> m "Ignoring message for room.") >>= fun () ->
       Lwt.return_ok ()
    | Some _ ->
+      let store body =
+        let message_type = `Groupchat in
+        Message.store @@
+          Message.make ~seen_time:ts ~sender ~recipient ~message_type ~body ()
+      in
       (match subtype with
        | None ->
           Logs_lwt.debug (fun m -> m "Storing message.") >>= fun () ->
           let%lwt body = Slack_utils.demarkup cache text in
-          Message.store @@ Message.make
-            ~seen_time:ts
-            ~sender
-            ~recipient
-            ~message_type:`Groupchat (* FIXME *)
-            ~body
-            ()
+          store body
+       | Some "me_message" ->
+          Logs_lwt.debug (fun m -> m "Storing /me message.") >>= fun () ->
+          let%lwt body = Slack_utils.demarkup cache text in
+          store ("/me " ^ body)
        | Some t ->
           Logs_lwt.info (fun m -> m "Ignoring message of type %s." t))
       >>= Lwt.return_ok)
