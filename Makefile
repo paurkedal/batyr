@@ -5,7 +5,7 @@ srcdir = $(shell pwd)
 all:
 	jbuilder build --dev
 	export OCAMLPATH=$(srcdir)/_build/install/default/lib \
-	  && ocaml pkg/pkg_web.ml build --build-dir _build/web
+	  && ocaml pkg/pkg_web.ml build --build-dir _build/ocamlbuild
 
 clean:
 	jbuilder clean
