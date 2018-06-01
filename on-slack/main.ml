@@ -217,17 +217,23 @@ let store_slacko_message state ~channel (message_obj : Slacko.message_obj) =
           Node.create
             ~domain_name:state.conference_domain
             ~node_name:channel_name () in
-        store_message state
-          ~channel_node
-          ~user:message_obj.user
-          ~subtype:None
-          ~text:message_obj.text
-          ~ts ()
+        (match message_obj.user with
+         | Some user ->
+            store_message state
+              ~channel_node
+              ~user
+              ~subtype:None
+              ~text:message_obj.text
+              ~ts ()
+         | None ->
+            Lwt.return_error (`Msg "No user present in historic message."))
        with
        | Ok () -> Lwt.return_unit
-       | Error err ->
+       | Error (`Msg msg) ->
+          Logs_lwt.err (fun m -> m "Failed to store message: %s" msg)
+       | Error (#Slack_utils.showable_error as err) ->
           Logs_lwt.err (fun m ->
-            m "Failed to store message: %s" (Slack_utils.show_error err)))
+            m "Failed to store message: %a" Slack_utils.pp_error err))
    | None ->
       Logs_lwt.err (fun m -> m "Invalid time float %g." message_obj.ts))
 
