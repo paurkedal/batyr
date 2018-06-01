@@ -17,18 +17,84 @@
 open Lwt.Infix
 
 type showable_error =
-  [ Slacko.parsed_auth_error
+  [ Slacko.api_error
+  | Slacko.parsed_api_error
+  | Slacko.auth_error
+  | Slacko.timestamp_error
   | Slacko.channel_error
   | Slacko.user_error
+  | Slacko.invite_error
+  | Slacko.not_in_channel_error
+  | Slacko.already_in_channel_error
+  | Slacko.archive_error
+  | Slacko.name_error
+  | Slacko.kick_error
+  | Slacko.channel_kick_error
+  | Slacko.restriction_error
+  | Slacko.leave_general_error
+  | Slacko.message_error
+  | Slacko.message_length_error
+  | Slacko.attachments_error
+  | Slacko.rate_error
+  | Slacko.message_update_error
+  | Slacko.file_error
+  | Slacko.unknown_type_error
+  | Slacko.already_archived_error
+  | Slacko.not_in_group_error
+  | Slacko.leave_last_channel_error
+  | Slacko.last_member_error
+  | Slacko.oauth_error
+  | Slacko.presence_error
   | Slacko.user_visibility_error
-  | Slacko.timestamp_error ]
+  | Slacko.invalid_name_error
+  | Slacko.bot_error
+  | Slacko.parsed_auth_error ]
 
 let show_error = function
- | #Slacko.parsed_auth_error -> "parsed_auth_error"
- | #Slacko.channel_error -> "channel_error"
- | #Slacko.user_error -> "user_error"
- | #Slacko.user_visibility_error -> "user_visibility_error"
- | #Slacko.timestamp_error -> "timestamp_error"
+ | `Unhandled_error msg -> "unhandled error: " ^ msg
+ | `Unknown_error -> "unknown error"
+ | `ParseFailure msg -> "parse failure: " ^ msg
+ | `Not_authed -> "not authenticated"
+ | `Invalid_auth -> "invalid authentication"
+ | `Account_inactive -> "account inactive"
+ | `Invalid_ts_latest -> "invalid latest timestamp"
+ | `Invalid_ts_oldest -> "invalid oldest timestamp"
+ | `Channel_not_found -> "channel not found"
+ | `User_not_found -> "user not found"
+ | `Cant_invite_self -> "can't invite self"
+ | `Cant_invite -> "can't invite"
+ | `Not_in_channel -> "not in channel"
+ | `Already_in_channel -> "already in channel"
+ | `Is_archived -> "is archived"
+ | `Name_taken -> "name taken"
+ | `Cant_kick_self -> "can't kick self"
+ | `Cant_kick_from_general -> "can't kick from general"
+ | `Cant_kick_from_last_channel -> "can't kick from last channel"
+ | `Restricted_action -> "restricted access"
+ | `Cant_leave_general -> "can't leave general"
+ | `Cant_delete_message -> "can't delete message"
+ | `Message_not_found -> "message not found"
+ | `Msg_too_long -> "message too long"
+ | `Too_many_attachments -> "too many attachments"
+ | `Rate_limited -> "rate limited"
+ | `Cant_update_message -> "can't update message"
+ | `Edit_window_closed -> "edit window closed"
+ | `File_not_found -> "file not found"
+ | `File_deleted -> "file deleted"
+ | `Unknown_type -> "unknown type"
+ | `Already_archived -> "already archived"
+ | `Not_in_group -> "not in group"
+ | `Cant_leave_last_channel -> "can't leave last channel"
+ | `Last_member -> "last member of channel"
+ | `Invalid_client_id -> "invalid client ID"
+ | `Bad_client_secret -> "bad client secret"
+ | `Invalid_code -> "invalid code"
+ | `Bad_redirect_uri -> "bad redirect URI"
+ | `Invalid_presence -> "invalid presence"
+ | `User_not_visible -> "user not visible"
+ | `Invalid_name -> "invalid name"
+ | `User_is_bot -> "user is bot"
+ | `User_is_restricted -> "user is restricted"
 
 let pp_error ppf error =
   Format.pp_print_string ppf (show_error error)
