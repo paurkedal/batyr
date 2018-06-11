@@ -104,7 +104,7 @@ let update_message_id =
      | Error err -> Lwt.return_error err)
 
 let store_message {cache; recipient; _}
-    ~channel_node ~user ~subtype ~text ~ts () =
+    ~channel_node ~user ~subtype ?text ~ts () =
   Slack_cache.user_obj_of_user cache user >>=? fun user_obj ->
   let user_name = user_obj.Slacko.name in
   let sender = Resource.create_on_node channel_node user_name in
@@ -113,17 +113,19 @@ let store_message {cache; recipient; _}
     Message.store @@
       Message.make ~seen_time:ts ~sender ~recipient ~message_type ~body ()
   in
-  (match subtype with
-   | None ->
+  (match subtype, text with
+   | None, Some text ->
       Logs_lwt.debug (fun m -> m "Storing message.") >>= fun () ->
       let%lwt body = Slack_utils.demarkup cache text in
       store body
-   | Some "me_message" ->
+   | Some "me_message", Some text ->
       Logs_lwt.debug (fun m -> m "Storing /me message.") >>= fun () ->
       let%lwt body = Slack_utils.demarkup cache text in
       store ("/me " ^ body)
-   | Some t ->
-      Logs_lwt.info (fun m -> m "Ignoring message of type %s." t))
+   | Some t, _ ->
+      Logs_lwt.info (fun m -> m "Ignoring message of type %s." t)
+   | _, None ->
+      Logs_lwt.info (fun m -> m "Ignoring empty message."))
   >>= Lwt.return_ok
 
 let update_message {cache; recipient; _}
@@ -207,45 +209,38 @@ let store_rtm_message state message_event =
 
 let store_slacko_message state ~channel (message_obj : Slacko.message_obj) =
   let open Slacko in
-  (match Ptime.of_float_s message_obj.ts with
-   | Some ts ->
-      (match%lwt
-        Slack_cache.channel_obj_of_channel state.cache channel
-          >>=? fun channel_obj ->
-        let channel_name = channel_obj.Slacko.name in
-        let channel_node =
-          Node.create
-            ~domain_name:state.conference_domain
-            ~node_name:channel_name () in
-        (match message_obj.user with
-         | Some user ->
-            store_message state
-              ~channel_node
-              ~user
-              ~subtype:None
-              ~text:message_obj.text
-              ~ts ()
-         | None ->
-            Lwt.return_error (`Msg "No user present in historic message."))
-       with
-       | Ok () -> Lwt.return_unit
-       | Error (`Msg msg) ->
-          Logs_lwt.err (fun m -> m "Failed to store message: %s" msg)
-       | Error (#Slack_utils.showable_error as err) ->
-          Logs_lwt.err (fun m ->
-            m "Failed to store message: %a" Slack_utils.pp_error err))
-   | None ->
-      Logs_lwt.err (fun m -> m "Invalid time float %g." message_obj.ts))
+  (match%lwt
+    Slack_cache.channel_obj_of_channel state.cache channel
+      >>=? fun channel_obj ->
+    let channel_name = channel_obj.Slacko.name in
+    let channel_node =
+      Node.create
+        ~domain_name:state.conference_domain
+        ~node_name:channel_name () in
+    (match message_obj.user with
+     | Some user ->
+        store_message state
+          ~channel_node
+          ~user
+          ~subtype:None
+          ?text:message_obj.text
+          ~ts:message_obj.ts ()
+     | None ->
+        Lwt.return_error (`Msg "No user present in historic message."))
+   with
+   | Ok () -> Lwt.return_unit
+   | Error (`Msg msg) ->
+      Logs_lwt.err (fun m -> m "Failed to store message: %s" msg)
+   | Error (#Slack_utils.showable_error as err) ->
+      Logs_lwt.err (fun m ->
+        m "Failed to store message: %a" Slack_utils.pp_error err))
 
 let messages_ts_range message_objs =
   let aux (message_obj : Slacko.message_obj) (ts_min, ts_max) =
     let ts = message_obj.Slacko.ts in
-    (min ts_min ts, max ts_max ts) in
-  List.fold aux message_objs (max_float, 0.0)
-
-let pp_ptime_opt ppf = function
- | None -> Format.pp_print_string ppf "?"
- | Some t -> Ptime.pp ppf t
+    ((if Ptime.is_earlier ~than:ts_min ts then ts else ts_min),
+     (if Ptime.is_later ~than:ts_max ts then ts else ts_max)) in
+  List.fold aux message_objs (Ptime.max, Ptime.min)
 
 let rec fetch_recent state channelname oldest =
   let session = Slack_cache.session state.cache in
@@ -262,8 +257,7 @@ let rec fetch_recent state channelname oldest =
         Logs_lwt.info (fun m ->
           m "Received %d messages for %s in time range [%a, %a]."
             (List.length messages) channelname
-            pp_ptime_opt (Ptime.of_float_s ts_min)
-            pp_ptime_opt (Ptime.of_float_s ts_max))
+            pp_ptime ts_min pp_ptime ts_max)
           >>= fun () ->
         Lwt_list.iter_s (store_slacko_message state ~channel) messages
           >>= fun () ->
@@ -308,8 +302,8 @@ let fetch_all_recent state =
      | channelname, Some latest ->
         Logs_lwt.info (fun m ->
           m "Requesting messages since %a for %s."
-            Ptime.pp latest channelname) >>= fun () ->
-        fetch_recent state channelname (Ptime.to_float_s latest))
+            pp_ptime latest channelname) >>= fun () ->
+        fetch_recent state channelname latest)
 
 let rec monitor state conn =
   (match%lwt Slack_rtm.receive conn with
