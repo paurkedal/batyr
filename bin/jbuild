@@ -4,6 +4,7 @@
  ((name batyr_on_slack_main)
   (public_name batyr-on-slack)
   (package batyr-on-slack)
+  (preprocess (pps (lwt_ppx)))
   (libraries
    (caqti-dynload
     batyr-on-slack

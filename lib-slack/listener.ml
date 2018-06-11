@@ -354,7 +354,7 @@ let launch config =
       Lwt_unix.disable_signal_handler kill_handler;
       Logs_lwt.info (fun m -> m "Disconnecting and exiting.") >>= fun () ->
       Slack_rtm.disconnect conn >|= fun () ->
-      0 (* exit code *)
+      `Lost_connection
    | Error (`Msg s) ->
       Logs_lwt.err (fun m -> m "%s" s) >|= fun () ->
-      69 (* exit code *))
+      `Failed_to_connect)

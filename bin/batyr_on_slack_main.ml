@@ -14,10 +14,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Lwt.Infix
+
 let main config_path =
   let config = Batyr_slack.Listener.load_config config_path in
   Logs.set_level config.log_level;
-  Lwt_main.run (Batyr_slack.Listener.launch config)
+  let backoff = Batyr_backoff.create () in
+  Lwt_main.run
+    (while%lwt true do
+      (match%lwt Batyr_slack.Listener.launch config with
+       | `Failed_to_connect | `Lost_connection ->
+          let dt = Batyr_backoff.next backoff in
+          Logs_lwt.info (fun p -> p "Reconnecting in %.3g s." dt) >>= fun () ->
+          Lwt_unix.sleep dt)
+    done)
 
 let main_cmd =
   let open Cmdliner in
@@ -49,5 +59,5 @@ let () =
 let () =
   (match Cmdliner.Term.eval main_cmd with
    | `Error _ -> exit 64
-   | `Ok ec -> exit ec
+   | `Ok () -> exit 0
    | `Version | `Help -> exit 0)
