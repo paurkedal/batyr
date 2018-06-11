@@ -15,8 +15,8 @@
  *)
 
 open Batyr_data
-open Batyrox_data
-open Batyrox_xmpp
+open Data
+open Xmpp_inst
 open CalendarLib
 open Lwt.Infix
 open Printf
@@ -368,7 +368,7 @@ module Session = struct
       cs.cs_chat <- Connected chat;
       Lwt_condition.broadcast chat_cond ();
       let account_id = Resource.cached_id account_resource |> Option.get in
-      Batyr_db.use_exn (Batyrox_sql.Presence.room_presence account_id) >>=
+      Batyr_db.use_exn (Sql.Presence.room_presence account_id) >>=
       Lwt_list.iter_s (muc_handler cs)
 
   let account_key account =
@@ -388,7 +388,7 @@ module Session = struct
       if cs.cs_chat <> Shutdown then
         cs.cs_chat <- Disconnected (Lwt_condition.create ());
       Hashtbl.clear cs.cs_rooms in
-    try%lwt Batyrox_xmpp.with_chat (chat_handler cs) params with
+    try%lwt Xmpp_inst.with_chat (chat_handler cs) params with
     | End_of_file ->
       clear_cs ();
       Lwt_log.error_f ~section "Lost connection."

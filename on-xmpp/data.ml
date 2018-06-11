@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Batyrox_xmpp
+open Xmpp_inst
 open Unprime_option
 
 module Node = struct

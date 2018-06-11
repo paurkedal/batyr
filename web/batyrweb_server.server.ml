@@ -41,4 +41,4 @@ let status_service =
   let get = Eliom_parameter.unit in
   Eliom_service.(create ~path:(Path ["status"]) ~meth:(Get get) ())
 
-let () = Lwt.async Batyrox_presence.Session.start_all
+let () = Lwt.async Batyr_xmpp.Presence.Session.start_all
