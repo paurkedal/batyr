@@ -1,11 +1,10 @@
 (jbuild_version 1)
 
-(executable
- ((name main)
+(library
+ ((name batyr_slack)
+  (public_name batyr-on-slack)
   (libraries
-   (caqti-dynload ; OBS! Must be linked before batyr-lib.
-    batyr-lib
-    cmdliner
+   (batyr-lib
     dns-lwt-unix
     kojson
     logs
@@ -17,8 +16,3 @@
     websocket
     websocket.lwt))
   (preprocess (pps (lwt_ppx ppx_compose ppx_regexp)))))
-
-(install
- ((package batyr-on-slack)
-  (section bin)
-  (files ((main.exe as batyr-on-slack)))))

@@ -327,70 +327,34 @@ let rec monitor state conn =
       Logs_lwt.err (fun m -> m "%s" msg) >>= fun () ->
       monitor state conn)
 
-let main config_path =
-  let config = load_config config_path in
-  Logs.set_level config.log_level;
+let launch config =
   let cache = Slack_cache.create ~token:config.token () in
-  Lwt_main.run
-    (match%lwt Slack_rtm.connect ~token:config.bot_token () with
-     | Ok conn ->
-        let disconnected, disconnect = Lwt.wait () in
-        let kill_handler = Lwt_unix.on_signal 2
-          (fun _ -> Lwt.wakeup_later disconnect ()) in
-        let team_info = Slack_rtm.team_info conn in
-        let team_name = team_info.Slack_rtm.name in
-        let user_info = Slack_rtm.user_info conn in
-        let user_name = user_info.Slack_rtm.name in
-        let conference_domain =
-          sprintf "conference.%s.xmpp.slack.com"
-            (String.lowercase_ascii team_name) in
-        let recipient =
-          let domain_name = team_name ^ ".xmpp.slack.com" in
-          let resource_name = "batyr-logger-slack" in
-          Resource.create ~domain_name ~node_name:user_name ~resource_name () in
-        let state = {cache; team_info; conference_domain; recipient} in
-        let recent_fetcher = fetch_all_recent state in
-        Lwt.join [
-          recent_fetcher;
-          Lwt.choose [monitor state conn; disconnected]
-        ] >>= fun () ->
-        Lwt_unix.disable_signal_handler kill_handler;
-        Logs_lwt.info (fun m -> m "Disconnecting and exiting.") >>= fun () ->
-        Slack_rtm.disconnect conn >|= fun () ->
-        0 (* exit code *)
-     | Error (`Msg s) ->
-        Logs_lwt.err (fun m -> m "%s" s) >|= fun () ->
-        69 (* exit code *))
-
-let main_cmd =
-  let open Cmdliner in
-  let config =
-    Arg.(required (pos 0 (some string) None (info ~docv:"CONFIG" []))) in
-  let term = Term.(const main $ config) in
-  let info = Term.info (Filename.basename Sys.argv.(0)) in
-  (term, info)
-
-let () =
-  let buf_fmt ~like =
-    let b = Buffer.create 512 in
-    Fmt.with_buffer ~like b,
-    fun () -> let m = Buffer.contents b in Buffer.reset b; m in
-  let app, app_flush = buf_fmt ~like:Fmt.stdout in
-  let dst, dst_flush = buf_fmt ~like:Fmt.stderr in
-  let reporter = Logs_fmt.reporter ~app ~dst () in
-  let report src level ~over k msgf =
-    let k () =
-      let write () = match level with
-       | Logs.App -> Lwt_io.write Lwt_io.stdout (app_flush ())
-       | _ -> Lwt_io.write Lwt_io.stderr (dst_flush ()) in
-      let unblock () = over (); Lwt.return_unit in
-      Lwt.finalize write unblock |> Lwt.ignore_result;
-      k () in
-    reporter.Logs.report src level ~over:(fun () -> ()) k msgf in
-  Logs.set_reporter {Logs.report = report}
-
-let () =
-  (match Cmdliner.Term.eval main_cmd with
-   | `Error _ -> exit 64
-   | `Ok ec -> exit ec
-   | `Version | `Help -> exit 0)
+  (match%lwt Slack_rtm.connect ~token:config.bot_token () with
+   | Ok conn ->
+      let disconnected, disconnect = Lwt.wait () in
+      let kill_handler = Lwt_unix.on_signal 2
+        (fun _ -> Lwt.wakeup_later disconnect ()) in
+      let team_info = Slack_rtm.team_info conn in
+      let team_name = team_info.Slack_rtm.name in
+      let user_info = Slack_rtm.user_info conn in
+      let user_name = user_info.Slack_rtm.name in
+      let conference_domain =
+        sprintf "conference.%s.xmpp.slack.com"
+          (String.lowercase_ascii team_name) in
+      let recipient =
+        let domain_name = team_name ^ ".xmpp.slack.com" in
+        let resource_name = "batyr-logger-slack" in
+        Resource.create ~domain_name ~node_name:user_name ~resource_name () in
+      let state = {cache; team_info; conference_domain; recipient} in
+      let recent_fetcher = fetch_all_recent state in
+      Lwt.join [
+        recent_fetcher;
+        Lwt.choose [monitor state conn; disconnected]
+      ] >>= fun () ->
+      Lwt_unix.disable_signal_handler kill_handler;
+      Logs_lwt.info (fun m -> m "Disconnecting and exiting.") >>= fun () ->
+      Slack_rtm.disconnect conn >|= fun () ->
+      0 (* exit code *)
+   | Error (`Msg s) ->
+      Logs_lwt.err (fun m -> m "%s" s) >|= fun () ->
+      69 (* exit code *))

@@ -1,0 +1,13 @@
+(jbuild_version 1)
+
+(executable
+ ((name batyr_on_slack_main)
+  (public_name batyr-on-slack)
+  (package batyr-on-slack)
+  (libraries
+   (caqti-dynload
+    batyr-on-slack
+    cmdliner
+    fmt
+    logs
+    logs.fmt))))
