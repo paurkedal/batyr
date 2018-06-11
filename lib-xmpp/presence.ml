@@ -28,36 +28,6 @@ let section = Lwt_log.Section.make "batyr.presence"
 
 exception Session_shutdown
 
-module Backoff = struct
-
-  type t = {
-    dt_avg : float;
-    c_sat : float;
-    lc_sat : float;
-    lc_min : float;
-    fuzz : float;
-    mutable t_norm : float;
-    mutable c_cur : float;
-  }
-
-  let create ?(dt_min = 5.0) ?(dt_sat = 3600.0)
-             ?(dt_avg = 86400.0) ?(fuzz = 0.1) () =
-    let c_sat = dt_avg /. dt_sat in
-    let lc_sat = log c_sat in
-    let lc_min = log (dt_avg /. dt_min) in
-    { dt_avg; c_sat; lc_sat; lc_min; fuzz;
-      t_norm = 0.0; c_cur = 0.0; }
-
-  let next b =
-    let t = Unix.time () in
-    let dt = t -. b.t_norm in
-    b.t_norm <- t;
-    b.c_cur <- 1.0 +. b.c_cur *. exp (-. dt /. b.dt_avg);
-    let p = b.c_cur /. b.c_sat in
-    b.dt_avg *. exp ((p -. 1.0) *. b.lc_min -. p *. b.lc_sat)
-             *. (1.0 +. b.fuzz *. (1.0 -. Random.float 2.0))
-end
-
 type muc_session = {
   ms_room : Muc_room.t;
   ms_users_by_nick : (string, Muc_user.t) Hashtbl.t;
@@ -278,12 +248,12 @@ let drive_signal
       f s =
   let cond = Lwt_condition.create () in
   let driver () =
-    let backoff = Backoff.create () in
+    let backoff = Batyr_backoff.create () in
     while%lwt true do
       if React.S.value s
       then Lwt_condition.wait cond >>= fun () -> Lwt_unix.sleep dt_edge
       else
-        let dt = Backoff.next backoff in
+        let dt = Batyr_backoff.next backoff in
         f () >>= fun () ->
         Lwt_log.info_f ~section "Will wait %.3g s before next %s." dt what
           >>= fun () ->
@@ -412,7 +382,7 @@ module Session = struct
       cs_emit_message;  cs_messages;
     } in
     Hashtbl.add chat_sessions key cs;
-    let backoff = Backoff.create () in
+    let backoff = Batyr_backoff.create () in
     let rec connect_loop () =
       let t_start = Unix.time () in
       run_once cs >>= fun () ->
@@ -420,7 +390,7 @@ module Session = struct
       if cs.cs_chat = Shutdown then
         Lwt_log.info_f ~section "Session shut down after %g s." t_dur
       else
-        let t_sleep = Backoff.next backoff in
+        let t_sleep = Batyr_backoff.next backoff in
         Lwt_log.info_f ~section "Session lasted %g s, will re-connect in %g s."
                        t_dur t_sleep >>= fun () ->
         Lwt_unix.sleep t_sleep >>= fun () ->

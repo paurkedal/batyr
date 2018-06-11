@@ -5,7 +5,8 @@
   (public_name batyr-lib)
   (wrapped false)
   (modules
-   (Batyr_cache
+   (Batyr_backoff
+    Batyr_cache
     Batyr_config
     Batyr_data
     Batyr_db
