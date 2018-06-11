@@ -249,7 +249,7 @@ let track_presence_of my_jid is_present stanza =
   match Chat.(stanza.jid_from, stanza.content.presence_type) with
   | Some sender_jid, Some Chat.Unavailable when sender_jid = my_jid ->
     begin match
-      List.filter_map
+      List.fmap
         (fun e -> try Chat_muc.User.((Option.get ((decode e).item)).reason)
                   with Not_found -> None)
         Chat.(stanza.x)

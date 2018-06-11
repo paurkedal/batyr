@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ module Html_R = struct
     else Some (React.S.trace update csig)
 
   let append_child_signals p csigs =
-    let updaters = List.filter_map (append_child_signal' p) csigs in
+    let updaters = List.fmap (append_child_signal' p) csigs in
     if updaters <> [] then retain updaters p
 
   let div ?a esigs =
