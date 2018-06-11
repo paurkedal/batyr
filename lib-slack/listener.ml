@@ -331,9 +331,13 @@ let launch config =
   let cache = Slack_cache.create ~token:config.token () in
   (match%lwt Slack_rtm.connect ~token:config.bot_token () with
    | Ok conn ->
+      let disconnect_status = ref `Lost_connection in
       let disconnected, disconnect = Lwt.wait () in
-      let kill_handler = Lwt_unix.on_signal 2
-        (fun _ -> Lwt.wakeup_later disconnect ()) in
+      let kill_handler sn =
+        disconnect_status := `Signalled sn;
+        Lwt.wakeup_later disconnect () in
+      let kill_handler_ids =
+        List.map (fun sn -> Lwt_unix.on_signal sn kill_handler) [1; 2; 15] in
       let team_info = Slack_rtm.team_info conn in
       let team_name = team_info.Slack_rtm.name in
       let user_info = Slack_rtm.user_info conn in
@@ -351,10 +355,10 @@ let launch config =
         recent_fetcher;
         Lwt.choose [monitor state conn; disconnected]
       ] >>= fun () ->
-      Lwt_unix.disable_signal_handler kill_handler;
+      List.iter Lwt_unix.disable_signal_handler kill_handler_ids;
       Logs_lwt.info (fun m -> m "Disconnecting and exiting.") >>= fun () ->
       Slack_rtm.disconnect conn >|= fun () ->
-      `Lost_connection
+      !disconnect_status
    | Error (`Msg s) ->
       Logs_lwt.err (fun m -> m "%s" s) >|= fun () ->
       `Failed_to_connect)

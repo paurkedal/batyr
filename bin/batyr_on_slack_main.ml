@@ -17,17 +17,28 @@
 open Lwt.Infix
 
 let main config_path =
-  let config = Batyr_slack.Listener.load_config config_path in
-  Logs.set_level config.log_level;
   let backoff = Batyr_backoff.create () in
-  Lwt_main.run
-    (while%lwt true do
-      (match%lwt Batyr_slack.Listener.launch config with
-       | `Failed_to_connect | `Lost_connection ->
-          let dt = Batyr_backoff.next backoff in
-          Logs_lwt.info (fun p -> p "Reconnecting in %.3g s." dt) >>= fun () ->
-          Lwt_unix.sleep dt)
-    done)
+  Lwt_main.run begin
+    let rec start () =
+      let config = Batyr_slack.Listener.load_config config_path in
+      Logs.set_level config.log_level;
+      let rec keep_alive () =
+        (match%lwt Batyr_slack.Listener.launch config with
+         | `Signalled 1 -> (* HUP *)
+            Logs_lwt.info (fun p ->
+              p "Reloading config and reconnecting due to SIGHUP.")
+              >>= fun () ->
+            start ()
+         | `Signalled sn ->
+            Logs_lwt.info (fun p -> p "Session terminated due to signal %d." sn)
+         | `Failed_to_connect | `Lost_connection ->
+            let dt = Batyr_backoff.next backoff in
+            Logs_lwt.info (fun p -> p "Reconnecting in %.3g s." dt) >>= fun () ->
+            Lwt_unix.sleep dt >>= fun () ->
+            keep_alive ()) in
+      keep_alive () in
+    start ()
+  end
 
 let main_cmd =
   let open Cmdliner in
