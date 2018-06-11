@@ -258,18 +258,24 @@ let send_json conn json =
   conn.send (Frame.create ~opcode:Opcode.Text ~content ())
 
 let rec receive_text conn =
-  let%lwt frame = conn.receive () in
-  (match frame.Frame.opcode with
-   | Opcode.Continuation -> assert false (* TODO *)
-   | Opcode.Text -> Lwt.return_ok frame.Frame.content
-   | Opcode.Binary -> receive_text conn
-   | Opcode.Close -> Lwt.return_error `Closed
-   | Opcode.Ping ->
-      Logs_lwt.info (fun m -> m "ping-pong") >>= fun () ->
-      conn.send (Frame.create ~opcode:Opcode.Pong ()) >>= fun () ->
-      receive_text conn
-   | Opcode.Pong -> assert false (* TODO: If we need to ping. *)
-   | Opcode.Ctrl _ | Opcode.Nonctrl _ -> receive_text conn)
+  try%lwt
+    let%lwt frame = conn.receive () in
+    (match frame.Frame.opcode with
+     | Opcode.Continuation -> assert false (* TODO *)
+     | Opcode.Text -> Lwt.return_ok frame.Frame.content
+     | Opcode.Binary -> receive_text conn
+     | Opcode.Close -> Lwt.return_error `Closed
+     | Opcode.Ping ->
+        Logs_lwt.info (fun m -> m "ping-pong") >>= fun () ->
+        conn.send (Frame.create ~opcode:Opcode.Pong ()) >>= fun () ->
+        receive_text conn
+     | Opcode.Pong -> assert false (* TODO: If we need to ping. *)
+     | Opcode.Ctrl _ | Opcode.Nonctrl _ -> receive_text conn)
+  with End_of_file ->
+    Logs_lwt.err (fun m ->
+      m "Unexpeted end of file from Slack RTM, will be handled as if closed.")
+      >>= fun () ->
+    Lwt.return_error `Closed
 
 let receive_json conn =
   (match%lwt receive_text conn with
