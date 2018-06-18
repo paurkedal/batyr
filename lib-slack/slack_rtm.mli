@@ -90,7 +90,11 @@ type t
 type error = [`Msg of string]
 type error_or_closed = [error | `Closed]
 
-val connect : token: string -> unit -> (t, error) result Lwt.t
+val connect :
+  token: string ->
+  ?ping_period: Ptime.Span.t ->
+  ?ping_patience: Ptime.Span.t ->
+  unit -> (t, error) result Lwt.t
 
 val disconnect : t -> unit Lwt.t
 

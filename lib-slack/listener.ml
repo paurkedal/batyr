@@ -17,10 +17,28 @@
 open Batyr_data
 open Lwt.Infix
 open Printf
+open Unprime_char
 open Unprime_list
 open Unprime_option
+open Unprime_string
 
 let pp_ptime = Ptime.pp_human ~frac_s:6 ()
+
+let ptime_span_of_string s =
+  let s = String.trim s in
+  let i = String.rskip_while Char.is_alnum s (String.length s) in
+  let x = float_of_string String.(slice 0 i s |> trim) in
+  let scale =
+    (match String.slice_from i s with
+     | "ms" -> 1e-3
+     | "" | "s" -> 1.0
+     | "min" -> 60.0
+     | "h" | "hour" -> 3600.0
+     | "day" -> 86400.0
+     | _ -> failwith "Invalid time unit.") in
+  (match Ptime.Span.of_float_s (x *. scale) with
+   | Some t -> t
+   | None -> failwith "Invalid time span.")
 
 let require what = function
  | None -> Error (`Msg ("Did not find " ^ what ^ "."))
@@ -30,6 +48,8 @@ type config = {
   token: string;
   bot_token: string;
   log_level: Logs.level option;
+  ping_period: Ptime.Span.t option;
+  ping_patience: Ptime.Span.t option;
 }
 
 let log_level_of_string s =
@@ -40,13 +60,22 @@ let log_level_of_string s =
 let load_config path =
   let open Kojson_pattern in
   let json = Yojson.Basic.from_file path in
+  let ptime_span = K.convert_string "Ptime.Span.t" ptime_span_of_string in
   Kojson.jin_of_json json |> K.assoc begin
     "token"^: K.string %> fun token ->
     "bot_token"^?: Option.map K.string %> fun bot_token ->
     "log-level"^?:
       Option.fmap (K.convert_string "Logs.level" log_level_of_string)
         %> fun log_level ->
-    Ka.stop {token; bot_token = Option.get_or token bot_token; log_level}
+    "ping-period"^?: Option.map ptime_span %> fun ping_period ->
+    "ping-patience"^?: Option.map ptime_span %> fun ping_patience ->
+    Ka.stop {
+      token;
+      bot_token = Option.get_or token bot_token;
+      log_level;
+      ping_period;
+      ping_patience;
+    }
   end
 
 let (>>=?) m f =

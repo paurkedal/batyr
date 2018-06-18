@@ -182,6 +182,9 @@ type t = {
   user: user_info;
   receive: unit -> Websocket.Frame.t Lwt.t;
   send: Websocket.Frame.t -> unit Lwt.t;
+  ping_period: Ptime.Span.t;
+  ping_patience: Ptime.Span.t;
+  mutable latest_ping: Ptime.t;
 }
 
 type error = [`Msg of string]
@@ -211,11 +214,22 @@ let decode_connect json =
         Ka.stop (Error (`Msg msg))
   end
 
-let connect_ws resp =
+let default_ping_period = Ptime.Span.of_int_s 240
+let default_ping_patience = Ptime.Span.of_int_s 600
+
+let connect_ws ~ping_period ~ping_patience resp =
   let uri = resp.url in
   let connect_to endp =
     let%lwt receive, send = Websocket_lwt.with_connection endp uri in
-    Lwt.return_ok {team = resp.team; user = resp.self; receive; send} in
+    Lwt.return_ok {
+      team = resp.team;
+      user = resp.self;
+      receive;
+      send;
+      ping_period;
+      ping_patience;
+      latest_ping = Ptime_clock.now ();
+    } in
   (match Uri.scheme uri, Uri.host uri with
    | Some "wss", Some host ->
       let%lwt resolver = Dns_resolver_unix.create () in
@@ -229,7 +243,10 @@ let connect_ws resp =
    | _ ->
       Lwt.return_error (`Msg ("Unexpected WebSocket URI " ^ Uri.to_string uri)))
 
-let connect ~token () =
+let connect
+    ~token
+    ?(ping_period = default_ping_period)
+    ?(ping_patience = default_ping_patience) () =
   let q = [
     "token", [token];
     "batch_presence_aware", ["1"];
@@ -240,7 +257,7 @@ let connect ~token () =
    | `OK ->
       let%lwt body = Cohttp_lwt.Body.to_string body in
       (match body |> Yojson.Basic.from_string |> decode_connect with
-       | Ok resp -> connect_ws resp
+       | Ok resp -> connect_ws ~ping_period ~ping_patience resp
        | Error _ as r -> Lwt.return r)
    | status ->
       let msg =
@@ -257,19 +274,42 @@ let send_json conn json =
   let content = Yojson.Basic.to_string json in
   conn.send (Frame.create ~opcode:Opcode.Text ~content ())
 
+let rec wake_from_limbo conn =
+  Lwt_unix.sleep (Ptime.Span.to_float_s conn.ping_period) >>= fun () ->
+  let ping_age = Ptime.diff (Ptime_clock.now ()) conn.latest_ping in
+  if Ptime.Span.compare ping_age conn.ping_period < 0 then
+    wake_from_limbo conn else
+  if Ptime.Span.compare ping_age conn.ping_patience < 0 then begin
+    Logs_lwt.debug (fun m ->
+      m "Sent ping; non seen for %a" Ptime.Span.pp ping_age) >>= fun () ->
+    conn.send (Frame.create ~opcode:Opcode.Ping ()) >>= fun () ->
+    wake_from_limbo conn
+  end else
+  Logs_lwt.err (fun m -> m
+    "Issuing EOF; no ping seen for %a" Ptime.Span.pp ping_age) >>= fun () ->
+  Lwt.fail End_of_file
+
 let rec receive_text conn =
+  conn.latest_ping <- Ptime_clock.now ();
   try%lwt
-    let%lwt frame = conn.receive () in
+    let%lwt frame = Lwt.pick [
+      conn.receive ();
+      wake_from_limbo conn;
+    ] in
     (match frame.Frame.opcode with
      | Opcode.Continuation -> assert false (* TODO *)
      | Opcode.Text -> Lwt.return_ok frame.Frame.content
      | Opcode.Binary -> receive_text conn
      | Opcode.Close -> Lwt.return_error `Closed
      | Opcode.Ping ->
-        Logs_lwt.info (fun m -> m "ping-pong") >>= fun () ->
+        conn.latest_ping <- Ptime_clock.now ();
+        Logs_lwt.info (fun m -> m "Received ping.") >>= fun () ->
         conn.send (Frame.create ~opcode:Opcode.Pong ()) >>= fun () ->
         receive_text conn
-     | Opcode.Pong -> assert false (* TODO: If we need to ping. *)
+     | Opcode.Pong ->
+        Logs_lwt.info (fun m -> m "Received pong.") >>= fun () ->
+        conn.latest_ping <- Ptime_clock.now ();
+        receive_text conn
      | Opcode.Ctrl _ | Opcode.Nonctrl _ -> receive_text conn)
   with End_of_file ->
     Logs_lwt.err (fun m ->
