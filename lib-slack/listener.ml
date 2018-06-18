@@ -30,9 +30,9 @@ let ptime_span_of_string s =
   let x = float_of_string String.(slice 0 i s |> trim) in
   let scale =
     (match String.slice_from i s with
-     | "ms" -> 1e-3
-     | "" | "s" -> 1.0
-     | "min" -> 60.0
+     | "ms" | "millisecond" -> 1e-3
+     | "" | "s" | "second" -> 1.0
+     | "min" | "minute" -> 60.0
      | "h" | "hour" -> 3600.0
      | "day" -> 86400.0
      | _ -> failwith "Invalid time unit.") in
