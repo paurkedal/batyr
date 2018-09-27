@@ -1,17 +1,12 @@
-opam-version: "1.2"
+opam-version: "2.0"
 name: "batyr-web"
-author: "Petter A. Urkedal <paurkedal@gmail.com>"
 maintainer: "Petter A. Urkedal <paurkedal@gmail.com>"
+authors: "Petter A. Urkedal <paurkedal@gmail.com>"
+license: "GPL-3"
 homepage: "https://github.com/paurkedal/batyr/"
 bug-reports: "https://github.com/paurkedal/batyr/issues"
-dev-repo: "https://github.com/paurkedal/batyr.git"
-license: "GPL-3"
-build: [
-  "ocaml" "pkg/pkg_web.ml" "build"
-          "--pkg-name" name
-          "--dev-pkg" "%{pinned}%"
-]
 depends: [
+  "ocaml"
   "batyr-lib"
   "batyr-on-xmpp"
   "calendar"
@@ -34,3 +29,7 @@ depends: [
   "topkg" {build}
   "yojson"
 ]
+build: [
+  "ocaml" "pkg/pkg_web.ml" "build" "--pkg-name" name "--dev-pkg" "%{pinned}%"
+]
+dev-repo: "git+https://github.com/paurkedal/batyr.git"
