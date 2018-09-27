@@ -1,14 +1,12 @@
-(jbuild_version 1)
-
 (executable
- ((name batyr_on_slack_main)
+  (name batyr_on_slack_main)
   (public_name batyr-on-slack)
   (package batyr-on-slack)
-  (preprocess (pps (lwt_ppx)))
+  (preprocess (pps lwt_ppx))
   (libraries
-   (caqti-dynload
+    caqti-dynload
     batyr-on-slack
     cmdliner
     fmt
     logs
-    logs.fmt))))
+    logs.fmt))

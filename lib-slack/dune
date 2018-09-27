@@ -1,10 +1,8 @@
-(jbuild_version 1)
-
 (library
- ((name batyr_slack)
+  (name batyr_slack)
   (public_name batyr-on-slack)
   (libraries
-   (batyr-lib
+    batyr-lib
     dns-lwt-unix
     kojson
     logs
@@ -14,5 +12,5 @@
     re.pcre
     slacko
     websocket
-    websocket.lwt))
-  (preprocess (pps (lwt_ppx ppx_compose ppx_regexp)))))
+    websocket.lwt)
+  (preprocess (pps lwt_ppx ppx_compose ppx_regexp)))

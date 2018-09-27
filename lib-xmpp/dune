@@ -1,19 +1,17 @@
-(jbuild_version 1)
-
 (library
- ((name batyr_xmpp)
+  (name batyr_xmpp)
   (public_name batyr-on-xmpp)
   (modules
-   (Data
+    Data
     Presence
     Sql ; internal
-    Xmpp_inst))
+    Xmpp_inst)
   (libraries
-   (batyr-lib
+    batyr-lib
     caqti
     caqti-lwt
     caqti-type-calendar
     erm_xmpp
     tls
-    x509))
-  (preprocess (pps (lwt_ppx)))))
+    x509)
+  (preprocess (pps lwt_ppx)))

@@ -1,11 +1,9 @@
-(jbuild_version 1)
-
 (library
- ((name batyr_lib)
+  (name batyr_lib)
   (public_name batyr-lib)
   (wrapped false)
   (modules
-   (Batyr_backoff
+    Batyr_backoff
     Batyr_cache
     Batyr_config
     Batyr_data
@@ -16,9 +14,9 @@
     Batyr_search_parser ; internal
     Batyr_search_types
     Batyr_sql           ; internal
-    Batyr_version))
+    Batyr_version)
   (libraries
-   (calendar
+    calendar
     caqti
     caqti-lwt
     caqti-type-calendar
@@ -30,13 +28,13 @@
     prime.unstable
     ptime
     ptime.clock.os
-    react))
+    react)
   (preprocess
-   (pps (js_of_ocaml-ppx.deriving lwt.ppx ppx_compose ppx_deriving)))))
+   (pps js_of_ocaml-ppx.deriving lwt.ppx ppx_compose ppx_deriving)))
 
-(ocamllex (batyr_search_lexer))
-(ocamlyacc (batyr_search_parser))
+(ocamllex batyr_search_lexer)
+(ocamlyacc batyr_search_parser)
 (rule
- ((targets (batyr_search_types.ml))
-  (deps (batyr_search_types.mli))
-  (action (copy ${<} ${@}))))
+  (targets batyr_search_types.ml)
+  (deps batyr_search_types.mli)
+  (action (copy %{deps} %{targets})))
