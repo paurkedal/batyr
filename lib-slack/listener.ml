@@ -152,10 +152,11 @@ let store_message {cache; recipient; _}
       let%lwt body = Slack_utils.demarkup cache text in
       store ("/me " ^ body)
    | Some t, _ ->
-      Logs_lwt.info (fun m -> m "Ignoring message of type %s." t)
+      Logs_lwt.info (fun m -> m "Ignoring message of type %s." t) >>= fun () ->
+      Lwt.return_ok ()
    | _, None ->
-      Logs_lwt.info (fun m -> m "Ignoring empty message."))
-  >>= Lwt.return_ok
+      Logs_lwt.info (fun m -> m "Ignoring empty message.") >>= fun () ->
+      Lwt.return_ok ())
 
 let update_message {cache; recipient; _}
     ~channel_node ~old_ts ~old_user ~new_ts ~new_user ~new_subtype ~new_text
@@ -259,10 +260,14 @@ let store_slacko_message state ~channel (message_obj : Slacko.message_obj) =
    with
    | Ok () -> Lwt.return_unit
    | Error (`Msg msg) ->
-      Logs_lwt.err (fun m -> m "Failed to store message: %s" msg)
+      Logs_lwt.err (fun m ->
+        m "Failed to store message: %s" msg)
    | Error (#Slack_utils.showable_error as err) ->
       Logs_lwt.err (fun m ->
-        m "Failed to store message: %a" Slack_utils.pp_error err))
+        m "Failed to store message: %a" Slack_utils.pp_error err)
+   | Error (#Caqti_error.t as err) ->
+      Logs_lwt.err (fun m ->
+        m "Failed to store message: %a" Caqti_error.pp err))
 
 let messages_ts_range message_objs =
   let aux (message_obj : Slacko.message_obj) (ts_min, ts_max) =
@@ -288,6 +293,7 @@ let rec fetch_recent state channelname oldest =
             (List.length messages) channelname
             pp_ptime ts_min pp_ptime ts_max)
           >>= fun () ->
+        (* TODO: Sort messages on date and abort on first failure. *)
         Lwt_list.iter_s (store_slacko_message state ~channel) messages
           >>= fun () ->
         if history_obj.has_more then

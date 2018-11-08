@@ -416,7 +416,7 @@ module Message = struct
     let author_id = Option.search Resource.cached_id muc_author in
     let%lwt sender_id = Resource.store (sender msg) in
     let%lwt recipient_id = Resource.store (recipient msg) in
-    Batyr_db.use_exn @@
+    Batyr_db.use @@
       Batyr_sql.Message.store
         (seen_time msg)
         sender_id author_id recipient_id

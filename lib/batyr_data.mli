@@ -116,5 +116,6 @@ module Message : sig
   val thread : t -> string option
   val body : t -> string option
 
-  val store : ?muc_author: Resource.t -> t -> unit Lwt.t
+  val store : ?muc_author: Resource.t -> t ->
+    (unit, [> Caqti_error.t]) result Lwt.t
 end

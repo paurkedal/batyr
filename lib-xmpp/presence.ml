@@ -65,7 +65,7 @@ let on_muc_message _cs ms msg =
     try Muc_user.resource (Hashtbl.find ms.ms_users_by_nick nick)
     with Not_found -> None in
   if Muc_room.transcribe ms.ms_room then
-    Message.store ?muc_author msg
+    Message.store ?muc_author msg >>= Caqti_lwt.or_fail
   else
     Lwt.return_unit
 
