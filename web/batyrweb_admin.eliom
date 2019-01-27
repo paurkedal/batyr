@@ -362,7 +362,7 @@ module%client Presence = struct
      D.td [D.txt (string_of_bool pres.is_present)]]
 
   let simple_select = Eliom_content_core.Html.D.select
-  let simple_option l = Eliom_content_core.Html.D.(option (pcdata l))
+  let simple_option l = Eliom_content_core.Html.D.(option (txt l))
 
   let dummy_opt = ([], "*", None, false)
 

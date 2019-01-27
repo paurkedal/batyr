@@ -70,7 +70,7 @@
       let enset = ref Enset.empty in
       let editing = ref None (* or Some (pos, row, elt_opt) *) in
 
-      let new_button = D.(button ~a:[D.a_button_type `Button] [pcdata "new"]) in
+      let new_button = D.(button ~a:[D.a_button_type `Button] [txt "new"]) in
       let top_outside_td = D.(td ~a:[a_class ["outside"]] [new_button]) in
       let top_tr = D.tr (E.render_headers () @ [top_outside_td]) in
       let table = D.(table ~a:[a_class ["edit"]] [top_tr]) in

@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,6 +15,7 @@
  *)
 
 open Eliom_content
+open Js_of_ocaml
 open Lwt.Infix
 open Html.D
 open Printf
@@ -47,20 +48,20 @@ let pager ?default_index ?count labels draw_inner =
     let cls = if i = !shown_index then ["selected"] else [] in
     match count with
     | None ->
-      span ~a:[a_onclick onclick; a_class ("b-tab" :: cls)] [pcdata l]
+      span ~a:[a_onclick onclick; a_class ("b-tab" :: cls)] [txt l]
     | Some count ->
       let c = count i in
       let cc = sprintf "b-x%x" (15 * c / c_max) in
       if c = 0 then
         span ~a:[a_onclick onclick;
                  a_class ("b-tab" :: "empty" :: cc :: "b-link" :: cls)]
-          [pcdata l; span ~a:[a_class ["b-bar"]] []]
+          [txt l; span ~a:[a_class ["b-bar"]] []]
       else
         span ~a:[a_class ("b-tab" :: cc :: cls)] [
-          sup ~a:[a_class ["b-tab-count"]] [pcdata (string_of_int c)];
+          sup ~a:[a_class ["b-tab-count"]] [txt (string_of_int c)];
           span ~a:[a_onclick onclick;
                    a_class ["b-link"]]
-            [pcdata l];
+            [txt l];
         ] in
   let tabs = List.mapi make_page (Array.to_list labels) in
   tabs_dom := Array.map Html.To_dom.of_span (Array.of_list tabs);

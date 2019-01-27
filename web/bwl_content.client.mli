@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,6 +15,7 @@
  *)
 
 open Eliom_content
+open Js_of_ocaml
 
 (* A complete Html.R implementation will be available in an upcoming version
  * of Eliom, at which point this will be removed. *)
