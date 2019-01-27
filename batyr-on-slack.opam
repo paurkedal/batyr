@@ -41,5 +41,5 @@ depends: [
   "websocket-lwt"
   "yojson"
 ]
-build: ["jbuilder" "build" "-p" name "-j" jobs]
+build: ["dune" "build" "-p" name "-j" jobs]
 dev-repo: "git+https://github.com/paurkedal/batyr.git"

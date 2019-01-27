@@ -3,12 +3,12 @@
 srcdir = $(shell pwd)
 
 all:
-	jbuilder build --dev
+	dune build
 	export OCAMLPATH=$(srcdir)/_build/install/default/lib \
 	  && ocaml pkg/pkg_web.ml build --build-dir _build/ocamlbuild
 
 clean:
-	jbuilder clean
+	dune clean
 
 lint:
 	topkg lint; topkg lint --pkg-file=pkg/pkg_web.ml
