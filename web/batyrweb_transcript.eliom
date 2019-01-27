@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
   end
 ]
 [%%client
+  open Js_of_ocaml
   open Batyrweb_client
 ]
 [%%shared
@@ -48,7 +49,7 @@ let%shared query_limit = 10000
 module%client Chatroom = struct
   type t = chatroom
   let compare = String.compare
-  let render_row room = D.([td [pcdata room]])
+  let render_row room = D.([td [txt room]])
 end
 module%client Chatrooms_live = Live_table (Chatroom)
 
@@ -249,17 +250,17 @@ module%client Transcript = struct
     let msg_frag =
       match msg.msg_body with
       | None -> []
-      | Some body -> [F.span ~a:[F.a_class ["body"]] [F.pcdata body]] in
+      | Some body -> [F.span ~a:[F.a_class ["body"]] [F.txt body]] in
     let msg_frag =
       match
         match msg.msg_subject, msg.msg_thread with
         | None, None -> None
         | None, Some thread ->
-          Some [F.pcdata (sprintf "[- %s] " thread)]
+          Some [F.txt (sprintf "[- %s] " thread)]
         | Some subject, None ->
-          Some [F.pcdata (sprintf "[%s] " subject)]
+          Some [F.txt (sprintf "[%s] " subject)]
         | Some subject, Some thread ->
-          Some [F.pcdata (sprintf "[%s - %s] " subject thread)]
+          Some [F.txt (sprintf "[%s - %s] " subject thread)]
       with
       | None -> msg_frag
       | Some st_frag ->
@@ -269,8 +270,8 @@ module%client Transcript = struct
        | None -> msg_frag
        | Some _ ->
           msg_frag @ [
-            F.pcdata " ";
-            F.span ~a:[F.a_class ["edited"]] [F.pcdata "(edited)"]
+            F.txt " ";
+            F.span ~a:[F.a_class ["edited"]] [F.txt "(edited)"]
           ]) in
     let jstime = new%js Js.date_fromTimeValue
       ((Ptime.to_float_s msg.msg_time) *. 1000.0) in
@@ -278,7 +279,7 @@ module%client Transcript = struct
     if day <> ts.ts_day then begin
       let (y, m, d), wd = day, Caltime.day_names.(jstime##getDay) in
       let day_str = sprintf "%04d-%02d-%02d" y m d in
-      let header_h2 = F.h2 [F.pcdata (wd ^ " " ^ day_str)] in
+      let header_h2 = F.h2 [F.txt (wd ^ " " ^ day_str)] in
       Dom.appendChild ts.ts_dom (To_dom.of_h2 header_h2);
       ts.ts_day <- day;
       ts.ts_day_str <- day_str
@@ -288,10 +289,10 @@ module%client Transcript = struct
     let frag = sprintf "%sT%02d%02d%02d" ts.ts_day_str h m s in
     let message_p =
       (F.p ~a:[F.a_class ["message"]; F.a_id frag]
-        (F.span ~a:[F.a_class ["hour"]] [F.pcdata hour] :: F.pcdata " " ::
+        (F.span ~a:[F.a_class ["hour"]] [F.txt hour] :: F.txt " " ::
          F.span ~a:[F.a_class ["sender"; msg.msg_sender_cls]]
-                [F.pcdata msg.msg_sender] ::
-         F.pcdata ": " ::
+                [F.txt msg.msg_sender] ::
+         F.txt ": " ::
          msg_frag)) in
     Dom.appendChild ts.ts_dom (To_dom.of_p message_p)
 
@@ -301,7 +302,7 @@ module%client Transcript = struct
     if message_count = query_limit then begin
       let limit_s =
         sprintf "This result has been limited to %d messages." query_limit in
-      let limit_p = D.(p ~a:[a_class ["warning"]] [pcdata limit_s]) in
+      let limit_p = D.(p ~a:[a_class ["warning"]] [txt limit_s]) in
       Dom.appendChild ts.ts_dom (To_dom.of_p limit_p)
     end
 
@@ -329,7 +330,7 @@ let%client render_transcript ~room ?tI ?tF ?pat ?date update_comet =
   end;
   fetch_transcript (room, tI, tF, pat) >|= function
    | Error msg ->
-      [F.p ~a:[F.a_class ["error"]] [F.pcdata msg]]
+      [F.p ~a:[F.a_class ["error"]] [F.txt msg]]
    | Ok msgs ->
       let content, ts = Transcript.create () in
       Transcript.append_messages ts msgs;
@@ -487,7 +488,7 @@ let transcript_handler (room_jid, pat) () =
   let clear_button =
     button ~a:[a_button_type `Button; a_onclick clear_handler;
                a_id "clear_search"; a_disabled ()]
-           [pcdata "all"] in
+           [txt "all"] in
   let search_handler =
     [%client fun ev ->
       let info_dom = To_dom.of_span ~%(info_span : [`Span] elt) in
@@ -517,7 +518,7 @@ let transcript_handler (room_jid, pat) () =
     [%client fun ev -> ~%search_handler (ev :> Dom_html.event Js.t)] in
   let search_button =
     button ~a:[a_button_type `Button; a_onclick search_handler_mouse]
-           [pcdata "matching"] in
+           [txt "matching"] in
   let search_input =
     input ~a:[a_input_type `Text; a_id "search_text"; a_onchange search_handler]
           () in
@@ -531,10 +532,10 @@ let transcript_handler (room_jid, pat) () =
     end
   ];
   let help_span =
-    let bop s = span ~a:[a_class ["bnf-op"]] [pcdata s] in
-    let op s = span [bop "'"; pcdata s; bop "'"] in
-    let vn s = span ~a:[a_style "font-style: italic"] [pcdata s] in
-    let sp = pcdata " " in
+    let bop s = span ~a:[a_class ["bnf-op"]] [txt s] in
+    let op s = span [bop "'"; txt s; bop "'"] in
+    let vn s = span ~a:[a_style "font-style: italic"] [txt s] in
+    let sp = txt " " in
     span ~a:[a_class ["help"]] [
       vn"pat"; sp; bop"::="; sp;
       bop"("; op"author:"; sp; bop"|"; sp; op"subject:"; sp; bop"|";
@@ -549,9 +550,9 @@ let transcript_handler (room_jid, pat) () =
   Lwt.return (Batyrweb_content.page
     (sprintf "Transcript of %s" room_jid)
     [ div
-      [ pcdata "Show "; clear_button;
-        pcdata " or "; search_button; search_input; pcdata " ";
-        info_span; pcdata " "; help_span ];
+      [ txt "Show "; clear_button;
+        txt " or "; search_button; search_input; txt " ";
+        info_span; txt " "; help_span ];
       transcript_div ]
   )
 

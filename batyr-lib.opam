@@ -16,6 +16,8 @@ depends: [
   "config-file"
   "extunix"
   "lwt"
+  "lwt_log"
+  "lwt_ppx"
   "lwt_react"
   "ocamlfind" {build}
   "ppx_compose"

@@ -2,7 +2,7 @@ true: bin_annot, eliom_ppx
 
 true: \
     package(calendar), \
-    package(lwt.ppx), \
+    package(lwt_ppx), \
     package(lwt_react), \
     package(ppx_compose), \
     package(prime prime.unstable), \

@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,9 +25,9 @@ let index_handler () () =
     let label =
       match alias with
       | None ->
-        [D.pcdata node_jid]
+        [D.txt node_jid]
       | Some alias ->
-        [D.pcdata alias; D.pcdata " <"; D.pcdata node_jid; D.pcdata ">"] in
+        [D.txt alias; D.txt " <"; D.txt node_jid; D.txt ">"] in
     Lwt.return @@
       D.li [D.a ~service:transcript_service label (node_jid, None)] in
   let%lwt room_lis = Lwt_list.map_p render_room_link rooms in

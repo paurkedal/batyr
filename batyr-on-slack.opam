@@ -23,6 +23,7 @@ depends: [
   "logs"
   "lru"
   "lwt"
+  "lwt_ppx"
   "lwt_react"
   "ocamlfind" {build}
   "ppx_compose"

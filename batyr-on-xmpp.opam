@@ -17,6 +17,8 @@ depends: [
   "config-file"
   "erm_xmpp"
   "lwt"
+  "lwt_log"
+  "lwt_ppx"
   "lwt_react"
   "ocamlfind" {build}
   "ppx_compose"

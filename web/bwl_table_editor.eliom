@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -45,6 +45,8 @@
 ]
 
 [%%client
+  open Js_of_ocaml
+
   module type ELEMENT = sig
     include ELEMENT_SHARED
 
@@ -96,9 +98,9 @@
         let outside_td =
           D.td ~a:[D.a_class ["outside"]] [
             D.button ~a:[D.a_button_type `Button; D.a_onclick on_edit]
-                     [D.pcdata "edit"];
+                     [D.txt "edit"];
             D.button ~a:[D.a_button_type `Button; D.a_onclick on_remove]
-                     [D.pcdata "remove"]
+                     [D.txt "remove"]
           ] in
         Dom.appendChild row (To_dom.of_td outside_td)
 
@@ -116,9 +118,9 @@
           "update" in
         let outside_td = D.td ~a:[D.a_class ["outside"]] [
           D.button ~a:[D.a_button_type `Button; D.a_onclick on_cancel]
-                   [D.pcdata "cancel"];
+                   [D.txt "cancel"];
           D.button ~a:[D.a_button_type `Button; D.a_onclick on_add]
-                   [D.pcdata commit_label];
+                   [D.txt commit_label];
         ] in
         Dom.appendChild row (To_dom.of_td outside_td)
 

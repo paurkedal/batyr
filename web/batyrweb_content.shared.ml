@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,4 +18,4 @@ open Eliom_content
 
 let page title content =
   Eliom_tools.D.html ~title ~css:[["css"; "batyr.css"]]
-    Html.(D.body (D.h1 [D.pcdata title] :: content))
+    Html.(D.body (D.h1 [D.txt title] :: content))

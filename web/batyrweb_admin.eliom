@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@
   open Unprime_option
 ]
 [%%client
+  open Js_of_ocaml
   open Bwl_content
   module RList = ReactiveData.RList
 ]
@@ -61,16 +62,16 @@ module%client Account = struct
   }
 
   let render_headers () =
-    [ D.th [D.pcdata "JID"];
-      D.th [D.pcdata "Password"];
-      D.th [D.pcdata "Server Port"];
-      D.th [D.pcdata "Active"] ]
+    [ D.th [D.txt "JID"];
+      D.th [D.txt "Password"];
+      D.th [D.txt "Server Port"];
+      D.th [D.txt "Active"] ]
 
   let render_row ac =
-    [ D.td [D.pcdata ac.account_jid];
-      D.td [D.pcdata (Option.get_or hidden ac.client_password)];
-      D.td [D.pcdata (string_of_int ac.server_port)];
-      D.td [D.pcdata (string_of_bool ac.is_active)] ]
+    [ D.td [D.txt ac.account_jid];
+      D.td [D.txt (Option.get_or hidden ac.client_password)];
+      D.td [D.txt (string_of_int ac.server_port)];
+      D.td [D.txt (string_of_bool ac.is_active)] ]
 
   let render_edit_row ac_opt =
     let jid_input =
@@ -247,16 +248,16 @@ module%client Chatroom = struct
   }
 
   let render_headers () =
-    [ D.th [D.pcdata "JID"];
-      D.th [D.pcdata "Alias"];
-      D.th [D.pcdata "Description"];
-      D.th [D.pcdata "Transcribe"] ]
+    [ D.th [D.txt "JID"];
+      D.th [D.txt "Alias"];
+      D.th [D.txt "Description"];
+      D.th [D.txt "Transcribe"] ]
 
   let render_row r =
-    [ D.td [D.pcdata r.room_jid];
-      D.td [D.pcdata (Option.get_or "-" r.room_alias)];
-      D.td [D.pcdata (Option.get_or "-" r.room_description)];
-      D.td [D.pcdata (string_of_bool r.transcribe)] ]
+    [ D.td [D.txt r.room_jid];
+      D.td [D.txt (Option.get_or "-" r.room_alias)];
+      D.td [D.txt (Option.get_or "-" r.room_description)];
+      D.td [D.txt (string_of_bool r.transcribe)] ]
 
   let render_edit_row r_opt =
     let jid_inp = D.input ~a:[D.a_input_type `Text; D.a_size 12] () in
@@ -352,13 +353,13 @@ module%client Presence = struct
   }
 
   let render_headers () =
-    [D.th [D.pcdata "Resource"]; D.th [D.pcdata "Account"];
-     D.th [D.pcdata "Nick"]; D.th [D.pcdata "Present"]]
+    [D.th [D.txt "Resource"]; D.th [D.txt "Account"];
+     D.th [D.txt "Nick"]; D.th [D.txt "Present"]]
 
   let render_row pres =
-    [D.td [D.pcdata pres.resource_jid]; D.td [D.pcdata pres.account_jid];
-     D.td [D.pcdata (Option.get_or "-" pres.nick)];
-     D.td [D.pcdata (string_of_bool pres.is_present)]]
+    [D.td [D.txt pres.resource_jid]; D.td [D.txt pres.account_jid];
+     D.td [D.txt (Option.get_or "-" pres.nick)];
+     D.td [D.txt (string_of_bool pres.is_present)]]
 
   let simple_select = Eliom_content_core.Html.D.select
   let simple_option l = Eliom_content_core.Html.D.(option (pcdata l))
@@ -366,7 +367,7 @@ module%client Presence = struct
   let dummy_opt = ([], "*", None, false)
 
   let account_optgroup : [`Option] Eliom_content.Html.R.elt RList.t =
-    let mkopt acct = F.option (F.pcdata acct.Account.account_jid) in
+    let mkopt acct = F.option (F.txt acct.Account.account_jid) in
     RList.from_signal @@
     React.S.map ~eq:(==)
       (fun accts ->
@@ -440,11 +441,11 @@ let admin_handler () () =
   ];
 
   Lwt.return @@ Batyrweb_content.page "Administration" [
-    D.h2 [D.pcdata "Accounts"];
+    D.h2 [D.txt "Accounts"];
     accounts_editor;
-    D.h2 [D.pcdata "Presence"];
+    D.h2 [D.txt "Presence"];
     presence_editor;
-    D.h2 [D.pcdata "Chatrooms"];
+    D.h2 [D.txt "Chatrooms"];
     chatrooms_editor;
   ]
 

@@ -23,6 +23,7 @@
     config-file
     extunix
     lwt
+    lwt_log
     lwt_react
     prime
     prime.unstable
@@ -30,7 +31,7 @@
     ptime.clock.os
     react)
   (preprocess
-   (pps js_of_ocaml-ppx.deriving lwt.ppx ppx_compose ppx_deriving)))
+   (pps js_of_ocaml-ppx.deriving lwt_ppx ppx_compose ppx_deriving)))
 
 (ocamllex batyr_search_lexer)
 (ocamlyacc batyr_search_parser)
