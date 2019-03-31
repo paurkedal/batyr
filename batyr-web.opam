@@ -34,3 +34,4 @@ build: [
   "ocaml" "pkg/pkg_web.ml" "build" "--pkg-name" name "--dev-pkg" "%{pinned}%"
 ]
 dev-repo: "git+https://github.com/paurkedal/batyr.git"
+synopsis: "Eliom based web interface to Batyr logs"
