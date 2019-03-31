@@ -3,9 +3,12 @@
   (public_name batyr-on-xmpp)
   (modules
     Data
-    Presence
+    Data_sig
+    Listener
     Sql ; internal
     Xmpp_inst)
+  (modules_without_implementation
+    Data_sig)
   (libraries
     batyr-lib
     caqti

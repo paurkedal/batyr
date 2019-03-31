@@ -7,6 +7,7 @@
     Batyr_cache
     Batyr_config
     Batyr_data
+    Batyr_data_sig
     Batyr_db
     Batyr_prereq
     Batyr_search
@@ -15,6 +16,8 @@
     Batyr_search_types
     Batyr_sql           ; internal
     Batyr_version)
+  (modules_without_implementation
+    Batyr_data_sig)
   (libraries
     calendar
     caqti
@@ -30,8 +33,7 @@
     ptime
     ptime.clock.os
     react)
-  (preprocess
-   (pps js_of_ocaml-ppx.deriving lwt_ppx ppx_compose ppx_deriving)))
+  (preprocess (pps js_of_ocaml-ppx.deriving lwt_ppx ppx_compose ppx_deriving)))
 
 (ocamllex batyr_search_lexer)
 (ocamlyacc batyr_search_parser)

@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,8 +15,6 @@
  *)
 
 (** Concurrency, pooling, etc. for postgresql-ocaml using lwt. *)
-
-module type CONNECTION = Caqti_lwt.CONNECTION
 
 val escape_like : string -> string
 
@@ -77,18 +75,3 @@ module Expr : sig
   val date_part : string -> [`timestamp] t -> int t
   val at_tz : string -> [`timestamp] t -> [`timestamp] t
 end
-
-val use : ?quick: bool ->
-  ((module CONNECTION) -> ('a, ([> Caqti_error.connect]) as 'e) result Lwt.t) ->
-  ('a, 'e) result Lwt.t
-
-val use_exn : ?quick: bool ->
-  ((module CONNECTION) -> ('a, [< Caqti_error.t]) result Lwt.t) -> 'a Lwt.t
-
-val use_accounted : ?quick: bool ->
-  ((module CONNECTION) -> ('a, ([> Caqti_error.connect]) as 'e) result Lwt.t) ->
-  (float * 'a, 'e) result Lwt.t
-
-val use_accounted_exn : ?quick: bool ->
-  ((module CONNECTION) -> ('a, [< Caqti_error.t]) result Lwt.t) ->
-  (float * 'a) Lwt.t

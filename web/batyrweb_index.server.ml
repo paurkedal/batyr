@@ -19,7 +19,7 @@ open Batyrweb_server
 open Eliom_content.Html
 
 let index_handler () () =
-  let%lwt rooms = Batyr_db.use_exn Batyrweb_sql.Web.rooms in
+  let%lwt rooms = Batyr_xmpp_conn.Db.use_exn Batyrweb_sql.Web.rooms in
   let render_room_link (node_id, domain_name, node_name, alias, transcribe) =
     let node_jid = node_name ^ "@" ^ domain_name in
     let label =

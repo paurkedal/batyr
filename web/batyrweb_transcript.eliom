@@ -23,6 +23,7 @@
     include Caqti_type
     include Caqti_type_calendar
   end
+  module B = Batyr_xmpp_conn
 ]
 [%%client
   open Js_of_ocaml
@@ -91,9 +92,9 @@ let sql_of_pattern pat_s =
 
 let fetch_message_counts (room_jid, pat_opt, tz) =
   try%lwt
-    let%lwt room = Lwt.wrap1 Node.of_string room_jid in
+    let%lwt room = Lwt.wrap1 B.Node.of_string room_jid in
     let%lwt room_id =
-      match%lwt Node.stored_id room with
+      match%lwt B.Node.stored_id room with
       | None -> Lwt.fail Eliom_common.Eliom_404
       | Some id -> Lwt.return id in
     let cond =
@@ -114,7 +115,7 @@ let fetch_message_counts (room_jid, pat_opt, tz) =
            ON sender_id = sender.resource_id \
          WHERE %s GROUP BY t"
          cond_str) in
-    Batyr_db.use
+    B.Db.use
       (fun (module C : CONNECTION) -> C.fold q List.cons (tz, params) []) >|=
     (function
      | Ok _ as r -> r
@@ -134,9 +135,9 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
   try%lwt
     Lwt_log.debug_f ~section "Sending %s transcript%s."
                     room_jid (phrase_query pat_opt tI_opt tF_opt) >>= fun () ->
-    let%lwt room = Lwt.wrap1 Node.of_string room_jid in
+    let%lwt room = Lwt.wrap1 B.Node.of_string room_jid in
     let%lwt room_id =
-      match%lwt Node.stored_id room with
+      match%lwt B.Node.stored_id room with
       | None -> Lwt.fail Eliom_common.Eliom_404
       | Some id -> Lwt.return id in
     let cond =
@@ -160,18 +161,18 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
          WHERE %s \
          ORDER BY seen_time, message_id LIMIT %d"
         cond_str query_limit) in
-    (Batyr_db.use @@ fun (module C : CONNECTION) ->
+    (B.Db.use @@ fun (module C : CONNECTION) ->
       C.fold q List.cons params []) >>=
     (function
      | Ok tuples ->
         Lwt_list.rev_map_p
           (fun ((time, edit_time, sender_id),
                 (subject_opt, thread_opt, body_opt)) ->
-            Resource.stored_of_id sender_id >|= fun sender_resource ->
+            B.Resource.stored_of_id sender_id >|= fun sender_resource ->
             { msg_time = time;
               msg_edit_time = edit_time;
               msg_sender_cls = "jid";
-              msg_sender = Resource.resource_name sender_resource;
+              msg_sender = B.Resource.resource_name sender_resource;
               msg_subject = subject_opt;
               msg_thread = thread_opt;
               msg_body = body_opt })
@@ -436,12 +437,12 @@ let%client render_page ~room ~min_time ?pat ~page transcript_dom update_comet =
 let transcript_handler (room_jid, pat) () =
   let open D in
   let transcript_div = div ~a:[a_class ["transcript"]] [] in
-  let room_node = Node.of_string room_jid in
+  let room_node = B.Node.of_string room_jid in
   let%lwt room =
-    match%lwt Muc_room.stored_of_node room_node with
+    match%lwt B.Muc_room.stored_of_node room_node with
     | None -> Lwt.fail Eliom_common.Eliom_404
     | Some room -> Lwt.return room in
-  let min_time = Option.get_else Unix.time (Muc_room.min_message_time room) in
+  let min_time = Option.get_else Unix.time (B.Muc_room.min_message_time room) in
   let page : int list ref Eliom_client_value.t = [%client
     let jt_min = new%js Js.date_fromTimeValue (~%min_time *. 1000.0) in
     let y_min = jt_min##getFullYear in
@@ -450,21 +451,21 @@ let transcript_handler (room_jid, pat) () =
     ref [d##getFullYear - y_min; d##getMonth; d##getDate - 1]
   ] in
   let relevant_message msg =
-    let open Batyr_xmpp.Presence in
+    let open Batyr_xmpp_listener in
     Lwt.return begin
-      if Resource.node (Message.sender msg) != room_node then None else
+      if B.Resource.node (B.Message.sender msg) != room_node then None else
       Some {
-        msg_time = Message.seen_time msg;
-        msg_edit_time = Message.edit_time msg;
+        msg_time = B.Message.seen_time msg;
+        msg_edit_time = B.Message.edit_time msg;
         msg_sender_cls = "jid";
-        msg_sender = Resource.resource_name (Message.sender msg);
-        msg_subject = Message.subject msg;
-        msg_thread = Message.thread msg;
-        msg_body = Message.body msg;
+        msg_sender = B.Resource.resource_name (B.Message.sender msg);
+        msg_subject = B.Message.subject msg;
+        msg_thread = B.Message.thread msg;
+        msg_body = B.Message.body msg;
       }
     end in
   let update_events =
-    Lwt_react.E.fmap_s relevant_message Batyr_xmpp.Presence.messages in
+    Lwt_react.E.fmap_s relevant_message Batyr_xmpp_listener.messages in
   let update_comet =
     Eliom_comet.Channel.create (Lwt_react.E.to_stream update_events) in
   let info_span = span ~a:[a_class ["error"]] [] in

@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,4 +41,8 @@ let status_service =
   let get = Eliom_parameter.unit in
   Eliom_service.(create ~path:(Path ["status"]) ~meth:(Get get) ())
 
-let () = Lwt.async Batyr_xmpp.Presence.Session.start_all
+let db_uri = Uri.of_string Batyr_config.db_uri_cp#get
+module Batyr_xmpp_conn = (val Batyr_xmpp.Data.connect db_uri)
+module Batyr_xmpp_listener = Batyr_xmpp.Listener.Make (Batyr_xmpp_conn)
+
+let () = Lwt.async Batyr_xmpp_listener.start_all

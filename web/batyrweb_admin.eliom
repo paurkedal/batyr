@@ -112,6 +112,8 @@ module%client Account = struct
       is_active = Js.to_bool ed.ed_is_active##.checked; }
 end
 
+module%server B = Batyr_xmpp_conn
+
 module%server Account = struct
   include Account_shared
 
@@ -121,16 +123,16 @@ module%server Account = struct
 
   let of_account a =
     let client_password =
-      if hide_passwords then None else Some (Account.password a) in
-    { account_jid = Resource.to_string (Account.resource a);
+      if hide_passwords then None else Some (B.Account.password a) in
+    { account_jid = B.Resource.to_string (B.Account.resource a);
       client_password;
-      server_port = Account.port a;
-      is_active = Account.is_active a; }
+      server_port = B.Account.port a;
+      is_active = B.Account.is_active a; }
 
-  let fetch_all () = Batyr_data.Account.all () >|= List.map of_account
+  let fetch_all () = B.Account.all () >|= List.map of_account
 
   let add old_account_opt a =
-    let%lwt resource = Lwt.wrap1 Resource.of_string a.account_jid in
+    let%lwt resource = Lwt.wrap1 B.Resource.of_string a.account_jid in
     let port = a.server_port in
     let password = a.client_password in
     let is_active = a.is_active in
@@ -140,33 +142,33 @@ module%server Account = struct
         match password with
         | None -> Lwt.fail (Failure "Password is needed for new account.")
         | Some pw -> Lwt.return pw in
-      Batyr_data.Account.create ~resource ~port ~password ~is_active ()
+      B.Account.create ~resource ~port ~password ~is_active ()
         >|= fun account ->
-      if is_active then ignore (Batyr_xmpp.Presence.Session.start account)
+      if is_active then ignore (Batyr_xmpp_listener.start account)
     | Some old_account ->
-      let old_resource = Resource.of_string old_account.account_jid in
-      begin match%lwt Batyr_data.Account.of_resource old_resource with
+      let old_resource = B.Resource.of_string old_account.account_jid in
+      begin match%lwt B.Account.of_resource old_resource with
       | None -> Lwt.return_unit
       | Some account ->
-        begin if Account.is_active account then
-          begin match Batyr_xmpp.Presence.Session.find account with
+        begin if B.Account.is_active account then
+          begin match Batyr_xmpp_listener.find account with
           | None -> Lwt.return_unit
-          | Some old_session -> Batyr_xmpp.Presence.Session.shutdown old_session
+          | Some old_session -> Batyr_xmpp_listener.shutdown old_session
           end
         else
           Lwt.return_unit
         end >>= fun () ->
-        Batyr_data.Account.update ~resource ~port ?password ~is_active account
+        B.Account.update ~resource ~port ?password ~is_active account
           >|= fun () ->
-        if is_active then ignore (Batyr_xmpp.Presence.Session.start account)
+        if is_active then ignore (Batyr_xmpp_listener.start account)
       end
     end >>= fun () ->
     Lwt.return (if hide_passwords then {a with client_password = None} else a)
 
   let remove a =
-    let resource = Resource.of_string a.account_jid in
-    let%lwt resource_id = Resource.stored_id resource >|= Option.get in
-    Batyr_data.Account.delete_id resource_id
+    let resource = B.Resource.of_string a.account_jid in
+    let%lwt resource_id = B.Resource.stored_id resource >|= Option.get in
+    B.Account.delete_id resource_id
 end
 
 module%shared Accounts_editor = Bwl_table_editor.Make (Account)
@@ -194,11 +196,11 @@ module%server Chatroom = struct
   let which_type = "chat room"
 
   let fetch_all () =
-    let%lwt entries = Batyr_db.use_exn Batyrweb_sql.Admin.fetch_chatrooms in
+    let%lwt entries = B.Db.use_exn Batyrweb_sql.Admin.fetch_chatrooms in
     let chatroom_of_entry
           (node_id, room_alias, room_description, transcribe) =
-      let%lwt node = Node.stored_of_id node_id in
-      let room_jid = Node.to_string node in
+      let%lwt node = B.Node.stored_of_id node_id in
+      let room_jid = B.Node.to_string node in
       Lwt.return {room_jid; room_alias; room_description; transcribe} in
     Lwt_list.rev_map_p chatroom_of_entry entries
 
@@ -207,12 +209,12 @@ module%server Chatroom = struct
       match old_room_opt with
       | None -> Lwt.return_none
       | Some old_room ->
-        let%lwt node = Lwt.wrap1 Node.of_string old_room.room_jid in
-        Node.stored_id node in
-    let%lwt node = Lwt.wrap1 Node.of_string room.room_jid in
-    let%lwt node_id = Node.store node in
-    let room = {room with room_jid = Node.to_string node} in
-    Batyr_db.use_exn begin fun conn ->
+        let%lwt node = Lwt.wrap1 B.Node.of_string old_room.room_jid in
+        B.Node.stored_id node in
+    let%lwt node = Lwt.wrap1 B.Node.of_string room.room_jid in
+    let%lwt node_id = B.Node.store node in
+    let room = {room with room_jid = B.Node.to_string node} in
+    B.Db.use_exn begin fun conn ->
       Batyrweb_sql.Admin.upsert_chatroom (old_node_id_opt <> Some node_id)
         node_id room.room_alias room.room_description room.transcribe conn
         >>=?? fun () ->
@@ -224,12 +226,12 @@ module%server Chatroom = struct
     Lwt.return room
 
   let remove room =
-    let%lwt node = Lwt.wrap1 Node.of_string room.room_jid in
+    let%lwt node = Lwt.wrap1 B.Node.of_string room.room_jid in
     let%lwt node_id =
-      match%lwt Node.stored_id node with
+      match%lwt B.Node.stored_id node with
       | None -> Lwt.fail Eliom_common.Eliom_404
       | Some id -> Lwt.return id in
-    Batyr_db.use_exn (Batyrweb_sql.Admin.delete_chatroom node_id)
+    B.Db.use_exn (Batyrweb_sql.Admin.delete_chatroom node_id)
 end
 
 let%client input_value_opt inp =
@@ -311,7 +313,7 @@ module%server Presence = struct
   let which_type = "presence"
 
   let fetch_all () =
-    Batyr_db.use_exn Batyrweb_sql.Admin.fetch_presences >|=
+    B.Db.use_exn Batyrweb_sql.Admin.fetch_presences >|=
       List.rev_map (fun (resource_jid, account_jid, is_present, nick) ->
                         {resource_jid; account_jid; is_present; nick})
 
@@ -320,12 +322,13 @@ module%server Presence = struct
       match old_pres_opt with
       | None -> Lwt.return_none
       | Some old_pres ->
-        Resource.stored_id (Resource.of_string old_pres.resource_jid) in
+        B.Resource.stored_id (B.Resource.of_string old_pres.resource_jid) in
     let%lwt resource_id =
-      Resource.store (Resource.of_string pres.resource_jid) in
+      B.Resource.store (B.Resource.of_string pres.resource_jid) in
     let%lwt account_id =
-      Resource.stored_id (Resource.of_string pres.account_jid) >|= Option.get in
-    Batyr_db.use_exn begin fun conn ->
+      B.Resource.stored_id (B.Resource.of_string pres.account_jid)
+        >|= Option.get in
+    B.Db.use_exn begin fun conn ->
       Batyrweb_sql.Admin.upsert_presence
         (old_resource_id_opt <> Some resource_id)
         resource_id account_id pres.nick pres.is_present conn >>=?? fun () ->
@@ -337,9 +340,9 @@ module%server Presence = struct
     Lwt.return pres
   let remove pres =
     let%lwt resource_id =
-      Resource.stored_id (Resource.of_string pres.resource_jid)
+      B.Resource.stored_id (B.Resource.of_string pres.resource_jid)
         >|= Option.get in
-    Batyr_db.use_exn (Batyrweb_sql.Admin.delete_presence resource_id)
+    B.Db.use_exn (Batyrweb_sql.Admin.delete_presence resource_id)
 end
 
 module%client Presence = struct

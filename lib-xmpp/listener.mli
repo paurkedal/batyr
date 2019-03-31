@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,15 +16,16 @@
 
 (** XMPP presence management and logger. *)
 
-open Batyr_data
 open Xmpp_inst
 
 exception Session_shutdown
 
-val messages : Message.t Lwt_react.E.t
-(** This emits an events as new message are detected. *)
+module Make (B : Data_sig.S) : sig
+  open B
 
-module Session : sig
+  val messages : Message.t Lwt_react.E.t
+  (** This emits an events as new message are detected. *)
+
   type t
 
   val start : Account.t -> t
@@ -52,5 +53,4 @@ module Session : sig
   val shutdown : t -> unit Lwt.t
   (** [shutdown session] terminates the XMPP stream and closes resources
       associated with [session]. *)
-
 end
