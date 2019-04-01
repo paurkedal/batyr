@@ -119,7 +119,7 @@ module%server Account = struct
 
   let which_type = "account"
 
-  let hide_passwords = Batyr_config.hide_passwords_cp#get
+  let hide_passwords = Batyrweb_config.hide_passwords_cp#get
 
   let of_account a =
     let client_password =

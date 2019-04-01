@@ -5,7 +5,6 @@
   (modules
     Batyr_backoff
     Batyr_cache
-    Batyr_config
     Batyr_data
     Batyr_data_sig
     Batyr_db
@@ -23,7 +22,6 @@
     caqti
     caqti-lwt
     caqti-type-calendar
-    config-file
     extunix
     lwt
     lwt_log

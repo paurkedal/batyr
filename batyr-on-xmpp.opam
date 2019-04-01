@@ -14,7 +14,6 @@ depends: [
   "caqti-dynload"
   "caqti-lwt"
   "caqti-type-calendar"
-  "config-file"
   "erm_xmpp"
   "lwt"
   "lwt_log"

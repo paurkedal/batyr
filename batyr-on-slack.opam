@@ -17,7 +17,6 @@ depends: [
   "cmdliner"
   "conduit"
   "conduit-lwt"
-  "config-file"
   "dns-lwt-unix"
   "kojson"
   "logs"

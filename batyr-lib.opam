@@ -13,7 +13,6 @@ depends: [
   "caqti-dynload"
   "caqti-lwt"
   "caqti-type-calendar"
-  "config-file"
   "extunix"
   "lwt"
   "lwt_log"

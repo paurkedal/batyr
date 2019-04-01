@@ -4,7 +4,12 @@ directory = "."
 requires = "
   batyr-lib
   batyr-on-xmpp
+  caqti
+  caqti-lwt
+  caqti-type-calendar
+  config-file
   eliom.server
+  ptime.clock.os
   yojson
 "
 archive(byte) = "batyrweb.cma"
