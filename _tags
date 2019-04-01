@@ -14,7 +14,6 @@ true: \
     package(batyr-lib), \
     package(batyr-on-xmpp), \
     package(caqti), \
-    package(caqti-dynload), \
     package(caqti-lwt), \
     package(caqti-type-calendar), \
     package(config-file), \
