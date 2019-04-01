@@ -1,4 +1,4 @@
-(* Copyright (C) 2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -280,12 +280,12 @@ let rec wake_from_limbo conn =
   if Ptime.Span.compare ping_age conn.ping_period < 0 then
     wake_from_limbo conn else
   if Ptime.Span.compare ping_age conn.ping_patience < 0 then begin
-    Logs_lwt.debug (fun m ->
+    Log.debug (fun m ->
       m "Sent ping; non seen for %a" Ptime.Span.pp ping_age) >>= fun () ->
     conn.send (Frame.create ~opcode:Opcode.Ping ()) >>= fun () ->
     wake_from_limbo conn
   end else
-  Logs_lwt.err (fun m -> m
+  Log.err (fun m -> m
     "Issuing EOF; no ping seen for %a" Ptime.Span.pp ping_age) >>= fun () ->
   Lwt.fail End_of_file
 
@@ -303,16 +303,16 @@ let rec receive_text conn =
      | Opcode.Close -> Lwt.return_error `Closed
      | Opcode.Ping ->
         conn.latest_ping <- Ptime_clock.now ();
-        Logs_lwt.info (fun m -> m "Received ping.") >>= fun () ->
+        Log.info (fun m -> m "Received ping.") >>= fun () ->
         conn.send (Frame.create ~opcode:Opcode.Pong ()) >>= fun () ->
         receive_text conn
      | Opcode.Pong ->
-        Logs_lwt.info (fun m -> m "Received pong.") >>= fun () ->
+        Log.info (fun m -> m "Received pong.") >>= fun () ->
         conn.latest_ping <- Ptime_clock.now ();
         receive_text conn
      | Opcode.Ctrl _ | Opcode.Nonctrl _ -> receive_text conn)
   with End_of_file ->
-    Logs_lwt.err (fun m ->
+    Log.err (fun m ->
       m "Unexpeted end of file from Slack RTM, will be handled as if closed.")
       >>= fun () ->
     Lwt.return_error `Closed

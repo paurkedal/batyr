@@ -14,4 +14,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-include Listener_main.Make (Batyr_slack.Listener)
+open Protocol_conv_jsonm
+
+val src : Logs.Src.t
+
+include Logs_lwt.LOG
+
+type level_option = Logs.level option
+[@@deriving protocol ~driver:(module Jsonm)]

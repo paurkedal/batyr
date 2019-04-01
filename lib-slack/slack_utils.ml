@@ -1,4 +1,4 @@
-(* Copyright (C) 2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -140,10 +140,10 @@ module Message = struct
          | Error err ->
             (match username with
              | Some username ->
-                Logs_lwt.warn (fun m ->
+                Log.warn (fun m ->
                   m "Failed to verify user id %s as %s." userid username)
              | None ->
-                Logs_lwt.err (fun m -> m "Failed to expand user id %s: %s"
+                Log.err (fun m -> m "Failed to expand user id %s: %s"
                   userid (show_error err)))
             >|= fun () -> orig)
      | C {channelid; channelname} as orig ->
@@ -157,11 +157,11 @@ module Message = struct
          | Error err ->
             (match channelname with
              | Some channelname ->
-                Logs_lwt.warn (fun m ->
+                Log.warn (fun m ->
                   m "Failed to verify channel id %s as %s: %s"
                     channelid channelname (show_error err))
              | None ->
-                Logs_lwt.err (fun m ->
+                Log.err (fun m ->
                   m "Failed to expand channel id %s: %s"
                     channelid (show_error err)))
             >|= fun () -> orig)

@@ -14,4 +14,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-include Listener_main.Make (Batyr_slack.Listener)
+type launch_result =
+  [ `Signalled of int
+  | `Failed_to_connect
+  | `Lost_connection ]
+
+module type LISTENER = sig
+  type config
+
+  val config_of_jsonm : Ezjsonm.value -> config
+
+  val launch : config -> [> launch_result] Lwt.t
+end
+
+module Make : functor (Listener : LISTENER) -> sig end

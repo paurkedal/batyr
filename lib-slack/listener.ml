@@ -16,13 +16,14 @@
 
 open Lwt.Infix
 open Printf
-open Unprime_char
+open Protocol_conv_jsonm
 open Unprime_list
 open Unprime_option
 open Unprime_string
 
 let pp_ptime = Ptime.pp_human ~frac_s:6 ()
 
+(*
 let ptime_span_of_string s =
   let s = String.trim s in
   let i = String.rskip_while Char.is_alnum s (String.length s) in
@@ -38,47 +39,41 @@ let ptime_span_of_string s =
   (match Ptime.Span.of_float_s (x *. scale) with
    | Some t -> t
    | None -> failwith "Invalid time span.")
+*)
 
 let require what = function
  | None -> Error (`Msg ("Did not find " ^ what ^ "."))
  | Some x -> Ok x
 
+module Duration = struct
+  type t = Ptime.Span.t
+
+  let of_jsonm = function
+   | `Float t_s ->
+      (match Ptime.Span.of_float_s t_s with
+       | None ->
+          raise (Jsonm.Protocol_error ("duration out of range", `Float t_s))
+       | Some t -> t)
+   | json ->
+      raise (Jsonm.Protocol_error ("expecting float time", json))
+
+  let to_jsonm t = `Float (Ptime.Span.to_float_s t)
+end
+
 type config = {
-  db_uri: Uri.t;
-  token: string;
-  bot_token: string;
-  log_level: Logs.level option;
-  ping_period: Ptime.Span.t option;
-  ping_patience: Ptime.Span.t option;
+  log_level: Log.level_option [@default Some Log.Warning];
+  storage_uri: string;
+  slack_token: string;
+  slack_bot_token: string option [@default None];
+  slack_ping_period: Duration.t option [@default None];
+  slack_ping_patience: Duration.t option [@default None];
 }
+[@@deriving protocol ~driver:(module Jsonm)]
 
 let log_level_of_string s =
   (match Logs.level_of_string s with
    | Ok level -> level
    | Error (`Msg msg) -> failwith msg)
-
-let load_config path =
-  let open Kojson_pattern in
-  let json = Yojson.Basic.from_file path in
-  let ptime_span = K.convert_string "Ptime.Span.t" ptime_span_of_string in
-  Kojson.jin_of_json json |> K.assoc begin
-    "db_uri"^: K.string %> fun db_uri ->
-    "token"^: K.string %> fun token ->
-    "bot_token"^?: Option.map K.string %> fun bot_token ->
-    "log-level"^?:
-      Option.fmap (K.convert_string "Logs.level" log_level_of_string)
-        %> fun log_level ->
-    "ping-period"^?: Option.map ptime_span %> fun ping_period ->
-    "ping-patience"^?: Option.map ptime_span %> fun ping_patience ->
-    Ka.stop {
-      db_uri = Uri.of_string db_uri;
-      token;
-      bot_token = Option.get_or token bot_token;
-      log_level;
-      ping_period;
-      ping_patience;
-    }
-  end
 
 let (>>=?) m f =
   m >>= function
@@ -106,7 +101,7 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
         >>=? fun recipient_id ->
       (Resource.stored_id sender >|= require "sender")
         >>=? fun sender_id ->
-      Logs_lwt.debug (fun m ->
+      Log.debug (fun m ->
         m "Locating message from #%d to #%d at %a."
           sender_id recipient_id pp_ptime seen_time) >>= fun () ->
       Db.use
@@ -149,24 +144,24 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
     in
     (match subtype, text with
      | None, Some text ->
-        Logs_lwt.debug (fun m -> m "Storing message.") >>= fun () ->
+        Log.debug (fun m -> m "Storing message.") >>= fun () ->
         let%lwt body = Slack_utils.demarkup cache text in
         store body
      | Some "me_message", Some text ->
-        Logs_lwt.debug (fun m -> m "Storing /me message.") >>= fun () ->
+        Log.debug (fun m -> m "Storing /me message.") >>= fun () ->
         let%lwt body = Slack_utils.demarkup cache text in
         store ("/me " ^ body)
      | Some t, _ ->
-        Logs_lwt.info (fun m -> m "Ignoring message of type %s." t) >>= fun () ->
+        Log.info (fun m -> m "Ignoring message of type %s." t) >>= fun () ->
         Lwt.return_ok ()
      | _, None ->
-        Logs_lwt.info (fun m -> m "Ignoring empty message.") >>= fun () ->
+        Log.info (fun m -> m "Ignoring empty message.") >>= fun () ->
         Lwt.return_ok ())
 
   let update_message {cache; recipient; _}
       ~channel_node ~old_ts ~old_user ~new_ts ~new_user ~new_subtype ~new_text
       () =
-    Logs_lwt.debug (fun m -> m "Updating message.") >>= fun () ->
+    Log.debug (fun m -> m "Updating message.") >>= fun () ->
 
     Slack_cache.user_obj_of_user cache old_user >>=? fun old_user_obj ->
     let old_user_name = old_user_obj.Slacko.name in
@@ -177,7 +172,7 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
     let new_sender = Resource.create_on_node channel_node new_user_name in
 
     find_message_id recipient old_ts old_sender >>=? fun message_id ->
-    Logs_lwt.debug (fun m -> m "Updating message #%ld." message_id) >>= fun () ->
+    Log.debug (fun m -> m "Updating message #%ld." message_id) >>= fun () ->
     update_message_id message_id ~new_ts ~new_subtype ~new_sender ~new_text ()
 
   let delete_message {cache; recipient; _}
@@ -188,7 +183,7 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
     let old_sender = Resource.create_on_node channel_node old_user_name in
 
     find_message_id recipient old_ts old_sender >>=? fun message_id ->
-    Logs_lwt.debug (fun m -> m "Deleting message #%ld." message_id) >>= fun () ->
+    Log.debug (fun m -> m "Deleting message #%ld." message_id) >>= fun () ->
     delete_message_id message_id
 
   let store_rtm_message state message_event =
@@ -204,11 +199,11 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
         ~node_name:channel_name () in
     (match%lwt Muc_room.stored_of_node channel_node with
      | None ->
-        Logs_lwt.debug (fun m ->
+        Log.debug (fun m ->
           m "No record of %s." (Node.to_string channel_node)) >>= fun () ->
         Lwt.return_ok ()
      | Some muc_room when not (Muc_room.transcribe muc_room) ->
-        Logs_lwt.debug (fun m -> m "Ignoring message for room.") >>= fun () ->
+        Log.debug (fun m -> m "Ignoring message for room.") >>= fun () ->
         Lwt.return_ok ()
      | Some _ ->
         (match message_event.sub with
@@ -239,7 +234,7 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
                 (Slacko.user_of_string (string_of_user msg.previous_message.user))
             ()
          | `Other json ->
-            Logs_lwt.debug (fun m ->
+            Log.debug (fun m ->
               m "Unhandled event %s" (Yojson.Basic.to_string json)) >|= fun () ->
             Ok ()))
 
@@ -266,13 +261,13 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
      with
      | Ok () -> Lwt.return_unit
      | Error (`Msg msg) ->
-        Logs_lwt.err (fun m ->
+        Log.err (fun m ->
           m "Failed to store message: %s" msg)
      | Error (#Slack_utils.showable_error as err) ->
-        Logs_lwt.err (fun m ->
+        Log.err (fun m ->
           m "Failed to store message: %a" Slack_utils.pp_error err)
      | Error (#Caqti_error.t as err) ->
-        Logs_lwt.err (fun m ->
+        Log.err (fun m ->
           m "Failed to store message: %a" Caqti_error.pp err))
 
   let messages_ts_range message_objs =
@@ -290,11 +285,11 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
      | `Success history_obj ->
         let messages = history_obj.Slacko.messages in
         if messages = [] then
-          Logs_lwt.info (fun m ->
+          Log.info (fun m ->
             m "Received no past messages for %s." channelname)
         else begin
           let ts_min, ts_max = messages_ts_range messages in
-          Logs_lwt.info (fun m ->
+          Log.info (fun m ->
             m "Received %d messages for %s in time range [%a, %a]."
               (List.length messages) channelname
               pp_ptime ts_min pp_ptime ts_max)
@@ -314,7 +309,7 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
      | #Slacko.parsed_auth_error
      | #Slacko.channel_error
      | #Slacko.timestamp_error as err ->
-        Logs_lwt.err (fun m -> m "Failed to fetch history for %s: %s"
+        Log.err (fun m -> m "Failed to fetch history for %s: %s"
           channelname (Slack_utils.show_error err)))
 
   let transcribed_rooms_q = Caqti_request.collect
@@ -338,10 +333,10 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
     >>= Lwt_list.iter_s
       (function
        | channelname, None ->
-          Logs_lwt.info
+          Log.info
             (fun m -> m "Not fetching history for new channel %s." channelname)
        | channelname, Some latest ->
-          Logs_lwt.info (fun m ->
+          Log.info (fun m ->
             m "Requesting messages since %a for %s."
               pp_ptime latest channelname) >>= fun () ->
           fetch_recent state channelname latest)
@@ -352,28 +347,31 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
         (match%lwt store_rtm_message state message_event with
          | Ok () -> Lwt.return_unit
          | Error (#Slack_cache.error as error) ->
-            Logs_lwt.err (fun m ->
+            Log.err (fun m ->
               m "Failed to capture message event: %a" Slack_utils.pp_error error)
          | Error (#Caqti_error.t as error) ->
-            Logs_lwt.err (fun m ->
+            Log.err (fun m ->
               m "Failed to update database: %a" Caqti_error.pp error)
          | Error (`Msg msg) ->
-            Logs_lwt.err (fun m ->
+            Log.err (fun m ->
               m "Failed to assimilate message event: %s" msg))
         >>= fun () ->
         monitor state conn
      | Error `Closed ->
-        Logs_lwt.info (fun m -> m "Connection closed.")
+        Log.info (fun m -> m "Connection closed.")
      | Error (`Msg msg) ->
-        Logs_lwt.err (fun m -> m "%s" msg) >>= fun () ->
+        Log.err (fun m -> m "%s" msg) >>= fun () ->
         monitor state conn)
 end
 
 let launch config =
-  let cache = Slack_cache.create ~token:config.token () in
-  (match%lwt Slack_rtm.connect ~token:config.bot_token () with
+  Logs.Src.set_level Log.src config.log_level;
+  let cache = Slack_cache.create ~token:config.slack_token () in
+  let bot_token = Option.get_or config.slack_token config.slack_bot_token in
+  (match%lwt Slack_rtm.connect ~token:bot_token () with
    | Ok conn ->
-      let module B = (val Batyr_data.connect config.db_uri) in
+      let storage_uri = Uri.of_string config.storage_uri in
+      let module B = (val Batyr_data.connect storage_uri) in
       let module L = Make (B) in
       let disconnect_status = ref `Lost_connection in
       let disconnected, disconnect = Lwt.wait () in
@@ -400,9 +398,9 @@ let launch config =
         Lwt.choose [L.monitor state conn; disconnected]
       ] >>= fun () ->
       List.iter Lwt_unix.disable_signal_handler kill_handler_ids;
-      Logs_lwt.info (fun m -> m "Disconnecting and exiting.") >>= fun () ->
+      Log.info (fun m -> m "Disconnecting and exiting.") >>= fun () ->
       Slack_rtm.disconnect conn >|= fun () ->
       !disconnect_status
    | Error (`Msg s) ->
-      Logs_lwt.err (fun m -> m "%s" s) >|= fun () ->
+      Log.err (fun m -> m "%s" s) >|= fun () ->
       `Failed_to_connect)

@@ -14,4 +14,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-include Listener_main.Make (Batyr_slack.Listener)
+include Protocol_conv_jsonm
+
+let src = Logs.Src.create "batyr-on-slack"
+
+include (val Logs_lwt.src_log src)
+
+type level_option = Logs.level option
+
+let level_option_of_jsonm = function
+ | `String level_name ->
+    (match Logs.level_of_string level_name with
+     | Ok level -> level
+     | Error (`Msg msg) ->
+        raise (Jsonm.Protocol_error (msg, `String level_name)))
+ | json -> raise (Jsonm.Protocol_error ("invalid log level", json))
+
+let level_option_to_jsonm level = `String (Logs.level_to_string level)

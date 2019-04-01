@@ -8,9 +8,10 @@
     logs
     logs.fmt
     lru
+    ppx_protocol_conv_jsonm
     re
     re.pcre
     slacko
     websocket
     websocket.lwt)
-  (preprocess (pps lwt_ppx ppx_compose ppx_regexp)))
+  (preprocess (pps lwt_ppx ppx_compose ppx_protocol_conv ppx_regexp)))
