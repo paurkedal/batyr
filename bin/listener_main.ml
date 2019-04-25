@@ -24,7 +24,7 @@ type launch_result =
 module type LISTENER = sig
   type config
 
-  val config_of_jsonm : Ezjsonm.value -> config
+  val config_of_jsonm_exn : Ezjsonm.value -> config
 
   val launch : config -> [> launch_result] Lwt.t
 end
@@ -38,7 +38,7 @@ module Make (Listener : LISTENER) = struct
         let%lwt config_string =
           Lwt_io.with_file ~mode:Lwt_io.input config_path Lwt_io.read in
         let%lwt config_json = Lwt.wrap1 Ezjsonm.from_string config_string in
-        let config = Listener.config_of_jsonm (Ezjsonm.value config_json) in
+        let config = Listener.config_of_jsonm_exn (Ezjsonm.value config_json) in
         let rec keep_alive () =
           (match%lwt Listener.launch config with
            | `Signalled 1 -> (* HUP *)

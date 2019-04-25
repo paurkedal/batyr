@@ -22,12 +22,20 @@ include (val Logs_lwt.src_log src)
 
 type level_option = Logs.level option
 
-let level_option_of_jsonm = function
- | `String level_name ->
+let jsonm_errorf value fmt =
+  Printf.ksprintf
+    (fun msg -> raise (Jsonm.Protocol_error (Jsonm.make_error ~value msg)))
+    fmt
+
+let level_option_of_jsonm_exn = function
+ | `String level_name as json ->
     (match Logs.level_of_string level_name with
      | Ok level -> level
-     | Error (`Msg msg) ->
-        raise (Jsonm.Protocol_error (msg, `String level_name)))
- | json -> raise (Jsonm.Protocol_error ("invalid log level", json))
+     | Error (`Msg msg) -> jsonm_errorf json "%s" msg)
+ | json -> jsonm_errorf json "invalid log level"
+
+let level_option_of_jsonm json =
+  try Ok (level_option_of_jsonm_exn json) with
+   | Jsonm.Protocol_error err -> Error err
 
 let level_option_to_jsonm level = `String (Logs.level_to_string level)

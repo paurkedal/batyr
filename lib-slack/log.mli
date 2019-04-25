@@ -22,3 +22,5 @@ include Logs_lwt.LOG
 
 type level_option = Logs.level option
 [@@deriving protocol ~driver:(module Jsonm)]
+
+val jsonm_errorf : Jsonm.t -> ('a, unit, string, 'b) format4 -> 'a

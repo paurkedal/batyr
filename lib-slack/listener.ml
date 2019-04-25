@@ -21,6 +21,8 @@ open Unprime_list
 open Unprime_option
 open Unprime_string
 
+let jsonm_errorf = Log.jsonm_errorf
+
 let pp_ptime = Ptime.pp_human ~frac_s:6 ()
 
 (*
@@ -48,20 +50,19 @@ let require what = function
 module Duration = struct
   type t = Ptime.Span.t
 
-  let of_jsonm = function
-   | `Float t_s ->
+  let of_jsonm_exn = function
+   | `Float t_s as t_json ->
       (match Ptime.Span.of_float_s t_s with
-       | None ->
-          raise (Jsonm.Protocol_error ("duration out of range", `Float t_s))
+       | None -> jsonm_errorf t_json "duration out of range"
        | Some t -> t)
    | json ->
-      raise (Jsonm.Protocol_error ("expecting float time", json))
+      jsonm_errorf json "expecting float time"
 
   let to_jsonm t = `Float (Ptime.Span.to_float_s t)
 end
 
 type config = {
-  log_level: Log.level_option [@default Some Log.Warning];
+  log_level: Log.level_option [@default Some Logs.Warning];
   storage_uri: string;
   slack_token: string;
   slack_bot_token: string option [@default None];

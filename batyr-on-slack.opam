@@ -27,6 +27,7 @@ depends: [
   "ocamlfind" {build}
   "ppx_compose"
   "ppx_deriving"
+  "ppx_protocol_conv_jsonm" {>= "5.0.0"}
   "ppx_regexp"
   "prime"
   "ptime"
