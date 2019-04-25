@@ -1,12 +1,23 @@
+(library
+  (name batyr_command_helpers)
+  (wrapped false)
+  (modules Listener_main)
+  (preprocess (pps lwt_ppx))
+  (libraries
+    batyr-lib cmdliner
+    ezjsonm
+    lwt
+    fmt
+    logs
+    logs.fmt))
+
 (executable
   (name batyr_on_slack_main)
   (public_name batyr-on-slack)
   (package batyr-on-slack)
+  (modules Batyr_on_slack_main)
   (preprocess (pps lwt_ppx))
   (libraries
     caqti-dynload
-    batyr-on-slack
-    cmdliner
-    fmt
-    logs
-    logs.fmt))
+    batyr_command_helpers
+    batyr-on-slack))
