@@ -152,7 +152,7 @@ type message_subevent =
   [ `Add of add_message
   | `Change of change_message
   | `Delete of delete_message
-  | `Other of Yojson.Basic.json ]
+  | `Other of Yojson.Basic.t ]
 
 type message_event = {
   channel: channel;

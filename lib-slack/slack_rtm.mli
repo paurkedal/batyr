@@ -1,4 +1,4 @@
-(* Copyright (C) 2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2019  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -78,7 +78,7 @@ type message_subevent =
   [ `Add of add_message
   | `Change of change_message
   | `Delete of delete_message
-  | `Other of Yojson.Basic.json ]
+  | `Other of Yojson.Basic.t ]
 
 type message_event = {
   channel: channel;
@@ -102,8 +102,8 @@ val team_info : t -> team_info
 
 val user_info : t -> user_info
 
-val send_json : t -> Yojson.Basic.json -> unit Lwt.t
+val send_json : t -> Yojson.Basic.t -> unit Lwt.t
 
-val receive_json : t -> (Yojson.Basic.json, error_or_closed) result Lwt.t
+val receive_json : t -> (Yojson.Basic.t, error_or_closed) result Lwt.t
 
 val receive : t -> (message_event, error_or_closed) result Lwt.t
