@@ -71,6 +71,17 @@ type config = {
 }
 [@@deriving protocol ~driver:(module Jsonm)]
 
+let load_config config_path =
+  let%lwt config_string =
+    Lwt_io.with_file ~mode:Lwt_io.input config_path Lwt_io.read in
+  let%lwt config_json = Lwt.wrap1 Ezjsonm.from_string config_string in
+  (match config_of_jsonm (Ezjsonm.value config_json) with
+   | Ok config ->
+      Lwt.return_ok config
+   | Error err ->
+      let msg = Protocol_conv_jsonm.Jsonm.error_to_string_hum err in
+      Lwt.return_error (`Msg msg))
+
 let log_level_of_string s =
   (match Logs.level_of_string s with
    | Ok level -> level

@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Printf
 
 type launch_result =
   [ `Signalled of int
@@ -24,7 +25,7 @@ type launch_result =
 module type LISTENER = sig
   type config
 
-  val config_of_jsonm_exn : Ezjsonm.value -> config
+  val load_config : string -> (config, [`Msg of string]) result Lwt.t
 
   val launch : config -> [> launch_result] Lwt.t
 end
@@ -35,10 +36,13 @@ module Make (Listener : LISTENER) = struct
     let backoff = Batyr_backoff.create () in
     Lwt_main.run begin
       let rec start () =
-        let%lwt config_string =
-          Lwt_io.with_file ~mode:Lwt_io.input config_path Lwt_io.read in
-        let%lwt config_json = Lwt.wrap1 Ezjsonm.from_string config_string in
-        let config = Listener.config_of_jsonm_exn (Ezjsonm.value config_json) in
+        let%lwt config =
+          (match%lwt Listener.load_config config_path with
+           | Ok config -> Lwt.return config
+           | Error (`Msg msg) ->
+              ksprintf Lwt.fail_with
+                "Cannot load configuration %s: %s" config_path msg)
+        in
         let rec keep_alive () =
           (match%lwt Listener.launch config with
            | `Signalled 1 -> (* HUP *)

@@ -22,7 +22,7 @@ type launch_result =
 module type LISTENER = sig
   type config
 
-  val config_of_jsonm_exn : Ezjsonm.value -> config
+  val load_config : string -> (config, [`Msg of string]) result Lwt.t
 
   val launch : config -> [> launch_result] Lwt.t
 end
