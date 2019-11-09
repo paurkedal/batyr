@@ -27,7 +27,7 @@ let room_info (node_id, domain_name, node_name, room_alias, transcribe) =
   let t_latest = Batyrweb_sql.Muc_room.latest_message_time node_id in
   let%lwt lmt = Batyr_xmpp_conn.Db.use_exn t_latest in
   let room_jid = node_name ^ "@" ^ domain_name in
-  let info : Yojson.Basic.json = `Assoc [
+  let info : Yojson.Basic.t = `Assoc [
     "alias", json_of_option json_of_string room_alias;
     "latest_message_time", json_of_option json_of_float lmt;
     "transcribe", `Bool transcribe;

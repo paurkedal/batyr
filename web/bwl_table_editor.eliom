@@ -46,6 +46,7 @@
 
 [%%client
   open Js_of_ocaml
+  open Js_of_ocaml_lwt
 
   module type ELEMENT = sig
     include ELEMENT_SHARED
