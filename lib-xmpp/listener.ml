@@ -221,7 +221,7 @@ module Make (B : Data_sig.S) = struct
     match Chat.(stanza.jid_from, stanza.content.presence_type) with
     | Some sender_jid, Some Chat.Unavailable when sender_jid = my_jid ->
       begin match
-        List.fmap
+        List.filter_map
           (fun e -> try Chat_muc.User.((Option.get ((decode e).item)).reason)
                     with Not_found -> None)
           Chat.(stanza.x)
