@@ -34,7 +34,7 @@ module Html_R = struct
     else Some (React.S.trace update csig)
 
   let append_child_signals p csigs =
-    let updaters = List.fmap (append_child_signal' p) csigs in
+    let updaters = List.filter_map (append_child_signal' p) csigs in
     if updaters <> [] then retain updaters p
 
   let div ?a esigs =
