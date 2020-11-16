@@ -38,7 +38,7 @@ depends: [
   "topkg" {build}
   "uri"
   "websocket"
-  "websocket-lwt"
+  "websocket-lwt-unix"
   "yojson"
 ]
 build: ["dune" "build" "-p" name "-j" jobs]

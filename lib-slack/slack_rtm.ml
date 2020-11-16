@@ -1,4 +1,4 @@
-(* Copyright (C) 2018--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2020  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -220,7 +220,7 @@ let default_ping_patience = Ptime.Span.of_int_s 600
 let connect_ws ~ping_period ~ping_patience resp =
   let uri = resp.url in
   let connect_to endp =
-    let%lwt receive, send = Websocket_lwt.with_connection endp uri in
+    let%lwt receive, send = Websocket_lwt_unix.with_connection endp uri in
     Lwt.return_ok {
       team = resp.team;
       user = resp.self;

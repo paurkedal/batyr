@@ -13,5 +13,5 @@
     re.pcre
     slacko
     websocket
-    websocket.lwt)
+    websocket-lwt-unix)
   (preprocess (pps lwt_ppx ppx_compose ppx_protocol_conv ppx_regexp)))
