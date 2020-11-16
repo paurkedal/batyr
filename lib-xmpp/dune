@@ -16,5 +16,6 @@
     caqti-type-calendar
     erm_xmpp
     tls
+    tls.lwt
     x509)
   (preprocess (pps lwt_ppx)))

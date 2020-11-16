@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2020  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,10 +40,29 @@ let make_plain_socket fd =
   end in
   Lwt.return (module Socket : Chat.Socket)
 
+let ca_paths =
+  (match Sys.getenv "BATYR_CA_PATH" with
+   | s ->
+      String.split_on_char ':' s
+   | exception Not_found ->
+      ["/etc/ssl/certs"; "/etc/pki/tls/certs/ca-bundle.crt"])
+
+let load_authenticator () =
+  let rec loop = function
+   | fp :: fps ->
+      (match%lwt Lwt_unix.stat fp with
+       | {Unix.st_kind = S_REG; _} -> Lwt.return (`Ca_file fp)
+       | {Unix.st_kind = S_DIR; _} -> Lwt.return (`Ca_dir fp)
+       | _ -> loop fps
+       | exception Unix.Unix_error _ -> loop fps)
+   | _ ->
+      Lwt.fail_with ("Cannot find CAs, searched " ^ String.concat ", " ca_paths)
+  in
+  loop ca_paths >>= X509_lwt.authenticator
+
 let make_tls_socket host fd =
   Nocrypto_entropy_lwt.initialize () >>= fun () ->
-  let%lwt authenticator =
-    X509_lwt.authenticator `No_authentication_I'M_STUPID in
+  let%lwt authenticator = load_authenticator () in
   let config = Tls.Config.client ~authenticator () in
   let%lwt tls_socket = Tls_lwt.Unix.client_of_fd config ~host fd in
 
