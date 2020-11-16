@@ -18,11 +18,11 @@ true: \
     package(caqti-type-calendar), \
     package(config-file), \
     package(eliom.server), \
-    package(js_of_ocaml-ppx.deriving), \
+    package(js_of_ocaml-ppx_deriving_json), \
     package(ppx_deriving), \
     package(ptime.clock.os), \
     package(yojson)
 
 <web/client/*>: \
     package(eliom.client), \
-    package(js_of_ocaml.ppx)
+    package(js_of_ocaml-ppx)
