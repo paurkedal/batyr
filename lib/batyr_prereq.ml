@@ -1,4 +1,4 @@
-(* Copyright (C) 2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2017--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Lwt.Infix
-
-let (>|=?) m f = m >|= function Ok x -> Ok (f x) | Error _ as r -> r
-let (>>=??) m f = m >>= function Ok x -> f x | Error _ as r -> Lwt.return r
+let (>>=?) = Lwt_result.Infix.( >>= )
+let (>|=?) = Lwt_result.Infix.( >|= )
+let (let*?) = Lwt_result.Syntax.( let* )
+let (let+?) = Lwt_result.Syntax.( let+ )

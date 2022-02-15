@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -288,17 +288,17 @@ let connect uri = (module struct
                     let%lwt new_id = Resource.store x in
                     account.resource <- x;
                     Batyr_sql.Account.set_resource id new_id c >|=? fun () ->
-                    Id_cache.add id_cache account) >>=?? fun () ->
+                    Id_cache.add id_cache account) >>=? fun () ->
       (match port with
         | None -> Lwt.return_ok ()
         | Some x when x = account.port -> Lwt.return_ok ()
         | Some x -> account.port <- x;
-                    Batyr_sql.Account.set_port id x c) >>=?? fun () ->
+                    Batyr_sql.Account.set_port id x c) >>=? fun () ->
       (match password with
         | None -> Lwt.return_ok ()
         | Some x when x = account.password -> Lwt.return_ok ()
         | Some x -> account.password <- x;
-                    Batyr_sql.Account.set_password id x c) >>=?? fun () ->
+                    Batyr_sql.Account.set_password id x c) >>=? fun () ->
       (match is_active with
         | None -> Lwt.return_ok ()
         | Some x when x = account.is_active -> Lwt.return_ok ()

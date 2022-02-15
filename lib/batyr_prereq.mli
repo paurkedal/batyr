@@ -1,4 +1,4 @@
-(* Copyright (C) 2017  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2017--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,8 +14,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-val (>|=?) : ('a, 'e) result Lwt.t -> ('a -> 'b) -> ('b, 'e) result Lwt.t
-
-val (>>=??) :
+val (>>=?) :
   ('a, 'e) result Lwt.t -> ('a -> ('b, 'e) result Lwt.t) ->
   ('b, 'e) result Lwt.t
+
+val (let*?) :
+  ('a, 'e) result Lwt.t -> ('a -> ('b, 'e) result Lwt.t) ->
+  ('b, 'e) result Lwt.t
+
+val (>|=?) : ('a, 'e) result Lwt.t -> ('a -> 'b) -> ('b, 'e) result Lwt.t
+
+val (let+?) : ('a, 'e) result Lwt.t -> ('a -> 'b) -> ('b, 'e) result Lwt.t

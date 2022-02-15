@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -217,7 +217,7 @@ module%server Chatroom = struct
     B.Db.use_exn begin fun conn ->
       Batyrweb_sql.Admin.upsert_chatroom (old_node_id_opt <> Some node_id)
         node_id room.room_alias room.room_description room.transcribe conn
-        >>=?? fun () ->
+        >>=? fun () ->
       match old_node_id_opt with
       | Some old_node_id when old_node_id <> node_id ->
         Batyrweb_sql.Admin.delete_chatroom old_node_id conn
@@ -331,7 +331,7 @@ module%server Presence = struct
     B.Db.use_exn begin fun conn ->
       Batyrweb_sql.Admin.upsert_presence
         (old_resource_id_opt <> Some resource_id)
-        resource_id account_id pres.nick pres.is_present conn >>=?? fun () ->
+        resource_id account_id pres.nick pres.is_present conn >>=? fun () ->
       match old_resource_id_opt with
       | Some old_resource_id when old_resource_id <> resource_id ->
         Batyrweb_sql.Admin.delete_presence old_resource_id conn
