@@ -1,4 +1,4 @@
-(* Copyright (C) 2018--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -66,8 +66,8 @@ module Make (Listener : LISTENER) = struct
     let config =
       Arg.(required (pos 0 (some string) None (info ~docv:"CONFIG" []))) in
     let term = Term.(const main $ config) in
-    let info = Term.info (Filename.basename Sys.argv.(0)) in
-    (term, info)
+    let info = Cmd.info (Filename.basename Sys.argv.(0)) in
+    Cmd.v info term
 
   let () =
     let buf_fmt ~like =
@@ -88,9 +88,5 @@ module Make (Listener : LISTENER) = struct
       reporter.Logs.report src level ~over:(fun () -> ()) k msgf in
     Logs.set_reporter {Logs.report = report}
 
-  let () =
-    (match Cmdliner.Term.eval main_cmd with
-     | `Error _ -> exit 64
-     | `Ok () -> exit 0
-     | `Version | `Help -> exit 0)
+  let () = exit (Cmdliner.Cmd.eval main_cmd)
 end

@@ -14,7 +14,7 @@ depends: [
   "caqti-dynload"
   "caqti-lwt"
   "caqti-type-calendar"
-  "cmdliner"
+  "cmdliner" {>= "1.1.0"}
   "conduit"
   "conduit-lwt"
   "dns-lwt-unix"
