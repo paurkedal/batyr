@@ -31,7 +31,7 @@
     ptime
     ptime.clock.os
     react)
-  (preprocess (pps lwt_ppx ppx_compose)))
+  (preprocess (pps ppx_compose)))
 
 (ocamllex batyr_search_lexer)
 (ocamlyacc batyr_search_parser)
