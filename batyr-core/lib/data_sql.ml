@@ -59,8 +59,8 @@ end
 module Resource = struct
   let get_q = Caqti_request.find
     Caqti_type.int
-    Caqti_type.(tup3 string string string)
-    "SELECT domain_name, node_name, resource_name \
+    Caqti_type.(tup4 string string string (option string))
+    "SELECT domain_name, node_name, resource_name, foreign_resource_id \
      FROM batyr.resources NATURAL JOIN batyr.nodes NATURAL JOIN batyr.domains \
      WHERE resource_id = ?"
   let locate_q = Caqti_request.find_opt
@@ -70,16 +70,17 @@ module Resource = struct
      FROM batyr.resources NATURAL JOIN batyr.nodes NATURAL JOIN batyr.domains \
      WHERE domain_name = ? AND node_name = ? AND resource_name = ?"
   let store_q = Caqti_request.find
-    Caqti_type.(tup3 string string string)
+    Caqti_type.(tup4 string string string (option string))
     Caqti_type.int
-    "SELECT batyr.make_resource(?, ?, ?)"
+    "SELECT batyr.make_resource(?, ?, ?, ?)"
 
   let get id (module C : CONNECTION) =
     C.find get_q id
   let locate domain_name node_name resource_name (module C : CONNECTION) =
     C.find_opt locate_q (domain_name, node_name, resource_name)
-  let store domain_name node_name resource_name (module C : CONNECTION) =
-    C.find store_q (domain_name, node_name, resource_name)
+  let store domain_name node_name resource_name foreign_resource_id
+            (module C : CONNECTION) =
+    C.find store_q (domain_name, node_name, resource_name, foreign_resource_id)
 end
 
 module Account = struct
@@ -162,17 +163,19 @@ end
 
 module Message = struct
   let store_q = Caqti_request.exec
-    Caqti_type.(tup2
+    Caqti_type.(tup3
       (tup4 ptime int (option int) int)
-      (tup4 string (option string) (option string) (option string)))
+      (tup4 string (option string) (option string) (option string))
+      (option string))
     "INSERT INTO batyr.messages \
       (seen_time, sender_id, author_id, recipient_id, \
-       message_type, subject, thread, body) \
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-  let store seen_time sender_id author_id recipient_id
-            message_type subject thread body
-            (module C : CONNECTION) =
+       message_type, subject, thread, body, foreign_message_id) \
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  let store
+        seen_time sender_id author_id recipient_id
+        message_type subject thread body foreign_message_id
+        (module C : CONNECTION) =
     C.exec store_q
       ((seen_time, sender_id, author_id, recipient_id),
-       (message_type, subject, thread, body))
+       (message_type, subject, thread, body), foreign_message_id)
 end

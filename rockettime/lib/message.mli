@@ -1,4 +1,4 @@
-(* Copyright (C) 2017--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,23 +14,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-val (>>=?) :
-  ('a, 'e) result Lwt.t -> ('a -> ('b, 'e) result Lwt.t) ->
-  ('b, 'e) result Lwt.t
+open Types
 
-val (let*?) :
-  ('a, 'e) result Lwt.t -> ('a -> ('b, 'e) result Lwt.t) ->
-  ('b, 'e) result Lwt.t
+type attachment = {
+  ts: Ptime.t;
+  text: string option;
+  (* many more fields *)
+}
 
-val (>|=?) : ('a, 'e) result Lwt.t -> ('a -> 'b) -> ('b, 'e) result Lwt.t
+type url = {
+  url: string;
+  headers: (string * string) list;
+  meta: (string * string) list;
+  (* parlsedUrl *)
+}
 
-val (let+?) : ('a, 'e) result Lwt.t -> ('a -> 'b) -> ('b, 'e) result Lwt.t
+type t = {
+  id: string;
+  rid: string;
+  msg: string;
+  ts: Ptime.t;
+  u: User.t;
+  updated_at: Ptime.t;
+  edited_at: Ptime.t option;
+  edited_by: User.t option;
+  urls: url list;
+  attachments: attachment list;
+  alias: string option;
+  avatar: string option;
+  groupable: bool option;
+  parse_urls: bool option;
+}
 
-module Lwt_result_list : sig
-  val iter_s : ('a -> (unit, 'err) result Lwt.t) ->
-    'a list -> (unit, 'err) result Lwt.t
-end
-
-module Lwt_option : sig
-  val map_s : ('a -> 'b Lwt.t) -> 'a option -> 'b option Lwt.t
-end
+val decoder : t decoder

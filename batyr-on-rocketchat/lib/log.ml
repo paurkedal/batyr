@@ -1,4 +1,4 @@
-(* Copyright (C) 2017--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,23 +14,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-val (>>=?) :
-  ('a, 'e) result Lwt.t -> ('a -> ('b, 'e) result Lwt.t) ->
-  ('b, 'e) result Lwt.t
+let src = Logs.Src.create "batyr-on-rocketchat"
 
-val (let*?) :
-  ('a, 'e) result Lwt.t -> ('a -> ('b, 'e) result Lwt.t) ->
-  ('b, 'e) result Lwt.t
+include (val Logs_lwt.src_log src)
 
-val (>|=?) : ('a, 'e) result Lwt.t -> ('a -> 'b) -> ('b, 'e) result Lwt.t
+type level_option = Logs.level option
 
-val (let+?) : ('a, 'e) result Lwt.t -> ('a -> 'b) -> ('b, 'e) result Lwt.t
+let level_option_of_yojson = function
+ | `String level_name ->
+    (match Logs.level_of_string level_name with
+     | Ok level -> Ok level
+     | Error (`Msg msg) -> Error msg)
+ | _ -> Error "log level must be a string"
 
-module Lwt_result_list : sig
-  val iter_s : ('a -> (unit, 'err) result Lwt.t) ->
-    'a list -> (unit, 'err) result Lwt.t
-end
-
-module Lwt_option : sig
-  val map_s : ('a -> 'b Lwt.t) -> 'a option -> 'b option Lwt.t
-end
+let level_option_to_yojson level = `String (Logs.level_to_string level)

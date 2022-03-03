@@ -60,7 +60,8 @@ END
 $$;
 
 CREATE OR REPLACE
-  FUNCTION batyr.make_resource(dn text, nn text, rn text) RETURNS integer
+  FUNCTION batyr.make_resource(dn text, nn text, rn text, fr text)
+    RETURNS integer
   LANGUAGE plpgsql AS
 $$
 DECLARE ni integer; r integer;
@@ -73,8 +74,8 @@ BEGIN
       RETURN r;
   END LOOP;
   FOR r IN
-    INSERT INTO batyr.resources (node_id, resource_name)
-    VALUES (ni, rn) RETURNING resource_id
+    INSERT INTO batyr.resources (node_id, resource_name, foreign_resource_id)
+    VALUES (ni, rn, fr) RETURNING resource_id
   LOOP
     RETURN r;
   END LOOP;

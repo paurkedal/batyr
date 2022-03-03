@@ -15,7 +15,8 @@
  *)
 
 type launch_result =
-  [ `Signalled of int
+  [ `Exit of int
+  | `Signalled of int
   | `Failed_to_connect
   | `Lost_connection ]
 

@@ -1,0 +1,14 @@
+(library
+ (name rockettime)
+ (public_name batyr-on-rocketchat.rockettime)
+ (libraries
+    cryptokit
+    decoders-yojson
+    dns-client.lwt
+    logs
+    logs.lwt
+    prime
+    websocket
+    websocket-lwt-unix
+    yojson)
+ (preprocess (pps ppx_deriving.show ppx_deriving_yojson)))

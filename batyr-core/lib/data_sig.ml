@@ -60,14 +60,18 @@ module type Resource = sig
   type node
   type t
 
-  val create : domain_name: string -> ?node_name: string ->
-               ?resource_name: string -> unit -> t
-  val create_on_node : node -> string -> t
+  val create :
+    domain_name: string -> ?node_name: string ->
+    ?resource_name: string -> ?foreign_resource_id: string ->
+    unit -> t
+
+  val create_on_node : ?foreign_resource_id: string -> node -> string -> t
 
   val domain_name : t -> string
   val node_name : t -> string
   val resource_name : t -> string
   val node : t -> node
+  val foreign_resource_id : t -> string option
 
   val equal : t -> t -> bool
   val hash : t -> int
@@ -130,6 +134,7 @@ module type Message = sig
     ?subject: string ->
     ?thread: string ->
     ?body: string ->
+    ?foreign_message_id: string ->
     unit -> t
 
   val seen_time : t -> Ptime.t
@@ -140,6 +145,7 @@ module type Message = sig
   val subject : t -> string option
   val thread : t -> string option
   val body : t -> string option
+  val foreign_message_id : t -> string option
 
   val store : ?muc_author: resource -> t ->
     (unit, [> Caqti_error.t]) result Lwt.t

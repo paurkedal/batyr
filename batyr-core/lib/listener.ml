@@ -19,7 +19,8 @@ open Lwt.Syntax
 open Printf
 
 type launch_result =
-  [ `Signalled of int
+  [ `Exit of int
+  | `Signalled of int
   | `Failed_to_connect
   | `Lost_connection ]
 
@@ -46,6 +47,7 @@ module Make (Listener : LISTENER) = struct
         in
         let rec keep_alive () =
           Listener.launch config >>= function
+           | `Exit n -> exit n
            | `Signalled 1 -> (* HUP *)
               Logs_lwt.info (fun p ->
                 p "Reloading config and reconnecting due to SIGHUP.")

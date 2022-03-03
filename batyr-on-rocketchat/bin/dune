@@ -1,0 +1,5 @@
+(executable
+ (name listener)
+ (public_name batyr-on-rocketchat)
+ (package batyr-on-rocketchat)
+ (libraries caqti-dynload batyr-on-rocketchat))

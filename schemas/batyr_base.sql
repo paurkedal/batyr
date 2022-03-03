@@ -31,6 +31,7 @@ CREATE TABLE batyr.resources (
   resource_id SERIAL PRIMARY KEY,
   node_id integer NOT NULL REFERENCES batyr.nodes,
   resource_name text NOT NULL,
+  foreign_resource_id text,
   UNIQUE (node_id, resource_name)
 );
 
@@ -68,7 +69,10 @@ CREATE TABLE batyr.messages (
   message_type batyr.message_type NOT NULL,
   subject text,
   thread text,
-  body text
+  body text,
+  foreign_message_id text,
+  editor_id integer REFERENCES batyr.resources,
+  UNIQUE (recipient_id, foreign_message_id)
 );
 
 CREATE INDEX resources_resource_name_ts ON batyr.resources

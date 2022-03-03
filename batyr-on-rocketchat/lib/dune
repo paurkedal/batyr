@@ -1,0 +1,5 @@
+(library
+ (name batyr_on_rocketchat)
+ (public_name batyr-on-rocketchat)
+ (libraries batyr-core rockettime)
+ (preprocess (pps ppx_deriving_yojson)))

@@ -14,7 +14,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Lwt.Infix
+
 let (>>=?) = Lwt_result.Infix.( >>= )
 let (>|=?) = Lwt_result.Infix.( >|= )
 let (let*?) = Lwt_result.Syntax.( let* )
 let (let+?) = Lwt_result.Syntax.( let+ )
+
+module Lwt_result_list = struct
+
+  let rec iter_s f = function
+   | [] -> Lwt.return_ok ()
+   | x :: xs -> f x >>=? (fun () -> iter_s f xs)
+
+end
+
+module Lwt_option = struct
+
+  let map_s f = function None -> Lwt.return_none | Some x -> f x >|= Option.some
+
+end

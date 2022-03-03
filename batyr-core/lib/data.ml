@@ -151,6 +151,7 @@ let connect uri = (module struct
       domain_name : string;
       node_name : string;
       resource_name : string;
+      foreign_resource_id : string option;
       beacon : Beacon.t;
     }
 
@@ -159,16 +160,18 @@ let connect uri = (module struct
       domain_name = "";
       node_name = "";
       resource_name = "";
+      foreign_resource_id = None;
       beacon = Beacon.dummy;
     }
 
     module Data_bijection = struct
       type domain = t
-      type codomain = string * string * string
-      let f {domain_name; node_name; resource_name; _} =
-        (domain_name, node_name, resource_name)
-      let f_inv (domain_name, node_name, resource_name) = {
+      type codomain = string * string * string * string option
+      let f {domain_name; node_name; resource_name; foreign_resource_id; _} =
+        (domain_name, node_name, resource_name, foreign_resource_id)
+      let f_inv (domain_name, node_name, resource_name, foreign_resource_id) = {
         id = id_unknown; domain_name; node_name; resource_name;
+        foreign_resource_id;
         beacon = Beacon.dummy;
       }
       let beacon {beacon; _} = beacon
@@ -187,20 +190,25 @@ let connect uri = (module struct
     let data_cache = Data_cache.create 23
     let id_cache = Id_cache.create 23
 
-    let create ~domain_name ?(node_name = "") ?(resource_name = "") () =
+    let create
+          ~domain_name ?(node_name = "") ?(resource_name = "")
+          ?foreign_resource_id () =
       Data_cache.merge data_cache
         (Beacon.embed Grade.basic
           (fun beacon ->
-           {id = id_unknown; domain_name; node_name; resource_name; beacon}))
+           {id = id_unknown; domain_name; node_name; resource_name;
+            foreign_resource_id; beacon}))
 
-    let create_on_node node resource_name =
-      create ~domain_name:(Node.domain_name node)
-             ~node_name:(Node.node_name node) ~resource_name ()
+    let create_on_node ?foreign_resource_id node resource_name =
+      create
+        ~domain_name:(Node.domain_name node)
+        ~node_name:(Node.node_name node) ~resource_name ?foreign_resource_id ()
 
     let domain_name {domain_name; _} = domain_name
     let node_name {node_name; _} = node_name
     let resource_name {resource_name; _} = resource_name
     let node {domain_name; node_name; _} = Node.create ~domain_name ~node_name ()
+    let foreign_resource_id {foreign_resource_id; _} = foreign_resource_id
 
     let equal = (==)
     let hash {domain_name; node_name; resource_name; _} =
@@ -217,10 +225,12 @@ let connect uri = (module struct
       try Lwt.return (Id_cache.find_key id_cache id)
       with Not_found ->
         Db.use_accounted_exn (Data_sql.Resource.get id)
-          >|= fun (cost, (domain_name, node_name, resource_name)) ->
+          >|= fun (cost, (domain_name, node_name, resource_name,
+                          foreign_resource_id)) ->
         let resource =
-          Beacon.embed cost
-            (fun beacon -> {id; domain_name; node_name; resource_name; beacon})
+          Beacon.embed cost @@ fun beacon ->
+          {id; domain_name; node_name; resource_name; foreign_resource_id;
+           beacon}
         in
         try Id_cache.find id_cache resource
         with Not_found ->
@@ -243,8 +253,9 @@ let connect uri = (module struct
     let store resource =
       if resource.id >= 0 then Lwt.return resource.id else
       Db.use_accounted_exn
-        (Data_sql.Resource.store resource.domain_name resource.node_name
-                                  resource.resource_name)
+        (Data_sql.Resource.store
+          resource.domain_name resource.node_name resource.resource_name
+          resource.foreign_resource_id)
         >|= fun (cost, id) ->
       Beacon.set_grade cost resource.beacon;
       resource.id <- id;
@@ -449,20 +460,23 @@ let connect uri = (module struct
       subject : string option;
       thread : string option;
       body : string option;
+      foreign_message_id : string option;
     }
 
     let seen_time {seen_time; _} = seen_time
     let edit_time {edit_time; _} = edit_time
     let make ~seen_time ?edit_time ~sender ~recipient
-             ~message_type ?subject ?thread ?body () =
+             ~message_type ?subject ?thread ?body ?foreign_message_id () =
       {seen_time; edit_time;
-       sender; recipient; message_type; subject; thread; body}
+       sender; recipient; message_type; subject; thread; body;
+       foreign_message_id}
     let sender {sender; _} = sender
     let recipient {recipient; _} = recipient
     let message_type {message_type; _} = message_type
     let subject {subject; _} = subject
     let thread {thread; _} = thread
     let body {body; _} = body
+    let foreign_message_id {foreign_message_id; _} = foreign_message_id
 
     let store ?muc_author msg =
       let author_id = Option.search Resource.cached_id muc_author in
@@ -476,5 +490,6 @@ let connect uri = (module struct
           (subject msg)
           (thread msg)
           (body msg)
+          (foreign_message_id msg)
   end
 end : Data_sig.S)

@@ -1,0 +1,4 @@
+(executable
+ (name rocketcmd)
+ (preprocess (pps ppx_deriving_yojson))
+ (libraries cmdliner logs lwt lwt.unix ptime batyr_on_rocketchat rockettime))

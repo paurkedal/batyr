@@ -13,11 +13,12 @@
     caqti-type-calendar
     cmdliner
     extunix
+    fmt
+    logs
+    logs.fmt
     lwt
     lwt_log
     lwt_react
-    logs
-    logs.fmt
     prime
     prime.unstable
     ptime
