@@ -1,0 +1,7 @@
+(executable
+ (name listener)
+ (public_name batyr-on-slack)
+ (package batyr-on-slack)
+ (modules Listener)
+ (preprocess (pps lwt_ppx))
+ (libraries caqti-dynload batyr-on-slack))

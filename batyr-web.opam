@@ -7,7 +7,7 @@ homepage: "https://github.com/paurkedal/batyr/"
 bug-reports: "https://github.com/paurkedal/batyr/issues"
 depends: [
   "ocaml"
-  "batyr-lib"
+  "batyr-core"
   "batyr-on-xmpp"
   "calendar"
   "caqti" {>= "0.8"}

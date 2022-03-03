@@ -10,7 +10,7 @@
   (modules_without_implementation
     Data_sig)
   (libraries
-    batyr-lib
+    batyr-core
     caqti
     caqti-lwt
     caqti-type-calendar

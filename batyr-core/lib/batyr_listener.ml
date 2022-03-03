@@ -15,6 +15,7 @@
  *)
 
 open Lwt.Infix
+open Lwt.Syntax
 open Printf
 
 type launch_result =
@@ -36,15 +37,15 @@ module Make (Listener : LISTENER) = struct
     let backoff = Batyr_backoff.create () in
     Lwt_main.run begin
       let rec start () =
-        let%lwt config =
-          (match%lwt Listener.load_config config_path with
+        let* config =
+          Listener.load_config config_path >>= function
            | Ok config -> Lwt.return config
            | Error (`Msg msg) ->
               ksprintf Lwt.fail_with
-                "Cannot load configuration %s: %s" config_path msg)
+                "Cannot load configuration %s: %s" config_path msg
         in
         let rec keep_alive () =
-          (match%lwt Listener.launch config with
+          Listener.launch config >>= function
            | `Signalled 1 -> (* HUP *)
               Logs_lwt.info (fun p ->
                 p "Reloading config and reconnecting due to SIGHUP.")
@@ -56,7 +57,7 @@ module Make (Listener : LISTENER) = struct
               let dt = Batyr_backoff.next backoff in
               Logs_lwt.info (fun p -> p "Reconnecting in %.3g s." dt) >>= fun () ->
               Lwt_unix.sleep dt >>= fun () ->
-              keep_alive ()) in
+              keep_alive () in
         keep_alive () in
       start ()
     end

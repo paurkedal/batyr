@@ -2,7 +2,7 @@
   (name batyr_slack)
   (public_name batyr-on-slack)
   (libraries
-    batyr-lib
+    batyr-core
     dns-lwt-unix
     kojson
     logs

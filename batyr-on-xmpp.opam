@@ -8,7 +8,7 @@ bug-reports: "https://github.com/paurkedal/batyr/issues"
 depends: [
   "ocaml"
   "adpkg" {build}
-  "batyr-lib"
+  "batyr-core"
   "calendar"
   "caqti" {>= "0.8"}
   "caqti-dynload"

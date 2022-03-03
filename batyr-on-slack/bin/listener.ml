@@ -14,4 +14,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-include Listener_main.Make (Batyr_slack.Listener)
+include Batyr_listener.Make (Batyr_slack.Listener)

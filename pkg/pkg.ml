@@ -6,4 +6,4 @@ open Topkg
 
 let licenses = List.map Pkg.std_file ["COPYING"]
 
-let () = Topkg_jbuilder.describe ~licenses ~name:"batyr-lib" ()
+let () = Topkg_jbuilder.describe ~licenses ~name:"batyr-core" ()

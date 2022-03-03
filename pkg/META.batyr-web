@@ -2,7 +2,7 @@ version = "%%VERSION_NUM%%"
 description = "A web interface for Batyr"
 directory = "."
 requires = "
-  batyr-lib
+  batyr-core
   batyr-on-xmpp
   caqti
   caqti-lwt

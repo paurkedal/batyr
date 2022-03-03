@@ -1,6 +1,6 @@
 (library
-  (name batyr_lib)
-  (public_name batyr-lib)
+  (name batyr_core)
+  (public_name batyr-core)
   (wrapped false)
   (modules
     Batyr_backoff
@@ -8,6 +8,7 @@
     Batyr_data
     Batyr_data_sig
     Batyr_db
+    Batyr_listener
     Batyr_prereq
     Batyr_search
     Batyr_search_lexer  ; internal
@@ -22,10 +23,13 @@
     caqti
     caqti-lwt
     caqti-type-calendar
+    cmdliner
     extunix
     lwt
     lwt_log
     lwt_react
+    logs
+    logs.fmt
     prime
     prime.unstable
     ptime
