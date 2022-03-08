@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2020  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -121,7 +121,9 @@ let with_chat session {server; username; password; resource; port} =
 
   (* Create the session. *)
   let%lwt plain_socket = make_plain_socket fd in
-  let tls_socket () = make_tls_socket server fd in
+  let tls_socket () =
+    make_tls_socket Domain_name.(server |> of_string_exn |> host_exn) fd
+  in
   let%lwt session_data =
     Chat.setup_session ~user_data:() ~myjid ~plain_socket ~tls_socket
                        ~password session in
