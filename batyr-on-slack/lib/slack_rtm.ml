@@ -1,4 +1,4 @@
-(* Copyright (C) 2018--2020  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,9 +15,12 @@
  *)
 
 open Lwt.Infix
+open Lwt.Syntax
 open Printf
 open Unprime_option
 open Unprime
+
+open Batyr_prereq
 
 let rtm_uri = Uri.of_string "https://slack.com/api/rtm.connect"
 
@@ -217,6 +220,16 @@ let decode_connect json =
 let default_ping_period = Ptime.Span.of_int_s 240
 let default_ping_patience = Ptime.Span.of_int_s 600
 
+let gethostbyname host =
+  let resolver = Dns_client_lwt.create () in
+  let host' = host |> Domain_name.of_string_exn |> Domain_name.host_exn in
+  let* ip4 = Dns_client_lwt.gethostbyname resolver host' in
+  (match ip4 with
+   | Ok ip4 -> Lwt.return_ok (Ipaddr.V4 ip4)
+   | Error _ ->
+      let+? ip6 = Dns_client_lwt.gethostbyname6 resolver host' in
+      Ipaddr.V6 ip6)
+
 let connect_ws ~ping_period ~ping_patience resp =
   let uri = resp.url in
   let connect_to endp =
@@ -232,14 +245,9 @@ let connect_ws ~ping_period ~ping_patience resp =
     } in
   (match Uri.scheme uri, Uri.host uri with
    | Some "wss", Some host ->
-      let%lwt resolver = Dns_resolver_unix.create () in
-      let%lwt ips = Dns_resolver_unix.gethostbyname resolver host in
-      if ips = [] then
-        Lwt.return_error (`Msg ("Host " ^ host ^ " not found."))
-      else
-        let ip = List.nth ips (Random.int (List.length ips)) in
-        let port = Option.get_or 443 (Uri.port uri) in
-        connect_to (`TLS (`Hostname host, `IP ip, `Port port))
+      let*? ip = gethostbyname host in
+      let port = Option.get_or 443 (Uri.port uri) in
+      connect_to (`TLS (`Hostname host, `IP ip, `Port port))
    | _ ->
       Lwt.return_error (`Msg ("Unexpected WebSocket URI " ^ Uri.to_string uri)))
 

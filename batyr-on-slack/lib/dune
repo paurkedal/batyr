@@ -3,7 +3,8 @@
   (public_name batyr-on-slack)
   (libraries
     batyr-core
-    dns-lwt-unix
+    dns-client
+    dns-client.lwt
     kojson
     logs
     logs.fmt

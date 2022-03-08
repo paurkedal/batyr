@@ -17,7 +17,7 @@ depends: [
   "cmdliner" {>= "1.1.0"}
   "conduit"
   "conduit-lwt"
-  "dns-lwt-unix"
+  "dns-client"
   "kojson"
   "logs"
   "lru"
