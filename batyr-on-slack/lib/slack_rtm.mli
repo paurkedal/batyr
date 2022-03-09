@@ -91,6 +91,7 @@ type error = [`Msg of string]
 type error_or_closed = [error | `Closed]
 
 val connect :
+  dns_client: Dns_client_lwt.t ->
   token: string ->
   ?ping_period: Ptime.Span.t ->
   ?ping_patience: Ptime.Span.t ->

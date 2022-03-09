@@ -33,6 +33,12 @@ module Duration = struct
   let to_jsonm t = `Float (Ptime.Span.to_float_s t)
 end
 
+type nameserver = {
+  host: string;
+  port: int;
+}
+[@@deriving protocol ~driver:(module Jsonm)]
+
 type t = {
   log_level: Log.level_option [@default Some Logs.Warning];
   storage_uri: string;
@@ -40,6 +46,7 @@ type t = {
   slack_bot_token: string option [@default None];
   slack_ping_period: Duration.t option [@default None];
   slack_ping_patience: Duration.t option [@default None];
+  nameservers: nameserver list [@default [{host = "127.0.0.53"; port = 53}]];
 }
 [@@deriving protocol ~driver:(module Jsonm)]
 

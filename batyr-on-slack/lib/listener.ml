@@ -343,9 +343,20 @@ end
 
 let launch config =
   Logs.Src.set_level Log.src config.Config.log_level;
+
+  let dns_client =
+    let nameservers =
+      let open Config in
+      let aux cfg = `Plaintext (Ipaddr.of_string_exn cfg.host, cfg.port) in
+      (`Tcp, (List.map aux config.nameservers))
+    in
+    Dns_client_lwt.create ~nameservers ()
+  in
+
   let cache = Slack_cache.create ~token:config.slack_token () in
   let bot_token = Option.get_or config.slack_token config.slack_bot_token in
-  (match%lwt Slack_rtm.connect ~token:bot_token () with
+
+  (match%lwt Slack_rtm.connect ~dns_client ~token:bot_token () with
    | Ok conn ->
       let storage_uri = Uri.of_string config.storage_uri in
       let module B = (val Batyr_data.connect storage_uri) in

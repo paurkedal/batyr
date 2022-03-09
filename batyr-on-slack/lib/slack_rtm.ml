@@ -220,17 +220,16 @@ let decode_connect json =
 let default_ping_period = Ptime.Span.of_int_s 240
 let default_ping_patience = Ptime.Span.of_int_s 600
 
-let gethostbyname host =
-  let resolver = Dns_client_lwt.create () in
+let gethostbyname ~dns_client host =
   let host' = host |> Domain_name.of_string_exn |> Domain_name.host_exn in
-  let* ip4 = Dns_client_lwt.gethostbyname resolver host' in
+  let* ip4 = Dns_client_lwt.gethostbyname dns_client host' in
   (match ip4 with
    | Ok ip4 -> Lwt.return_ok (Ipaddr.V4 ip4)
    | Error _ ->
-      let+? ip6 = Dns_client_lwt.gethostbyname6 resolver host' in
+      let+? ip6 = Dns_client_lwt.gethostbyname6 dns_client host' in
       Ipaddr.V6 ip6)
 
-let connect_ws ~ping_period ~ping_patience resp =
+let connect_ws ~dns_client ~ping_period ~ping_patience resp =
   let uri = resp.url in
   let connect_to endp =
     let%lwt receive, send = Websocket_lwt_unix.with_connection endp uri in
@@ -245,14 +244,14 @@ let connect_ws ~ping_period ~ping_patience resp =
     } in
   (match Uri.scheme uri, Uri.host uri with
    | Some "wss", Some host ->
-      let*? ip = gethostbyname host in
+      let*? ip = gethostbyname ~dns_client host in
       let port = Option.get_or 443 (Uri.port uri) in
       connect_to (`TLS (`Hostname host, `IP ip, `Port port))
    | _ ->
       Lwt.return_error (`Msg ("Unexpected WebSocket URI " ^ Uri.to_string uri)))
 
 let connect
-    ~token
+    ~dns_client ~token
     ?(ping_period = default_ping_period)
     ?(ping_patience = default_ping_patience) () =
   let q = [
@@ -265,7 +264,7 @@ let connect
    | `OK ->
       let%lwt body = Cohttp_lwt.Body.to_string body in
       (match body |> Yojson.Basic.from_string |> decode_connect with
-       | Ok resp -> connect_ws ~ping_period ~ping_patience resp
+       | Ok resp -> connect_ws ~dns_client ~ping_period ~ping_patience resp
        | Error _ as r -> Lwt.return r)
    | status ->
       let msg =
