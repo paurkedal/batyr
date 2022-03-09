@@ -146,8 +146,10 @@ module Chat_version = struct
     | Chat.IQGet _ -> result
     | Chat.IQSet _ -> Lwt.fail Chat.BadRequest
 
-  let register ?(name = "Batyr (bot)") ?(version = Batyr_version.version_string)
-               ?(os = Sys.os_type) chat =
+  let register
+        ?(name = "Batyr (bot)")
+        ?(version = Batyr_core.About.version_string)
+        ?(os = Sys.os_type) chat =
     let el = encode {name; version; os} in
     let result = Lwt.return (Chat.IQResult (Some el)) in
     Chat.register_iq_request_handler chat ns_version (on_version result)

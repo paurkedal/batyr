@@ -1,4 +1,4 @@
-(* Copyright (C) 2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,10 +14,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-type t
+(** Search patterns for logged messages. *)
 
-val create :
-  ?dt_min: float -> ?dt_sat: float -> ?dt_avg: float ->
-  ?fuzz: float -> unit -> t
+type search_field = [`Any | `Author | `Subject | `Body]
+type search_op = [`Regex | `Substring | `Word]
 
-val next : t -> float
+(** The compiled pattern type. *)
+type search_pattern =
+  | Sp_regex of search_field * string
+  | Sp_substring of search_field * string
+  | Sp_word of search_field * string
+  | Sp_not of search_pattern
+  | Sp_and of search_pattern * search_pattern
+  | Sp_or of search_pattern * search_pattern
+
+exception Syntax_error of string
+(** Error raised by the pattern compiler. *)

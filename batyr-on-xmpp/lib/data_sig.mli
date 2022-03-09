@@ -1,4 +1,4 @@
-(* Copyright (C) 2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2019--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,12 +18,12 @@ open Xmpp_inst
 
 module type S = sig
 
-  module Base : Batyr_data_sig.S
+  module Base : Batyr_core.Data_sig.S
 
-  module Db : Batyr_data_sig.Db
+  module Db : Batyr_core.Data_sig.Db
 
   module Node : sig
-    include Batyr_data_sig.Node
+    include Batyr_core.Data_sig.Node
       with type t = Base.Node.t
 
     val of_jid : JID.t -> t
@@ -33,7 +33,7 @@ module type S = sig
   end
 
   module Resource : sig
-    include Batyr_data_sig.Resource
+    include Batyr_core.Data_sig.Resource
       with type node := Base.Node.t
        and type t = Base.Resource.t
 
@@ -58,7 +58,7 @@ module type S = sig
   end
 
   module Muc_room : sig
-    include Batyr_data_sig.Muc_room
+    include Batyr_core.Data_sig.Muc_room
       with type node := Base.Node.t
        and type t = Base.Muc_room.t
 

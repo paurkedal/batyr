@@ -34,7 +34,7 @@ end
 module Make (Listener : LISTENER) = struct
 
   let main config_path =
-    let backoff = Batyr_backoff.create () in
+    let backoff = Backoff.create () in
     Lwt_main.run begin
       let rec start () =
         let* config =
@@ -54,7 +54,7 @@ module Make (Listener : LISTENER) = struct
            | `Signalled sn ->
               Logs_lwt.info (fun p -> p "Session terminated due to signal %d." sn)
            | `Failed_to_connect | `Lost_connection ->
-              let dt = Batyr_backoff.next backoff in
+              let dt = Backoff.next backoff in
               Logs_lwt.info (fun p -> p "Reconnecting in %.3g s." dt) >>= fun () ->
               Lwt_unix.sleep dt >>= fun () ->
               keep_alive () in

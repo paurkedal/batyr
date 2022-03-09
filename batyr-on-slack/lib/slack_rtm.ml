@@ -20,7 +20,7 @@ open Printf
 open Unprime_option
 open Unprime
 
-open Batyr_prereq
+open Batyr_core.Prereq
 
 let rtm_uri = Uri.of_string "https://slack.com/api/rtm.connect"
 

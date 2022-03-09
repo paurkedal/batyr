@@ -1,4 +1,4 @@
-/* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+/* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,14 +15,14 @@
  */
 
 %{
-open Batyr_search_types
+open Search_types
 %}
 
 %token<string> REGEX SUBSTRING WORD
-%token<Batyr_search_types.search_field> FIELD
+%token<Search_types.search_field> FIELD
 %token LPAREN RPAREN OR NOT EOF
 
-%type<Batyr_search_types.search_pattern> start
+%type<Search_types.search_pattern> start
 %start start
 %%
 start: disj EOF { $1 };

@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,19 +14,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-(** Search patterns for logged messages (types). *)
+(** High-level access to database tables. *)
 
-type search_field = [`Any | `Author | `Subject | `Body]
-type search_op = [`Regex | `Substring | `Word]
-
-(** The compiled pattern type. *)
-type search_pattern =
-  | Sp_regex of search_field * string
-  | Sp_substring of search_field * string
-  | Sp_word of search_field * string
-  | Sp_not of search_pattern
-  | Sp_and of search_pattern * search_pattern
-  | Sp_or of search_pattern * search_pattern
-
-exception Syntax_error of string
-(** Error raised by the pattern compiler. *)
+val connect : Uri.t -> (module Data_sig.S)

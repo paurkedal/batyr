@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
  *)
 
 [%%server
-  open Batyr_data
+  open Batyr_core.Data
   open Batyr_xmpp.Data
   open Batyrweb_server
   module type CONNECTION = Caqti_lwt.CONNECTION
@@ -88,7 +88,7 @@ let phrase_query pat_opt tI_opt tF_opt =
   ^ (match tF_opt with None -> "" | Some tF -> sprintf " to %f" tF)
 
 let sql_of_pattern pat_s =
-  Batyr_search.denote_pattern (Batyr_search.pattern_of_string pat_s)
+  Batyr_core.Search.(denote_pattern (pattern_of_string pat_s))
 
 let fetch_message_counts (room_jid, pat_opt, tz) =
   try%lwt
@@ -98,11 +98,11 @@ let fetch_message_counts (room_jid, pat_opt, tz) =
       | None -> Lwt.fail Eliom_common.Eliom_404
       | Some id -> Lwt.return id in
     let cond =
-      let open Batyr_db.Expr in
+      let open Batyr_core.Search_sql.Expr in
       var "sender.node_id" = int room_id
       |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt in
-    let cond_str, Batyr_db.Param (params_type, params) =
-      Batyr_db.Expr.to_sql ~first_index:2 cond in
+    let cond_str, Batyr_core.Search_sql.Param (params_type, params) =
+      Batyr_core.Search_sql.Expr.to_sql ~first_index:2 cond in
     let q = Caqti_request.collect ~oneshot:true
       Caqti_type.(tup2 string params_type)
       Caqti_type.(tup2 int int)
@@ -121,7 +121,7 @@ let fetch_message_counts (room_jid, pat_opt, tz) =
      | Ok _ as r -> r
      | Error err -> Error (Caqti_error.show err))
   with
-   | Batyr_search_types.Syntax_error msg ->
+   | Batyr_core.Search.Syntax_error msg ->
       Lwt.return (Error msg)
    | exn ->
       Lwt_log.error_f ~exn "Failed query of transcript list." >>= fun () ->
@@ -141,14 +141,14 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
       | None -> Lwt.fail Eliom_common.Eliom_404
       | Some id -> Lwt.return id in
     let cond =
-      Batyr_db.Expr.(
+      Batyr_core.Search_sql.Expr.(
         (var "sender.node_id" = int room_id)
         |> Option.fold (fun tI -> (&&) (var "seen_time" >= epoch tI)) tI_opt
         |> Option.fold (fun tF -> (&&) (var "seen_time" < epoch tF)) tF_opt
         |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt
       ) in
-    let cond_str, Batyr_db.Param (params_type, params) =
-      Batyr_db.Expr.to_sql cond in
+    let cond_str, Batyr_core.Search_sql.Param (params_type, params) =
+      Batyr_core.Search_sql.Expr.to_sql cond in
     let q = Caqti_request.collect ~oneshot:true
       params_type
       Caqti_type.(tup2 (tup3 ptime (option ptime) int)
@@ -179,7 +179,7 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
           tuples >|= (fun msgs -> Ok msgs)
      | Error err -> Lwt.return_error (Caqti_error.show err))
   with
-   | Batyr_search_types.Syntax_error msg ->
+   | Batyr_core.Search.Syntax_error msg ->
       Lwt.return (Error msg)
    | exn ->
       Lwt_log.error_f ~exn "Failed query of transcript list." >>= fun () ->

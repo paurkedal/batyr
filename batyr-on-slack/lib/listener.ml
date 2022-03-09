@@ -1,4 +1,4 @@
-(* Copyright (C) 2018--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,7 +57,7 @@ let (>>=?) m f =
    | Ok x -> f x
    | Error error -> Lwt.return_error error
 
-module Make (Batyr_data : Batyr_data_sig.S) = struct
+module Make (Batyr_data : Batyr_core.Data_sig.S) = struct
   open Batyr_data
 
   type monitor_state = {
@@ -359,7 +359,7 @@ let launch config =
   (match%lwt Slack_rtm.connect ~dns_client ~token:bot_token () with
    | Ok conn ->
       let storage_uri = Uri.of_string config.storage_uri in
-      let module B = (val Batyr_data.connect storage_uri) in
+      let module B = (val Batyr_core.Data.connect storage_uri) in
       let module L = Make (B) in
       let disconnect_status = ref `Lost_connection in
       let disconnected, disconnect = Lwt.wait () in

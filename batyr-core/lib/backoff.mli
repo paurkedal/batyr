@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,4 +14,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-let version_string = "%%VERSION_NUM%%"
+type t
+
+val create :
+  ?dt_min: float -> ?dt_sat: float -> ?dt_avg: float ->
+  ?fuzz: float -> unit -> t
+
+val next : t -> float

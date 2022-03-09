@@ -14,11 +14,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Batyr_cache
-open Batyr_prereq
 open Lwt.Infix
 open Lwt.Syntax
 open Unprime_option
+
+open Caching
+open Prereq
 
 let id_unknown = -1
 let id_missing = -2
@@ -85,14 +86,14 @@ let connect uri = (module struct
       let beacon {beacon; _} = beacon
     end
 
-    module Data_cache = Batyr_cache.Cache_of_bijection (Data_bijection)
-    module Id_cache = Batyr_cache.Cache_of_bijection (Id_bijection)
+    module Data_cache = Cache_of_bijection (Data_bijection)
+    module Id_cache = Cache_of_bijection (Id_bijection)
     let data_cache = Data_cache.create 23
     let id_cache = Id_cache.create 23
 
     let create ~domain_name ?(node_name = "") () =
       Data_cache.merge data_cache
-        (Beacon.embed Batyr_cache.Grade.basic
+        (Beacon.embed Grade.basic
           (fun beacon -> {id = id_unknown; domain_name; node_name; beacon}))
 
     let domain_name {domain_name; _} = domain_name
@@ -111,7 +112,7 @@ let connect uri = (module struct
     let stored_of_id id =
       try Lwt.return (Id_cache.find_key id_cache id)
       with Not_found ->
-        Db.use_accounted_exn (Batyr_sql.Node.get id)
+        Db.use_accounted_exn (Data_sql.Node.get id)
           >|= fun (cost, (domain_name, node_name)) ->
         let node =
           Beacon.embed cost
@@ -126,7 +127,7 @@ let connect uri = (module struct
       if node.id >= 0 then Lwt.return (Some node.id) else
       if node.id = id_missing then Lwt.return_none else
       Db.use_accounted_exn
-        (Batyr_sql.Node.locate node.domain_name node.node_name)
+        (Data_sql.Node.locate node.domain_name node.node_name)
         >|= fun (cost, id_opt) ->
       Beacon.set_grade cost node.beacon;
       match id_opt with
@@ -136,7 +137,7 @@ let connect uri = (module struct
     let store node =
       if node.id >= 0 then Lwt.return node.id else
       Db.use_accounted_exn
-        (Batyr_sql.Node.store node.domain_name node.node_name)
+        (Data_sql.Node.store node.domain_name node.node_name)
         >|= fun (cost, id) ->
       Beacon.set_grade cost node.beacon;
       node.id <- id;
@@ -181,14 +182,14 @@ let connect uri = (module struct
       let beacon {beacon; _} = beacon
     end
 
-    module Data_cache = Batyr_cache.Cache_of_bijection (Data_bijection)
-    module Id_cache = Batyr_cache.Cache_of_bijection (Id_bijection)
+    module Data_cache = Cache_of_bijection (Data_bijection)
+    module Id_cache = Cache_of_bijection (Id_bijection)
     let data_cache = Data_cache.create 23
     let id_cache = Id_cache.create 23
 
     let create ~domain_name ?(node_name = "") ?(resource_name = "") () =
       Data_cache.merge data_cache
-        (Beacon.embed Batyr_cache.Grade.basic
+        (Beacon.embed Grade.basic
           (fun beacon ->
            {id = id_unknown; domain_name; node_name; resource_name; beacon}))
 
@@ -215,7 +216,7 @@ let connect uri = (module struct
     let stored_of_id id =
       try Lwt.return (Id_cache.find_key id_cache id)
       with Not_found ->
-        Db.use_accounted_exn (Batyr_sql.Resource.get id)
+        Db.use_accounted_exn (Data_sql.Resource.get id)
           >|= fun (cost, (domain_name, node_name, resource_name)) ->
         let resource =
           Beacon.embed cost
@@ -231,7 +232,7 @@ let connect uri = (module struct
       if resource.id >= 0 then Lwt.return (Some resource.id) else
       if resource.id = id_missing then Lwt.return_none else
       Db.use_accounted_exn
-        (Batyr_sql.Resource.locate resource.domain_name resource.node_name
+        (Data_sql.Resource.locate resource.domain_name resource.node_name
                                    resource.resource_name)
         >|= fun (cost, id_opt) ->
       Beacon.set_grade cost resource.beacon;
@@ -242,7 +243,7 @@ let connect uri = (module struct
     let store resource =
       if resource.id >= 0 then Lwt.return resource.id else
       Db.use_accounted_exn
-        (Batyr_sql.Resource.store resource.domain_name resource.node_name
+        (Data_sql.Resource.store resource.domain_name resource.node_name
                                   resource.resource_name)
         >|= fun (cost, id) ->
       Beacon.set_grade cost resource.beacon;
@@ -271,14 +272,14 @@ let connect uri = (module struct
       }
       let beacon {beacon; _} = beacon
     end
-    module Id_cache = Batyr_cache.Cache_of_bijection (Id_bijection)
+    module Id_cache = Cache_of_bijection (Id_bijection)
     let id_cache = Id_cache.create 11
 
     let create ~resource ?(port = 5222) ~password ?(is_active = false) () =
       let* resource_id = Resource.store resource in
       let* cost, () = (* OBS: Should be load cost. *)
         Db.use_accounted_exn
-          (Batyr_sql.Account.create ~resource_id ~port ~password ~is_active) in
+          (Data_sql.Account.create ~resource_id ~port ~password ~is_active) in
       Lwt.return @@ Beacon.embed cost
         (fun beacon -> {resource; port; password; is_active; beacon})
 
@@ -292,29 +293,29 @@ let connect uri = (module struct
           Id_cache.remove id_cache account;
           let* new_id = Resource.store x in
           account.resource <- x;
-          Batyr_sql.Account.set_resource id new_id c >|=? fun () ->
+          Data_sql.Account.set_resource id new_id c >|=? fun () ->
           Id_cache.add id_cache account) >>=? fun () ->
       (match port with
        | None -> Lwt.return_ok ()
        | Some x when x = account.port -> Lwt.return_ok ()
        | Some x ->
           account.port <- x;
-          Batyr_sql.Account.set_port id x c) >>=? fun () ->
+          Data_sql.Account.set_port id x c) >>=? fun () ->
       (match password with
        | None -> Lwt.return_ok ()
        | Some x when x = account.password -> Lwt.return_ok ()
        | Some x ->
           account.password <- x;
-          Batyr_sql.Account.set_password id x c) >>=? fun () ->
+          Data_sql.Account.set_password id x c) >>=? fun () ->
       (match is_active with
        | None -> Lwt.return_ok ()
        | Some x when x = account.is_active -> Lwt.return_ok ()
        | Some x ->
           account.is_active <- x;
-          Batyr_sql.Account.set_is_active id x c)
+          Data_sql.Account.set_is_active id x c)
 
     let delete_id resource_id =
-      Db.use_exn (Batyr_sql.Account.delete resource_id)
+      Db.use_exn (Data_sql.Account.delete resource_id)
 
     let delete account =
       (* TODO: deplete beacon *)
@@ -327,7 +328,7 @@ let connect uri = (module struct
        | Some resource_id ->
           try Lwt.return_some (Id_cache.find_key id_cache resource_id)
           with Not_found ->
-            Db.use_accounted_exn (Batyr_sql.Account.get resource_id) >>=
+            Db.use_accounted_exn (Data_sql.Account.get resource_id) >>=
             begin function
              | _, None -> Lwt.return_none
              | cost, Some (port, password, is_active) ->
@@ -349,13 +350,13 @@ let connect uri = (module struct
           (fun beacon -> {resource; port; password; is_active; beacon})
 
     let all () =
-      let* cost_all, rows = Db.use_accounted_exn Batyr_sql.Account.all in
+      let* cost_all, rows = Db.use_accounted_exn Data_sql.Account.all in
       let cost = cost_all /. float_of_int (List.length rows) in
       Lwt_list.map_s (merge cost) rows
 
     let all_active () =
       let* cost_all, rows =
-        Db.use_accounted_exn Batyr_sql.Account.all_active in
+        Db.use_accounted_exn Data_sql.Account.all_active in
       let cost = cost_all /. float_of_int (List.length rows) in
       Lwt_list.map_s (merge cost) rows
 
@@ -387,7 +388,7 @@ let connect uri = (module struct
       let beacon {beacon; _} = beacon
     end
 
-    module Node_cache = Batyr_cache.Cache_of_hashable (Node_hashable)
+    module Node_cache = Cache_of_hashable (Node_hashable)
     let node_cache = Node_cache.create 23
 
     let node {node; _} = node
@@ -413,7 +414,7 @@ let connect uri = (module struct
          | None -> Lwt.return_none
          | Some node_id ->
             let+ cost, qr =
-              Db.use_accounted_exn (Batyr_sql.Muc_room.stored_of_node node_id)
+              Db.use_accounted_exn (Data_sql.Muc_room.stored_of_node node_id)
             in
             let make_room (alias, description, transcribe, mmt) =
               let min_message_time =
@@ -468,7 +469,7 @@ let connect uri = (module struct
       let* sender_id = Resource.store (sender msg) in
       let* recipient_id = Resource.store (recipient msg) in
       Db.use @@
-        Batyr_sql.Message.store
+        Data_sql.Message.store
           (seen_time msg)
           sender_id author_id recipient_id
           (string_of_message_type (message_type msg))
@@ -476,4 +477,4 @@ let connect uri = (module struct
           (thread msg)
           (body msg)
   end
-end : Batyr_data_sig.S)
+end : Data_sig.S)

@@ -1,24 +1,12 @@
 (library
-  (name batyr_core)
-  (public_name batyr-core)
-  (wrapped false)
-  (modules
-    Batyr_backoff
-    Batyr_cache
-    Batyr_data
-    Batyr_data_sig
-    Batyr_db
-    Batyr_listener
-    Batyr_prereq
-    Batyr_search
-    Batyr_search_lexer  ; internal
-    Batyr_search_parser ; internal
-    Batyr_search_types
-    Batyr_sql           ; internal
-    Batyr_version)
-  (modules_without_implementation
-    Batyr_data_sig)
-  (libraries
+ (name batyr_core)
+ (public_name batyr-core)
+ (private_modules
+    data_sql
+    search_lexer
+    search_parser
+    search_types)
+ (libraries
     calendar
     caqti
     caqti-lwt
@@ -35,11 +23,7 @@
     ptime
     ptime.clock.os
     react)
-  (preprocess (pps ppx_compose)))
+ (preprocess (pps ppx_compose)))
 
-(ocamllex batyr_search_lexer)
-(ocamlyacc batyr_search_parser)
-(rule
-  (targets batyr_search_types.ml)
-  (deps batyr_search_types.mli)
-  (action (copy %{deps} %{targets})))
+(ocamllex search_lexer)
+(ocamlyacc search_parser)

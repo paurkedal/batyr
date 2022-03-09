@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2019--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,6 +14,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-(** High-level access to database tables. *)
+type launch_result =
+  [ `Signalled of int
+  | `Failed_to_connect
+  | `Lost_connection ]
 
-val connect : Uri.t -> (module Batyr_data_sig.S)
+module type LISTENER = sig
+  type config
+
+  val load_config : string -> (config, [`Msg of string]) result Lwt.t
+
+  val launch : config -> [> launch_result] Lwt.t
+end
+
+module Make : functor (Listener : LISTENER) -> sig end

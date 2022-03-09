@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -250,12 +250,12 @@ module Make (B : Data_sig.S) = struct
         f s =
     let cond = Lwt_condition.create () in
     let driver () =
-      let backoff = Batyr_backoff.create () in
+      let backoff = Batyr_core.Backoff.create () in
       while%lwt true do
         if React.S.value s
         then Lwt_condition.wait cond >>= fun () -> Lwt_unix.sleep dt_edge
         else
-          let dt = Batyr_backoff.next backoff in
+          let dt = Batyr_core.Backoff.next backoff in
           f () >>= fun () ->
           Lwt_log.info_f ~section "Will wait %.3g s before next %s." dt what
             >>= fun () ->
@@ -381,7 +381,7 @@ module Make (B : Data_sig.S) = struct
       cs_emit_message;  cs_messages;
     } in
     Hashtbl.add chat_sessions key cs;
-    let backoff = Batyr_backoff.create () in
+    let backoff = Batyr_core.Backoff.create () in
     let rec connect_loop () =
       let t_start = Unix.time () in
       run_once cs >>= fun () ->
@@ -389,7 +389,7 @@ module Make (B : Data_sig.S) = struct
       if cs.cs_chat = Shutdown then
         Lwt_log.info_f ~section "Session shut down after %g s." t_dur
       else
-        let t_sleep = Batyr_backoff.next backoff in
+        let t_sleep = Batyr_core.Backoff.next backoff in
         Lwt_log.info_f ~section "Session lasted %g s, will re-connect in %g s."
                        t_dur t_sleep >>= fun () ->
         Lwt_unix.sleep t_sleep >>= fun () ->

@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
  *)
 
 {
-open Batyr_search_parser
-open Batyr_search_types
+open Search_parser
+open Search_types
 }
 
 let wordbound = ['0'-'9' 'A'-'Z' 'a'-'z' '_' '\128'-'\255']

@@ -1,4 +1,4 @@
-(* Copyright (C) 2018--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@ open Unprime_option
 
 let connect uri = (module struct
 
-  module Base = (val Batyr_data.connect uri)
+  module Base = (val Batyr_core.Data.connect uri)
 
   module Db = Base.Db
 

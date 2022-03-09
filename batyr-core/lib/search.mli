@@ -1,4 +1,4 @@
-(* Copyright (C) 2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,17 +14,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-type launch_result =
-  [ `Signalled of int
-  | `Failed_to_connect
-  | `Lost_connection ]
+include module type of Search_types
 
-module type LISTENER = sig
-  type config
+val pattern_of_string : string -> search_pattern
+(** Compile a pattern.
+    @raise Syntax_error if the pattern is ill-formed. *)
 
-  val load_config : string -> (config, [`Msg of string]) result Lwt.t
-
-  val launch : config -> [> launch_result] Lwt.t
-end
-
-module Make : functor (Listener : LISTENER) -> sig end
+val denote_pattern : search_pattern -> bool Search_sql.Expr.t
+(** Turn a pattern into an SQL query. *)
