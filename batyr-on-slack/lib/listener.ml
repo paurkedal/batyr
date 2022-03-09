@@ -16,12 +16,9 @@
 
 open Lwt.Infix
 open Printf
-open Protocol_conv_jsonm
 open Unprime_list
 open Unprime_option
 open Unprime_string
-
-let jsonm_errorf = Log.jsonm_errorf
 
 let pp_ptime = Ptime.pp_human ~frac_s:6 ()
 
@@ -47,40 +44,8 @@ let require what = function
  | None -> Error (`Msg ("Did not find " ^ what ^ "."))
  | Some x -> Ok x
 
-module Duration = struct
-  type t = Ptime.Span.t
-
-  let of_jsonm_exn = function
-   | `Float t_s as t_json ->
-      (match Ptime.Span.of_float_s t_s with
-       | None -> jsonm_errorf t_json "duration out of range"
-       | Some t -> t)
-   | json ->
-      jsonm_errorf json "expecting float time"
-
-  let to_jsonm t = `Float (Ptime.Span.to_float_s t)
-end
-
-type config = {
-  log_level: Log.level_option [@default Some Logs.Warning];
-  storage_uri: string;
-  slack_token: string;
-  slack_bot_token: string option [@default None];
-  slack_ping_period: Duration.t option [@default None];
-  slack_ping_patience: Duration.t option [@default None];
-}
-[@@deriving protocol ~driver:(module Jsonm)]
-
-let load_config config_path =
-  let%lwt config_string =
-    Lwt_io.with_file ~mode:Lwt_io.input config_path Lwt_io.read in
-  let%lwt config_json = Lwt.wrap1 Ezjsonm.from_string config_string in
-  (match config_of_jsonm (Ezjsonm.value config_json) with
-   | Ok config ->
-      Lwt.return_ok config
-   | Error err ->
-      let msg = Protocol_conv_jsonm.Jsonm.error_to_string_hum err in
-      Lwt.return_error (`Msg msg))
+type config = Config.t
+let load_config = Config.load
 
 let log_level_of_string s =
   (match Logs.level_of_string s with
@@ -377,7 +342,7 @@ module Make (Batyr_data : Batyr_data_sig.S) = struct
 end
 
 let launch config =
-  Logs.Src.set_level Log.src config.log_level;
+  Logs.Src.set_level Log.src config.Config.log_level;
   let cache = Slack_cache.create ~token:config.slack_token () in
   let bot_token = Option.get_or config.slack_token config.slack_bot_token in
   (match%lwt Slack_rtm.connect ~token:bot_token () with

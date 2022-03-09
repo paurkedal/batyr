@@ -17,6 +17,6 @@
     websocket-lwt-unix)
   (preprocess
     (per_module
-      ((pps lwt_ppx) slack_cache slack_rtm)
+      ((pps lwt_ppx) listener slack_cache slack_rtm)
       ((pps lwt_ppx ppx_compose ppx_regexp) slack_utils)
-      ((pps lwt_ppx ppx_protocol_conv) listener log))))
+      ((pps ppx_protocol_conv) config log))))
