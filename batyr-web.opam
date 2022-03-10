@@ -15,7 +15,7 @@ depends: [
   "caqti-lwt"
   "caqti-type-calendar"
   "config-file"
-  "eliom" {>= "6.0.0" & < "7~"}
+  "eliom"
   "js_of_ocaml"
   "js_of_ocaml-ppx"
   "lwt"
