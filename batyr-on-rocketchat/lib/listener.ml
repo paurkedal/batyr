@@ -20,8 +20,7 @@ open Lwt.Syntax
 open Unprime_list
 module R = Rockettime
 
-type config = Config.t
-let load_config = Config.load
+module Config = Config
 
 let fetch_rooms config conn =
   let*? resp =
@@ -127,8 +126,6 @@ let pp_error ppf = function
  | #Caqti_error.t as err -> Caqti_error.pp ppf err
 
 let launch config =
-  Logs.Src.set_level Log.src config.Config.log_level;
-  Logs.Src.set_level R.Log.src config.Config.log_level;
 
   let dns_client =
     let nameservers =

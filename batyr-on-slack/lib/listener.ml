@@ -44,8 +44,7 @@ let require what = function
  | None -> Error (`Msg ("Did not find " ^ what ^ "."))
  | Some x -> Ok x
 
-type config = Config.t
-let load_config = Config.load
+module Config = Config
 
 let log_level_of_string s =
   (match Logs.level_of_string s with
@@ -342,7 +341,6 @@ module Make (Batyr_data : Batyr_core.Data_sig.S) = struct
 end
 
 let launch config =
-  Logs.Src.set_level Log.src config.Config.log_level;
 
   let dns_client =
     let nameservers =

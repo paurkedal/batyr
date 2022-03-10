@@ -60,3 +60,8 @@ let load config_path =
    | Error err ->
       let msg = Protocol_conv_jsonm.Jsonm.error_to_string_hum err in
       Error (`Msg msg))
+
+let verbosity config = {
+  Batyr_core.Logging.Verbosity.global = None;
+  per_source = ["batyr-on-slack", config.log_level];
+}

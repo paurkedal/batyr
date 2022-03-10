@@ -58,3 +58,11 @@ let load config_path =
   (match of_yojson config_json with
    | Ok config -> Lwt.return_ok config
    | Error msg -> Lwt.return_error (`Msg msg))
+
+let verbosity config = {
+  Batyr_core.Logging.Verbosity.global = None;
+  per_source = [
+    "batyr-on-rocketchat", config.log_level;
+    "rockettime", config.log_level;
+  ];
+}

@@ -15,7 +15,6 @@
  *)
 
 open Lwt.Infix
-open Lwt.Syntax
 open Printf
 
 type launch_result =
@@ -25,26 +24,21 @@ type launch_result =
   | `Lost_connection ]
 
 module type LISTENER = sig
-  type config
+  module Config : sig
+    type t
+    val load : string -> (t, [`Msg of string]) result Lwt.t
+    val verbosity : t -> Logging.Verbosity.t
+  end
 
-  val load_config : string -> (config, [`Msg of string]) result Lwt.t
-
-  val launch : config -> [> launch_result] Lwt.t
+  val launch : Config.t -> [> launch_result] Lwt.t
 end
 
 module Make (Listener : LISTENER) = struct
 
-  let main config_path =
+  let main config =
     let backoff = Backoff.create () in
     Lwt_main.run begin
       let rec start () =
-        let* config =
-          Listener.load_config config_path >>= function
-           | Ok config -> Lwt.return config
-           | Error (`Msg msg) ->
-              ksprintf Lwt.fail_with
-                "Cannot load configuration %s: %s" config_path msg
-        in
         let rec keep_alive () =
           Listener.launch config >>= function
            | `Exit n -> exit n
@@ -64,32 +58,31 @@ module Make (Listener : LISTENER) = struct
       start ()
     end
 
+  let setup_logging config_path verbosity_arg =
+    let config = Lwt_main.run begin
+      Listener.Config.load config_path >>= function
+       | Ok config -> Lwt.return config
+       | Error (`Msg msg) ->
+          ksprintf Lwt.fail_with
+            "Cannot load configuration %s: %s" config_path msg
+    end in
+    let verbosity_cfg = Listener.Config.verbosity config in
+    let verbosity = Logging.Verbosity.merge verbosity_arg verbosity_cfg in
+    Logging.setup ~verbosity ();
+    config
+
   let main_cmd =
     let open Cmdliner in
     let config =
-      Arg.(required (pos 0 (some string) None (info ~docv:"CONFIG" []))) in
-    let term = Term.(const main $ config) in
+      Arg.(required (pos 0 (some string) None (info ~docv:"CONFIG" [])))
+    in
+    let term =
+      let open Term in
+      const main
+        $ (const setup_logging $ config $ Logging.Verbosity.cmdliner_term)
+    in
     let info = Cmd.info (Filename.basename Sys.argv.(0)) in
     Cmd.v info term
-
-  let () =
-    let buf_fmt ~like =
-      let b = Buffer.create 512 in
-      Fmt.with_buffer ~like b,
-      fun () -> let m = Buffer.contents b in Buffer.reset b; m in
-    let app, app_flush = buf_fmt ~like:Fmt.stdout in
-    let dst, dst_flush = buf_fmt ~like:Fmt.stderr in
-    let reporter = Logs_fmt.reporter ~app ~dst () in
-    let report src level ~over k msgf =
-      let k () =
-        let write () = match level with
-         | Logs.App -> Lwt_io.write Lwt_io.stdout (app_flush ())
-         | _ -> Lwt_io.write Lwt_io.stderr (dst_flush ()) in
-        let unblock () = over (); Lwt.return_unit in
-        Lwt.finalize write unblock |> Lwt.ignore_result;
-        k () in
-      reporter.Logs.report src level ~over:(fun () -> ()) k msgf in
-    Logs.set_reporter {Logs.report = report}
 
   let () = exit (Cmdliner.Cmd.eval main_cmd)
 end

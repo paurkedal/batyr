@@ -21,11 +21,14 @@ type launch_result =
   | `Lost_connection ]
 
 module type LISTENER = sig
-  type config
 
-  val load_config : string -> (config, [`Msg of string]) result Lwt.t
+  module Config : sig
+    type t
+    val load : string -> (t, [`Msg of string]) result Lwt.t
+    val verbosity : t -> Logging.Verbosity.t
+  end
 
-  val launch : config -> [> launch_result] Lwt.t
+  val launch : Config.t -> [> launch_result] Lwt.t
 end
 
 module Make : functor (Listener : LISTENER) -> sig end

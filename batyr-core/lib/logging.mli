@@ -15,3 +15,18 @@
  *)
 
 val lwt_reporter : unit -> Logs.reporter
+
+module Verbosity : sig
+  type t = {
+    global: Logs.level option option;
+    per_source: (string * Logs.level option) list;
+  }
+
+  val merge : t -> t -> t
+
+  val of_string : string -> (t, [> `Msg of string]) result
+
+  val cmdliner_term : t Cmdliner.Term.t
+end
+
+val setup : ?verbosity: Verbosity.t -> unit -> unit
