@@ -17,6 +17,8 @@
 open Lwt.Infix
 open Printf
 
+module Log = (val Logs_lwt.src_log (Logs.Src.create "batyr-core"))
+
 type launch_result =
   [ `Exit of int
   | `Signalled of int
@@ -38,24 +40,25 @@ module Make (Listener : LISTENER) = struct
   let main config =
     let backoff = Backoff.create () in
     Lwt_main.run begin
-      let rec start () =
-        let rec keep_alive () =
-          Listener.launch config >>= function
-           | `Exit n -> exit n
-           | `Signalled 1 -> (* HUP *)
-              Logs_lwt.info (fun p ->
-                p "Reloading config and reconnecting due to SIGHUP.")
-                >>= fun () ->
-              start ()
-           | `Signalled sn ->
-              Logs_lwt.info (fun p -> p "Session terminated due to signal %d." sn)
-           | `Failed_to_connect | `Lost_connection ->
-              let dt = Backoff.next backoff in
-              Logs_lwt.info (fun p -> p "Reconnecting in %.3g s." dt) >>= fun () ->
-              Lwt_unix.sleep dt >>= fun () ->
-              keep_alive () in
-        keep_alive () in
-      start ()
+      let rec restart () =
+        Listener.launch config >>= function
+         | `Failed_to_connect | `Lost_connection ->
+            let dt = Backoff.next backoff in
+            Log.err (fun f ->
+              f "No connection, reconnecting in %.3g s." dt) >>= fun () ->
+            Lwt_unix.sleep dt >>= fun () ->
+            restart ()
+         | `Signalled 1 -> (* HUP *)
+            Log.info (fun f ->
+              f "Reloading config and reconnecting due to SIGHUP.")
+              >>= fun () ->
+            restart ()
+         | `Signalled sn ->
+            Log.info (fun f -> f "Session terminated due to signal %d." sn)
+         | `Exit n ->
+            exit n
+      in
+      restart ()
     end
 
   let setup_logging config_path verbosity_arg =
