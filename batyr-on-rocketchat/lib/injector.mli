@@ -22,6 +22,10 @@ module type S = sig
     recipient: resource -> unit ->
     (unit, [> Caqti_error.t]) result Lwt.t
 
+  val latest_timestamp :
+    recipient: resource -> unit ->
+    (Ptime.t, [> Caqti_error.t]) result Lwt.t
+
   val store_message :
     recipient: resource -> Rockettime.Message.t ->
     (unit, [> Caqti_error.t]) result Lwt.t

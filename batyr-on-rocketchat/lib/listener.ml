@@ -100,7 +100,7 @@ module Make_listener (B : Batyr_core.Data_sig.S) = struct
       >>= fun () ->
     let room_id = R.Room.id room in
     let count = 1_000_000 in (* FIXME *)
-    let since = Ptime.epoch in (* FIXME *)
+    let*? since = I.latest_timestamp ~recipient () in
     let*? history =
       R.Methods.load_history ~room_id ~count ~since conn
         >|= Result.map_error @@ fun err ->

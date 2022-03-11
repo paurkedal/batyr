@@ -34,6 +34,10 @@ module type S = sig
     recipient: resource -> unit ->
     (unit, [> Caqti_error.t]) result Lwt.t
 
+  val latest_timestamp :
+    recipient: resource -> unit ->
+    (Ptime.t, [> Caqti_error.t]) result Lwt.t
+
   val store_message :
     recipient: resource -> R.Message.t ->
     (unit, [> Caqti_error.t]) result Lwt.t
@@ -56,6 +60,22 @@ module Make (B : Batyr_core.Data_sig.S) = struct
       let recipient_node = B.Resource.node recipient in
       let* recipient_node_id = B.Node.store recipient_node in
       B.Db.use (fun (module Db) -> Db.exec q recipient_node_id)
+
+  let latest_timestamp =
+    let q = let open Req in
+      int --> tup2 (option ptime) (option ptime) @:-
+      {|SELECT max(seen_time), max(edit_time)
+        FROM batyr.messages WHERE recipient_id = ?|}
+    in
+    fun ~recipient () ->
+      let* recipient_id = B.Resource.store recipient in
+      let+? (seen_time, edit_time) =
+        B.Db.use (fun (module Db) -> Db.find q recipient_id)
+      in
+      (match seen_time, edit_time with
+       | None, None -> Ptime.epoch
+       | Some t, None | None, Some t -> t
+       | Some t1, Some t2 -> if Ptime.compare t1 t2 > 0 then t1 else t2)
 
   let infer_sender ~recipient user =
     let node = B.Resource.node recipient in
