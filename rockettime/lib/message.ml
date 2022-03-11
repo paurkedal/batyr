@@ -39,9 +39,10 @@ type url = {
 let url_decoder =
   let open Decode in
   let* url = field "url" string in
-  let* headers = field "headers" (key_value_pairs string) in
-  let+ meta = field "meta" (key_value_pairs string) in
-  {url; headers; meta}
+  let* headers = field_opt "headers" (key_value_pairs string) in
+  let+ meta = field_opt "meta" (key_value_pairs string) in
+  { url; headers = Option.value ~default:[] headers;
+    meta = Option.value ~default:[] meta }
 
 type t = {
   id: string;
