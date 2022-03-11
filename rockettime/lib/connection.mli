@@ -53,6 +53,8 @@ val connect :
 
 val uri : t -> Uri.t
 
+val wait : t -> unit Lwt.t
+
 val call :
   decoder: 'a Decode.decoder ->
   t -> string -> json list -> ('a, [> error]) result Lwt.t

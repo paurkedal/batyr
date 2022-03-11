@@ -181,8 +181,13 @@ type t = {
   mutable next_call_id: int;
   mutable last_call_time: Ptime.t;
   mutable latest_ping: Ptime.t;
-  mutable listener: [`Lost_connection] Lwt.t;
+  mutable listener: (Prime.counit, [`Lost_connection]) result Lwt.t;
 }
+
+let wait conn =
+  conn.listener >|= function
+   | Ok counit -> Prime.absurd counit
+   | Error `Lost_connection -> ()
 
 let uri c = c.uri
 
@@ -206,14 +211,30 @@ let pp_content ppf content =
   then Format.pp_print_string ppf content
   else Format.fprintf ppf "%S" content
 
+let receive_with_timeout ?(timeout = 60.0) conn =
+  let monitor =
+    let* () = Lwt_unix.sleep (0.5 *. timeout) in
+    let* () = Log.debug (fun f -> f "Sending ping.") in
+    let* () = conn.send (Frame.create ~opcode:Opcode.Ping ()) in
+    let* () = Lwt_unix.sleep (0.5 *. timeout) in
+    let+ () = conn.send (Frame.close 1000) in
+    Error `Lost_connection
+  in
+  Lwt.pick [
+    conn.receive () >|= Result.ok;
+    monitor;
+  ]
+
 let rec listen conn =
-  let* frame = conn.receive () in
+  Log.debug (fun f -> f "Waiting for next frame.") >>= fun () ->
+  let*? frame = receive_with_timeout conn in
   let content = frame.Frame.content in
 
   let on_ping _json =
-    Log.debug (fun f -> f "Received ping as a text frame.") >>= fun () ->
+    Log.debug (fun f -> f "Received text-frame ping.") >>= fun () ->
     let content = {|{"msg": "pong"}|} in
-    conn.send (Frame.create ~opcode:Opcode.Text ~content ())
+    let* () = conn.send (Frame.create ~opcode:Opcode.Text ~content ()) in
+    Log.debug (fun f -> f "Replied with text-frame pong.")
   in
   let on_connected json =
     (match Hashtbl.find conn.receivers connect_call_id with
@@ -319,17 +340,22 @@ let rec listen conn =
       Log.warn (fun f -> f "Ignoring binary message.") >>= fun () ->
       listen conn
    | Opcode.Close ->
-      Lwt.return `Lost_connection
+      Log.info (fun f -> f "Received close.") >>= fun () ->
+      Lwt.return_error `Lost_connection
    | Opcode.Ping ->
       conn.latest_ping <- Ptime_clock.now ();
-      Log.info (fun f -> f "Received ping.") >>= fun () ->
+      Log.debug (fun f -> f "Received ping.") >>= fun () ->
       conn.send (Frame.create ~opcode:Opcode.Pong ()) >>= fun () ->
       listen conn
    | Opcode.Pong ->
-      Log.info (fun f -> f "Received pong.") >>= fun () ->
+      Log.debug (fun f -> f "Received pong.") >>= fun () ->
       conn.latest_ping <- Ptime_clock.now ();
       listen conn
-   | Opcode.Ctrl _ | Opcode.Nonctrl _ ->
+   | Opcode.Ctrl _ ->
+      Log.debug (fun f -> f "Received ctrl.") >>= fun () ->
+      listen conn
+   | Opcode.Nonctrl _ ->
+      Log.debug (fun f -> f "Received nonctrl.") >>= fun () ->
       listen conn)
 
 let throttle conn =
@@ -453,7 +479,7 @@ let connect ~dns_client ?(call_delay = Ptime.Span.of_int_s 5) uri =
       next_call_id = 0;
       last_call_time = Ptime.min;
       latest_ping = Ptime.min;
-      listener = Lwt.return `Lost_connection;
+      listener = Lwt.return_error `Lost_connection;
     }
   in
   (match Uri.scheme uri, Uri.host uri with
