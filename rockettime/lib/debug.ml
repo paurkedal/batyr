@@ -14,11 +14,41 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Lwt.Syntax
+open Lwt.Infix
+
+let pp_json_briefly ppf v =
+  let max_string_length = 30 in
+  let max_list_length = 5 in
+  let max_assoc_length = 12 in
+
+  let rec take ellipses n = function
+   | [] -> []
+   | _ :: _ when n = 1 -> [ellipses]
+   | x :: xs -> x :: take ellipses (n - 1) xs
+  in
+  let leading_list = take (`String "...") max_list_length in
+  let leading_assoc = take ("...", `String "...") max_assoc_length in
+
+  let rec abbrev = function
+   | `Null | `Bool _ | `Int _ | `Float _ as v -> v
+   | `String s ->
+      `String begin
+        if String.length s <= max_string_length then s else
+        String.sub s 0 (max_string_length - 5) ^ " [...]"
+      end
+   | `Assoc kvs ->
+      let abbrev' (k, v) = (k, abbrev v) in
+      `Assoc (List.map abbrev' (leading_assoc kvs))
+   | `List vs ->
+      `List (List.map abbrev (leading_list vs))
+  in
+  Format.pp_print_string ppf (Yojson.Basic.to_string (abbrev v))
 
 let dump_json json =
   (match Unix.getenv "BATYR_DEBUG_DUMP_DIR" with
-   | exception Not_found -> Lwt.return_unit
+   | exception Not_found ->
+      Log.info (fun f ->
+        f "The undecodable response is: %a" pp_json_briefly json)
    | dir ->
       let data = Yojson.Basic.to_string json in
       let digest = data
@@ -28,5 +58,6 @@ let dump_json json =
       let path =
         Filename.concat dir (Printf.sprintf "undecodable-%s.json" digest)
       in
-      let* () = Log.info (fun f -> f "Saving undecodable reponse to %s" path) in
+      Log.info (fun f ->
+        f "Saving undecodable reponse to %s." path) >>= fun () ->
       Lwt_io.(with_file ~mode:output) path (fun oc -> Lwt_io.write oc data))

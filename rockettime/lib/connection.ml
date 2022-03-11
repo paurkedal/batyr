@@ -28,34 +28,6 @@ let ( let+? ) = Lwt_result.Syntax.( let+ )
 
 type json = Yojson.Basic.t
 
-let pp_json_briefly ppf v =
-  let max_string_length = 30 in
-  let max_list_length = 5 in
-  let max_assoc_length = 12 in
-
-  let rec take ellipses n = function
-   | [] -> []
-   | _ :: _ when n = 1 -> [ellipses]
-   | x :: xs -> x :: take ellipses (n - 1) xs
-  in
-  let leading_list = take (`String "...") max_list_length in
-  let leading_assoc = take ("...", `String "...") max_assoc_length in
-
-  let rec abbrev = function
-   | `Null | `Bool _ | `Int _ | `Float _ as v -> v
-   | `String s ->
-      `String begin
-        if String.length s <= max_string_length then s else
-        String.sub s 0 (max_string_length - 5) ^ " [...]"
-      end
-   | `Assoc kvs ->
-      let abbrev' (k, v) = (k, abbrev v) in
-      `Assoc (List.map abbrev' (leading_assoc kvs))
-   | `List vs ->
-      `List (List.map abbrev (leading_list vs))
-  in
-  Format.pp_print_string ppf (Yojson.Basic.to_string (abbrev v))
-
 type connected = {
   msg: string;
   session: string;
@@ -112,7 +84,7 @@ let pp_error ppf = function
  | `Protocol_error msg -> Format.pp_print_string ppf msg
  | `Cannot_decode (err, data) ->
     Format.fprintf ppf "%a. Failed to decode %a"
-      Decode.pp_error err pp_json_briefly data
+      Decode.pp_error err Debug.pp_json_briefly data
 
 type call_response = {
   msg: string;
@@ -414,10 +386,11 @@ let call_json conn method_ params =
       "params", list value params;
     ]
   in
-  Log.debug (fun f -> f "Call #%d: << %s" call_id req) >>= fun () ->
+  Log.Wire.debug (fun f ->
+    f "Call #%d: << %s" call_id req) >>= fun () ->
   let*? resp = send_and_receive conn call_id req in
-  Log.debug (fun f -> f "Call #%d: >> %a" call_id pp_json_briefly resp)
-    >|= fun () ->
+  Log.Wire.debug (fun f ->
+    f "Call #%d: >> %a" call_id Debug.pp_json_briefly resp) >|= fun () ->
   Ok resp
 
 let call ~decoder conn method_ params =

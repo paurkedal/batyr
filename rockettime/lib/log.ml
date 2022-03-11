@@ -15,5 +15,9 @@
  *)
 
 let src = Logs.Src.create "rockettime"
-
 include (val Logs_lwt.src_log src)
+
+module Wire = struct
+  let src = Logs.Src.create "rockettime.wire"
+  include (val Logs_lwt.src_log src)
+end
