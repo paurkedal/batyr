@@ -197,11 +197,15 @@ let receive_with_timeout ?(timeout = 60.0) conn =
     monitor;
   ]
 
-let rec listen conn =
-  Log.debug (fun f -> f "Waiting for next frame.") >>= fun () ->
-  let*? frame = receive_with_timeout conn in
-  let content = frame.Frame.content in
+let with_decoded what decoder handler json =
+  (match Decode.decode_value decoder json with
+   | Ok resp -> handler resp
+   | Error err ->
+      Log.err (fun f -> f "Failed to decode %s: %a" what Decode.pp_error err)
+        >>= fun () ->
+      Debug.dump_json json)
 
+let listen conn =
   let on_ping _json =
     Log.debug (fun f -> f "Received text-frame ping.") >>= fun () ->
     let content = {|{"msg": "pong"}|} in
@@ -216,119 +220,104 @@ let rec listen conn =
         Lwt.wakeup_later receiver (Ok json);
         Lwt.return_unit)
   in
-  let on_result json =
-    (match Decode.decode_value call_response_decoder json with
-     | Ok resp ->
-        (match Hashtbl.find conn.receivers (int_of_string resp.id) with
+  let on_result =
+    with_decoded "result-response" call_response_decoder @@ fun resp ->
+    (match Hashtbl.find conn.receivers (int_of_string resp.id) with
+     | exception Not_found ->
+        Log.err (fun f -> f "No receiver for message id %s." resp.id)
+     | exception Failure _ ->
+        Log.err (fun f -> f "Bad message id %a." pp_content resp.id)
+     | receiver ->
+        resp.result_or_error
+          |> Result.map_error (fun err -> `Result_error err)
+          |> Lwt.wakeup_later receiver;
+        Lwt.return_unit)
+  in
+  let on_ready =
+    with_decoded "ready-response" ready_decoder @@ fun ids ->
+    let wake id =
+      (match Hashtbl.find conn.receivers (int_of_string id) with
+       | exception Not_found ->
+          Log.err (fun f -> f "No receiver for ready-message %s." id)
+       | exception Failure _ ->
+          Log.err (fun f -> f "Bad ready-message id %s." id)
+       | receiver ->
+          Lwt.wakeup_later receiver (Ok `Null);
+          Lwt.return_unit)
+    in
+    Lwt_list.iter_s wake ids
+  in
+  let on_changed =
+    with_decoded "changed-response" changed_decoder
+      @@ fun (event_name, room_messages_event) ->
+    (match Hashtbl.find conn.room_messages_subscribers event_name with
+     | exception Not_found ->
+        Log.err (fun f -> f "No receiver for messages in %s." event_name)
+     | receiver ->
+        receiver room_messages_event)
+  in
+  let on_error =
+    with_decoded "error-response" operational_error_decoder @@ fun err ->
+    Log.err (fun f -> f "Received error: %a" pp_operational_error err)
+  in
+  let on_text_frame content =
+    Log.debug (fun f ->
+      f "Received frame %a" pp_content content) >>= fun () ->
+    (match Yojson.Basic.from_string content with
+     | exception (Yojson.Json_error msg) ->
+        Log.err (fun f ->
+          f "Failed to parse %a as JSON: %s" pp_content content msg)
+     | `Assoc alist as json ->
+        (match List.assoc "msg" alist with
+         | `String "connected" -> on_connected json
+         | `String "ping" -> on_ping json
+         | `String "error" -> on_error json
+         | `String "result" -> on_result json
+         | `String "ready" -> on_ready json
+         | `String "changed" -> on_changed json
+         | _ ->
+            Log.err (fun f ->
+              f "Ignoring %a due to unknown type." pp_content content)
          | exception Not_found ->
-            Log.err (fun f -> f "No receiver for message id %s." resp.id)
-         | exception Failure _ ->
-            Log.err (fun f -> f "Bad message id %a." pp_content resp.id)
-         | receiver ->
-            resp.result_or_error
-              |> Result.map_error (fun err -> `Result_error err)
-              |> Lwt.wakeup_later receiver;
-            Lwt.return_unit)
-     | Error msg ->
-        Debug.dump_json json >>= fun () ->
-        Log.err (fun f ->
-          f "Failed to decode result-response %a: %a"
-            pp_content content Decode.pp_error msg))
+            if List.mem_assoc "server_id" alist then Lwt.return_unit else
+            Log.err (fun f ->
+              f "Received unknown message %a." pp_content content))
+     | _ ->
+        Log.err (fun f -> f "Received non-object %a." pp_content content))
   in
-  let on_ready json =
-    (match Decode.decode_value ready_decoder json with
-     | Ok ids ->
-        let wake id =
-          (match Hashtbl.find conn.receivers (int_of_string id) with
-           | exception Not_found ->
-              Log.err (fun f -> f "No receiver for ready-message %s." id)
-           | exception Failure _ ->
-              Log.err (fun f -> f "Bad ready-message id %s." id)
-           | receiver ->
-              Lwt.wakeup_later receiver (Ok `Null);
-              Lwt.return_unit)
-        in
-        Lwt_list.iter_s wake ids
-     | Error msg ->
-        Debug.dump_json json >>= fun () ->
-        Log.err (fun f ->
-          f "Failed to decode ready-response %a: %a"
-            pp_content content Decode.pp_error msg))
+  let rec receive_loop () =
+    Log.debug (fun f -> f "Waiting for next frame.") >>= fun () ->
+    let*? frame = receive_with_timeout conn in
+    (match frame.Frame.opcode with
+     | Opcode.Continuation ->
+        Log.err (fun f -> f "TODO: Continuation message ignored.") >>= fun () ->
+        receive_loop ()
+     | Opcode.Text ->
+        on_text_frame frame.Frame.content >>= fun () ->
+        receive_loop ()
+     | Opcode.Binary ->
+        Log.warn (fun f -> f "Ignoring binary message.") >>= fun () ->
+        receive_loop ()
+     | Opcode.Close ->
+        Log.info (fun f -> f "Received close.") >>= fun () ->
+        Lwt.return_error `Lost_connection
+     | Opcode.Ping ->
+        conn.latest_ping <- Ptime_clock.now ();
+        Log.debug (fun f -> f "Received ping.") >>= fun () ->
+        conn.send (Frame.create ~opcode:Opcode.Pong ()) >>= fun () ->
+        receive_loop ()
+     | Opcode.Pong ->
+        Log.debug (fun f -> f "Received pong.") >>= fun () ->
+        conn.latest_ping <- Ptime_clock.now ();
+        receive_loop ()
+     | Opcode.Ctrl _ ->
+        Log.debug (fun f -> f "Received ctrl.") >>= fun () ->
+        receive_loop ()
+     | Opcode.Nonctrl _ ->
+        Log.debug (fun f -> f "Received nonctrl.") >>= fun () ->
+        receive_loop ())
   in
-  let on_changed json =
-    (match Decode.decode_value changed_decoder json with
-     | Ok (event_name, room_messages_event) ->
-        (match Hashtbl.find conn.room_messages_subscribers event_name with
-         | exception Not_found ->
-            Log.err (fun f -> f "No receiver for messages in %s." event_name)
-         | receiver ->
-            receiver room_messages_event)
-     | Error msg ->
-        Debug.dump_json json >>= fun () ->
-        Log.err (fun f ->
-          f "Failed to decode changed-response %a: %a"
-            pp_content content Decode.pp_error msg))
-  in
-  let on_error json =
-    (match Decode.decode_value operational_error_decoder json with
-     | Error _ ->
-        Debug.dump_json json >>= fun () ->
-        Log.err (fun f -> f "Failed to parse error.")
-     | Ok _err ->
-        Log.info (fun f -> f "Received unhandled error."))
-  in
-  (match frame.Frame.opcode with
-   | Opcode.Continuation ->
-      (* TODO? *)
-      Log.warn (fun f -> f "Ignoring continuation message.") >>= fun () ->
-      listen conn
-   | Opcode.Text ->
-      Log.debug (fun f ->
-        f "Received frame %a" pp_content content) >>= fun () ->
-      (match Yojson.Basic.from_string content with
-       | exception (Yojson.Json_error msg) ->
-          Log.err (fun f ->
-            f "Failed to parse %a as JSON: %s" pp_content content msg)
-       | `Assoc alist as json ->
-          (match List.assoc "msg" alist with
-           | `String "connected" -> on_connected json
-           | `String "ping" -> on_ping json
-           | `String "error" -> on_error json
-           | `String "result" -> on_result json
-           | `String "ready" -> on_ready json
-           | `String "changed" -> on_changed json
-           | _ ->
-              Log.err (fun f ->
-                f "Ignoring %a due to unknown type." pp_content content)
-           | exception Not_found ->
-              if List.mem_assoc "server_id" alist then Lwt.return_unit else
-              Log.err (fun f ->
-                f "Received unknown message %a." pp_content content))
-       | _ ->
-          Log.err (fun f -> f "Received non-object %a." pp_content content))
-      >>= fun () ->
-      listen conn
-   | Opcode.Binary ->
-      Log.warn (fun f -> f "Ignoring binary message.") >>= fun () ->
-      listen conn
-   | Opcode.Close ->
-      Log.info (fun f -> f "Received close.") >>= fun () ->
-      Lwt.return_error `Lost_connection
-   | Opcode.Ping ->
-      conn.latest_ping <- Ptime_clock.now ();
-      Log.debug (fun f -> f "Received ping.") >>= fun () ->
-      conn.send (Frame.create ~opcode:Opcode.Pong ()) >>= fun () ->
-      listen conn
-   | Opcode.Pong ->
-      Log.debug (fun f -> f "Received pong.") >>= fun () ->
-      conn.latest_ping <- Ptime_clock.now ();
-      listen conn
-   | Opcode.Ctrl _ ->
-      Log.debug (fun f -> f "Received ctrl.") >>= fun () ->
-      listen conn
-   | Opcode.Nonctrl _ ->
-      Log.debug (fun f -> f "Received nonctrl.") >>= fun () ->
-      listen conn)
+  receive_loop ()
 
 let throttle conn =
   let now = Ptime_clock.now () in
