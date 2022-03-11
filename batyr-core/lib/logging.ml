@@ -74,6 +74,15 @@ module Verbosity = struct
          info ~env ~doc ~docv ["verbosity"])
 end
 
+let pp_ptime = Ptime.pp_rfc3339 ~tz_offset_s:0 ()
+
+let style_of_level = function
+ | Logs.App -> Logs_fmt.app_style
+ | Logs.Error -> Logs_fmt.err_style
+ | Logs.Warning -> Logs_fmt.warn_style
+ | Logs.Info -> Logs_fmt.info_style
+ | Logs.Debug -> Logs_fmt.debug_style
+
 let lwt_reporter () =
   let buf_fmt ~like =
     let b = Buffer.create 512 in
@@ -85,9 +94,8 @@ let lwt_reporter () =
   in
   let app, app_flush = buf_fmt ~like:Fmt.stdout in
   let dst, dst_flush = buf_fmt ~like:Fmt.stderr in
-  let reporter = Logs_fmt.reporter ~app ~dst () in
   let report src level ~over k msgf =
-    let k () =
+    let k _ppf =
       let write () = match level with
        | Logs.App ->
           Lwt_io.write Lwt_io.stdout (app_flush ()) >>= fun () ->
@@ -100,7 +108,13 @@ let lwt_reporter () =
       Lwt.finalize write unblock |> Lwt.ignore_result;
       k ()
     in
-    reporter.Logs.report src level ~over:(fun () -> ()) k msgf;
+    msgf begin fun ?header:_ ?tags:_ fmt ->
+      let ppf = if level = App then app else dst in
+      Format.kfprintf k ppf ("%a %a %s: @[" ^^ fmt ^^ "@]@.")
+        pp_ptime (Ptime_clock.now ())
+        (Fmt.styled (style_of_level level) Logs.pp_level) level
+        (Logs.Src.name src)
+    end
   in
   {Logs.report = report}
 
