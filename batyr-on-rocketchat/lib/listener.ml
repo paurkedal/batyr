@@ -115,6 +115,7 @@ module Make_listener (B : Batyr_core.Data_sig.S) = struct
       history.messages
 
   let launch_room conn room =
+    I.enable_room ~recipient:(room_recipient conn room) () >>=? fun () ->
     subscribe_to_room conn room >>=? fun () ->
     load_missed_in_room conn room
 

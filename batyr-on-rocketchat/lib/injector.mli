@@ -18,6 +18,10 @@ module type S = sig
 
   type resource
 
+  val enable_room :
+    recipient: resource -> unit ->
+    (unit, [> Caqti_error.t]) result Lwt.t
+
   val store_message :
     recipient: resource -> Rockettime.Message.t ->
     (unit, [> Caqti_error.t]) result Lwt.t

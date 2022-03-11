@@ -30,6 +30,10 @@ module type S = sig
 
   type resource
 
+  val enable_room :
+    recipient: resource -> unit ->
+    (unit, [> Caqti_error.t]) result Lwt.t
+
   val store_message :
     recipient: resource -> R.Message.t ->
     (unit, [> Caqti_error.t]) result Lwt.t
@@ -41,6 +45,17 @@ module type S = sig
 end
 
 module Make (B : Batyr_core.Data_sig.S) = struct
+
+  let enable_room =
+    let q = let open Req in
+      int -->. unit @:-
+      {|INSERT INTO batyr.muc_rooms (node_id, transcribe) VALUES ($1, true)
+        ON CONFLICT (node_id) DO NOTHING|}
+    in
+    fun ~recipient () ->
+      let recipient_node = B.Resource.node recipient in
+      let* recipient_node_id = B.Node.store recipient_node in
+      B.Db.use (fun (module Db) -> Db.exec q recipient_node_id)
 
   let infer_sender ~recipient user =
     let node = B.Resource.node recipient in
