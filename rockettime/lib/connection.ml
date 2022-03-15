@@ -75,6 +75,7 @@ type error = [
   | `Result_error of result_error
   | `Protocol_error of string
   | `Cannot_decode of Decode.error * json
+  | `Closed
 ]
 
 let pp_error ppf = function
@@ -85,6 +86,7 @@ let pp_error ppf = function
  | `Cannot_decode (err, data) ->
     Format.fprintf ppf "%a. Failed to decode %a"
       Decode.pp_error err Debug.pp_json_briefly data
+ | `Closed -> Format.pp_print_string ppf "Connection closed."
 
 type call_response = {
   msg: string;
@@ -153,15 +155,18 @@ type t = {
   mutable next_call_id: int;
   mutable last_call_time: Ptime.t;
   mutable latest_ping: Ptime.t;
-  mutable listener: (Prime.counit, [`Lost_connection]) result Lwt.t;
+  mutable listener: (Prime.counit, [`Lost_connection | `Closed]) result Lwt.t;
 }
 
 let wait conn =
   conn.listener >|= function
    | Ok counit -> Prime.absurd counit
-   | Error `Lost_connection -> ()
+   | Error (`Lost_connection | `Closed) -> ()
 
 let uri c = c.uri
+
+let fail_receivers conn =
+  Hashtbl.iter (fun _ u -> Lwt.wakeup_later u (Error `Closed)) conn.receivers
 
 let connect_call_id = -1
 
@@ -317,7 +322,10 @@ let listen conn =
         Log.debug (fun f -> f "Received nonctrl.") >>= fun () ->
         receive_loop ())
   in
-  receive_loop ()
+  Lwt.finalize receive_loop
+    (fun () ->
+      fail_receivers conn;
+      conn.send (Frame.create ~opcode:Opcode.Close ()))
 
 let throttle conn =
   let now = Ptime_clock.now () in

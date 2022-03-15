@@ -51,7 +51,6 @@ type load_history_response = {
 
 val load_history :
   room_id: string ->
-  ?newest: Ptime.t ->
-  count: int ->
   since: Ptime.t ->
+  ?until: Ptime.t ->
   Connection.t -> (load_history_response, [> Connection.error]) result Lwt.t

@@ -56,6 +56,7 @@ module Make (Listener : LISTENER) = struct
          | `Signalled sn ->
             Log.info (fun f -> f "Session terminated due to signal %d." sn)
          | `Exit n ->
+            Log.info (fun f -> f "Exiting with exit code %d." n) >|= fun () ->
             exit n
       in
       restart ()

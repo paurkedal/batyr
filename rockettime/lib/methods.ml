@@ -14,9 +14,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Lwt.Infix
 open Types
 module Decode = Connection.Decode
 module Encode = Connection.Encode
+
+let ( let*? ) = Lwt_result.Syntax.( let* )
 
 let yojson_of_option f = function
  | None -> `Null
@@ -103,11 +106,28 @@ let load_history_decoder =
   let+ unread_not_loaded = field "unreadNotLoaded" int in
   {messages; unread_not_loaded}
 
-let load_history ~room_id ?newest ~count ~since conn =
+let load_history_prim ~room_id ?until ~count ~since conn =
   Connection.call conn ~decoder:load_history_decoder
     "loadHistory" Encode.[
       string room_id;
-      nullable ptime_encoder newest;
-      float (float_of_int count);
+      nullable ptime_encoder until;
+      int count;
       ptime_encoder since;
     ]
+
+let load_history ~room_id ~since ?until conn =
+  let until = match until with Some t -> t | None -> Ptime_clock.now () in
+  let*? resp1 = load_history_prim ~room_id ~since ~until ~count:1 conn in
+  if resp1.unread_not_loaded = 0 then
+    Log.debug (fun f ->
+      f "loadHistory 1-step: %d, %d"
+        (List.length resp1.messages) resp1.unread_not_loaded) >|= fun () ->
+    Ok resp1
+  else
+    let count = resp1.unread_not_loaded + 1 in
+    let*? resp2 = load_history_prim ~room_id ~since ~until ~count conn in
+    Log.debug (fun f ->
+      f "loadHistory 2-step: %d, %d; %d, %d"
+        (List.length resp1.messages) resp1.unread_not_loaded
+        (List.length resp2.messages) resp2.unread_not_loaded) >|= fun () ->
+    Ok resp2

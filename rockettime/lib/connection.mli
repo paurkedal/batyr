@@ -40,6 +40,7 @@ type error = [
   | `Result_error of result_error
   | `Protocol_error of string
   | `Cannot_decode of Decode.error * json
+  | `Closed
 ]
 
 val pp_error : Format.formatter -> error -> unit

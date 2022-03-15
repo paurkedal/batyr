@@ -93,16 +93,23 @@ module Make_listener (B : Batyr_core.Data_sig.S) = struct
     in
     R.Connection.subscribe_to_room_messages ~on_event ~room conn
 
-  let load_missed_in_room conn room =
+  let load_missed_in_room ~config conn room =
+    if not config.Config.backlog_enabled then Lwt.return_ok () else
     let recipient = room_recipient conn room in
     let room_name = R.Room.name room in
     Log.debug (fun f -> f "Loading missed messages in %s." room_name)
       >>= fun () ->
     let room_id = R.Room.id room in
-    let count = 1_000_000 in (* FIXME *)
-    let*? since = I.latest_timestamp ~recipient () in
+    let*? latest = I.latest_timestamp ~recipient () in
+    let since =
+      (* Extend the backlog if requested by the configuration, in order to catch
+       * edits of older messages, since the current API does not support
+       * filtering messages on the time of the last change. *)
+      Ptime.sub_span latest config.Config.backlog_extension_period
+        |> Option.value ~default:latest
+    in
     let*? history =
-      R.Methods.load_history ~room_id ~count ~since conn
+      R.Methods.load_history ~room_id ~since conn
         >|= Result.map_error @@ fun err ->
       `Msg (Fmt.str "Cannot load history: %a" R.Connection.pp_error err)
     in
@@ -114,10 +121,10 @@ module Make_listener (B : Batyr_core.Data_sig.S) = struct
     Lwt_result_list.iter_s (I.store_message ~recipient)
       history.messages
 
-  let launch_room conn room =
+  let launch_room ~config conn room =
     I.enable_room ~recipient:(room_recipient conn room) () >>=? fun () ->
     subscribe_to_room conn room >>=? fun () ->
-    load_missed_in_room conn room
+    load_missed_in_room ~config conn room
 
 end
 
@@ -145,13 +152,13 @@ let launch config =
     let*? conn = R.Connection.connect ~dns_client rocketchat_uri in
     let*? _ = R.Methods.resume_with_token ~token:config.rocketchat_token conn in
     let*? rooms = fetch_rooms config conn in
-    let*? () = Lwt_result_list.iter_s (L.launch_room conn) rooms in
+    let*? () = Lwt_result_list.iter_s (L.launch_room ~config conn) rooms in
     R.Connection.wait conn >|= Result.ok
   end >>= function
    | Ok () -> Lwt.return `Lost_connection
    | Error (`Msg s) ->
-      let+ () = Logs_lwt.err (fun f -> f "%s" s) in
+      let+ () = Log.err (fun f -> f "%s" s) in
       `Exit 69
    | Error err ->
-      let+ () = Logs_lwt.err (fun f -> f "%a" pp_error err) in
+      let+ () = Log.err (fun f -> f "%a" pp_error err) in
       `Failed_to_connect
