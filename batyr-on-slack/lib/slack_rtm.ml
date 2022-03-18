@@ -183,8 +183,7 @@ let message_of_json json =
 type t = {
   team: team_info;
   user: user_info;
-  receive: unit -> Websocket.Frame.t Lwt.t;
-  send: Websocket.Frame.t -> unit Lwt.t;
+  ws: Websocket_lwt_unix.conn;
   ping_period: Ptime.Span.t;
   ping_patience: Ptime.Span.t;
   mutable latest_ping: Ptime.t;
@@ -232,12 +231,11 @@ let gethostbyname ~dns_client host =
 let connect_ws ~dns_client ~ping_period ~ping_patience resp =
   let uri = resp.url in
   let connect_to endp =
-    let%lwt receive, send = Websocket_lwt_unix.with_connection endp uri in
+    let%lwt ws = Websocket_lwt_unix.connect endp uri in
     Lwt.return_ok {
       team = resp.team;
       user = resp.self;
-      receive;
-      send;
+      ws;
       ping_period;
       ping_patience;
       latest_ping = Ptime_clock.now ();
@@ -279,7 +277,8 @@ module Opcode = Websocket.Frame.Opcode
 
 let send_json conn json =
   let content = Yojson.Basic.to_string json in
-  conn.send (Frame.create ~opcode:Opcode.Text ~content ())
+  let frame = Frame.create ~opcode:Opcode.Text ~content () in
+  Websocket_lwt_unix.write conn.ws frame
 
 let rec wake_from_limbo conn =
   Lwt_unix.sleep (Ptime.Span.to_float_s conn.ping_period) >>= fun () ->
@@ -289,7 +288,8 @@ let rec wake_from_limbo conn =
   if Ptime.Span.compare ping_age conn.ping_patience < 0 then begin
     Log.debug (fun m ->
       m "Sent ping; non seen for %a" Ptime.Span.pp ping_age) >>= fun () ->
-    conn.send (Frame.create ~opcode:Opcode.Ping ()) >>= fun () ->
+    Websocket_lwt_unix.write conn.ws (Frame.create ~opcode:Opcode.Ping ())
+      >>= fun () ->
     wake_from_limbo conn
   end else
   Log.err (fun m -> m
@@ -300,7 +300,7 @@ let rec receive_text conn =
   conn.latest_ping <- Ptime_clock.now ();
   try%lwt
     let%lwt frame = Lwt.pick [
-      conn.receive ();
+      Websocket_lwt_unix.read conn.ws;
       wake_from_limbo conn;
     ] in
     (match frame.Frame.opcode with
@@ -311,7 +311,8 @@ let rec receive_text conn =
      | Opcode.Ping ->
         conn.latest_ping <- Ptime_clock.now ();
         Log.info (fun m -> m "Received ping.") >>= fun () ->
-        conn.send (Frame.create ~opcode:Opcode.Pong ()) >>= fun () ->
+        Websocket_lwt_unix.write conn.ws (Frame.create ~opcode:Opcode.Pong ())
+          >>= fun () ->
         receive_text conn
      | Opcode.Pong ->
         Log.info (fun m -> m "Received pong.") >>= fun () ->
@@ -331,8 +332,9 @@ let receive_json conn =
 
 let disconnect conn =
   let content = {|{"type": "goodbye"}|} in
-  conn.send (Frame.create ~opcode:Opcode.Text ~content ()) >>= fun () ->
-  conn.send (Frame.close 1001)
+  let frame = Frame.create ~opcode:Opcode.Text ~content () in
+  Websocket_lwt_unix.write conn.ws frame >>= fun () ->
+  Websocket_lwt_unix.write conn.ws (Frame.close 1001)
 
 let rec receive conn =
   (match%lwt receive_json conn with

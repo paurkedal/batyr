@@ -21,6 +21,8 @@ open Unprime_option
 open Unprime_string
 module Decode = Decoders_yojson.Basic.Decode
 module Encode = Decoders_yojson.Basic.Encode
+module Frame = Websocket.Frame
+module Opcode = Websocket.Frame.Opcode
 
 let ( >>=? ) = Lwt_result.Infix.( >>= )
 let ( let*? ) = Lwt_result.Syntax.( let* )
@@ -146,8 +148,7 @@ let changed_decoder =
 
 type t = {
   uri: Uri.t;
-  receive: unit -> Websocket.Frame.t Lwt.t;
-  send: Websocket.Frame.t -> unit Lwt.t;
+  ws: Websocket_lwt_unix.conn;
   call_delay: Ptime.Span.t;
   receivers: (int, (json, error) result Lwt.u) Hashtbl.t;
   room_messages_subscribers:
@@ -171,9 +172,6 @@ let fail_receivers conn =
 
 let connect_call_id = -1
 
-module Frame = Websocket.Frame
-module Opcode = Websocket.Frame.Opcode
-
 let pp_content ppf content =
   let content =
     if String.length content <= 120 then content else
@@ -193,13 +191,13 @@ let receive_with_timeout ?(timeout = 60.0) conn =
   let monitor =
     let* () = Lwt_unix.sleep (0.5 *. timeout) in
     let* () = Log.debug (fun f -> f "Sending ping.") in
-    let* () = conn.send (Frame.create ~opcode:Opcode.Ping ()) in
+    let* () = Websocket_lwt_unix.write conn.ws (Frame.create ~opcode:Opcode.Ping ()) in
     let* () = Lwt_unix.sleep (0.5 *. timeout) in
-    let+ () = conn.send (Frame.close 1000) in
+    let+ () = Websocket_lwt_unix.write conn.ws (Frame.close 1000) in
     Error `Lost_connection
   in
   Lwt.pick [
-    conn.receive () >|= Result.ok;
+    Websocket_lwt_unix.read conn.ws >|= Result.ok;
     monitor;
   ]
 
@@ -215,7 +213,7 @@ let listen conn =
   let on_ping _json =
     Log.debug (fun f -> f "Received text-frame ping.") >>= fun () ->
     let content = {|{"msg": "pong"}|} in
-    let* () = conn.send (Frame.create ~opcode:Opcode.Text ~content ()) in
+    let* () = Websocket_lwt_unix.write conn.ws (Frame.create ~opcode:Opcode.Text ~content ()) in
     Log.debug (fun f -> f "Replied with text-frame pong.")
   in
   let on_connected json =
@@ -310,7 +308,7 @@ let listen conn =
      | Opcode.Ping ->
         conn.latest_ping <- Ptime_clock.now ();
         Log.debug (fun f -> f "Received ping.") >>= fun () ->
-        conn.send (Frame.create ~opcode:Opcode.Pong ()) >>= fun () ->
+        Websocket_lwt_unix.write conn.ws (Frame.create ~opcode:Opcode.Pong ()) >>= fun () ->
         receive_loop ()
      | Opcode.Pong ->
         Log.debug (fun f -> f "Received pong.") >>= fun () ->
@@ -327,7 +325,7 @@ let listen conn =
     (fun () ->
       fail_receivers conn;
       if conn.closing then Lwt.return_unit else
-      conn.send (Frame.create ~opcode:Opcode.Close ()))
+      Websocket_lwt_unix.close_transport conn.ws)
 
 let throttle conn =
   let now = Ptime_clock.now () in
@@ -346,7 +344,7 @@ let call_connect conn =
   Hashtbl.add conn.receivers connect_call_id resolver;
   Lwt.finalize
     (fun () ->
-      let* () = conn.send (Frame.create ~opcode:Opcode.Text ~content ()) in
+      let* () = Websocket_lwt_unix.write conn.ws (Frame.create ~opcode:Opcode.Text ~content ()) in
       let*? resp =
         waiter >|= Result.map_error (fun err -> (err : error :> [> error]))
       in
@@ -369,7 +367,7 @@ let send_and_receive conn id req =
   Hashtbl.add conn.receivers id resolver;
   Lwt.finalize
     (fun () ->
-      let* () = conn.send (Frame.create ~opcode:Opcode.Text ~content:req ()) in
+      let* () = Websocket_lwt_unix.write conn.ws (Frame.create ~opcode:Opcode.Text ~content:req ()) in
       waiter)
     (fun () -> Hashtbl.remove conn.receivers id; Lwt.return_unit)
 
@@ -407,7 +405,7 @@ let close conn =
   if conn.closing then Lwt.return_unit else begin
     conn.closing <- true;
     fail_receivers conn;
-    conn.send (Frame.create ~opcode:Opcode.Close ())
+    Websocket_lwt_unix.write conn.ws (Frame.create ~opcode:Opcode.Close ())
   end
 
 let subscribe ~name ~params conn =
@@ -450,9 +448,9 @@ let gethostbyname ~dns_client host =
 
 let connect ~dns_client ?(call_delay = Ptime.Span.of_int_s 5) uri =
   let connect_to endp =
-    let+ receive, send = Websocket_lwt_unix.with_connection endp uri in
+    let+ ws = Websocket_lwt_unix.connect endp uri in
     {
-      uri; receive; send; call_delay;
+      uri; ws; call_delay;
       receivers = Hashtbl.create 11;
       room_messages_subscribers = Hashtbl.create 11;
       next_call_id = 0;

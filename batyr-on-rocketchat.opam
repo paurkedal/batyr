@@ -34,8 +34,8 @@ depends: [
   "react"
   "tls"
   "uri"
-  "websocket"
-  "websocket-lwt-unix"
+  "websocket" {>= "2.15"}
+  "websocket-lwt-unix" {>= "2.15"}
   "yojson"
 ]
 build: ["dune" "build" "-p" name "-j" jobs]
