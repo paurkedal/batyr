@@ -47,6 +47,7 @@ type t = {
   rocketchat_ping_patience: Duration.t [@default Ptime.Span.v (600, 0L)];
   backlog_enabled: bool [@default true];
   backlog_extension_period: Duration.t [@default Ptime.Span.v (0, 0L)];
+  listen_enabled: bool [@default true];
   include_rooms: string list option;
   nameservers: nameserver list [@default [{host = "127.0.0.53"; port = 53}]];
 }

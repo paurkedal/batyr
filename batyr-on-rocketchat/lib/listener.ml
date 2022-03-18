@@ -123,7 +123,10 @@ module Make_listener (B : Batyr_core.Data_sig.S) = struct
 
   let launch_room ~config conn room =
     I.enable_room ~recipient:(room_recipient conn room) () >>=? fun () ->
-    subscribe_to_room conn room >>=? fun () ->
+    let*? () =
+      if not config.Config.listen_enabled then Lwt.return_ok () else
+      subscribe_to_room conn room
+    in
     load_missed_in_room ~config conn room
 
 end
@@ -153,9 +156,12 @@ let launch config =
     let*? _ = R.Methods.resume_with_token ~token:config.rocketchat_token conn in
     let*? rooms = fetch_rooms config conn in
     let*? () = Lwt_result_list.iter_s (L.launch_room ~config conn) rooms in
-    R.Connection.wait conn >|= Result.ok
+    if config.Config.listen_enabled then
+      R.Connection.wait conn >|= fun () -> Result.ok `Lost_connection
+    else
+      R.Connection.close conn >|= fun () -> Result.ok (`Exit 0)
   end >>= function
-   | Ok () -> Lwt.return `Lost_connection
+   | Ok st -> Lwt.return st
    | Error (`Msg s) ->
       let+ () = Log.err (fun f -> f "%s" s) in
       `Exit 69
