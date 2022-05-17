@@ -143,7 +143,7 @@ module Make (B : Data_sig.S) = struct
     | _ -> Lwt.return_unit
 
   let extract_muc_user nick =
-    List.search
+    List.find_map
       begin function
       | Xml.Xmlelement ((_ns_muc_user, "x"), _, _) as el ->
         let user = Chat_muc.User.decode el in
@@ -160,7 +160,7 @@ module Make (B : Data_sig.S) = struct
       end
 
   let entered_room_by_node cs node =
-    Option.search
+    Option.find_map
       (fun id ->
         try Some (Hashtbl.find cs.cs_rooms id)
         with Not_found -> None)

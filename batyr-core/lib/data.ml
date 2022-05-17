@@ -479,7 +479,7 @@ let connect uri = (module struct
     let foreign_message_id {foreign_message_id; _} = foreign_message_id
 
     let store ?muc_author msg =
-      let author_id = Option.search Resource.cached_id muc_author in
+      let author_id = Option.find_map Resource.cached_id muc_author in
       let* sender_id = Resource.store (sender msg) in
       let* recipient_id = Resource.store (recipient msg) in
       Db.use @@
