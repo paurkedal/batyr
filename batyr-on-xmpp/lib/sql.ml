@@ -16,15 +16,15 @@
 
 module type CONNECTION = Caqti_lwt.CONNECTION
 
-module Caqti_type = struct
+module R = struct
+  include Caqti_request.Infix
   include Caqti_type
   include Caqti_type_calendar
 end
 
 module Presence = struct
-  let room_presence_q = Caqti_request.collect
-    Caqti_type.int
-    Caqti_type.(tup3 int (option string) (option ctime))
+  let room_presence_q =
+    R.(int ->* tup3 int (option string) (option ctime))
     "SELECT resource_id, nick, \
             (SELECT max(seen_time) \
                FROM batyr.messages JOIN batyr.resources AS sender \
@@ -35,9 +35,8 @@ module Presence = struct
   let room_presence account_id (module C : CONNECTION) =
     C.fold room_presence_q List.cons account_id []
 
-  let active_accounts_q = Caqti_request.collect
-    Caqti_type.unit
-    Caqti_type.(tup3 int int string)
+  let active_accounts_q =
+    R.(unit ->* tup3 int int string)
     "SELECT resource_id, server_port, client_password \
      FROM batyr.accounts NATURAL JOIN batyr.resources \
      WHERE is_active = true"

@@ -63,7 +63,7 @@ module Make (B : Batyr_core.Data_sig.S) = struct
 
   let latest_timestamp =
     let q = let open Req in
-      int --> tup2 (option ptime) (option ptime) @:-
+      int -->! tup2 (option ptime) (option ptime) @:-
       {|SELECT max(seen_time), max(edit_time)
         FROM batyr.messages WHERE recipient_id = ?|}
     in
