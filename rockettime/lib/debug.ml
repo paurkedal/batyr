@@ -52,7 +52,7 @@ let dump_json json =
    | dir ->
       let data = Yojson.Basic.to_string json in
       let digest = data
-        |> Cryptokit.(hash_string (Hash.md5 ()))
+        |> Cryptokit.(hash_string (Hash.md5 () [@alert "-crypto"]))
         |> Cryptokit.(transform_string (Hexa.encode ()))
       in
       let path =
