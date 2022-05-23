@@ -155,6 +155,7 @@ type t = {
   mutable next_call_id: int;
   mutable last_call_time: Ptime.t;
   mutable latest_ping: Ptime.t;
+  mutable closing: bool;
   mutable listener: (Prime.counit, [`Lost_connection | `Closed]) result Lwt.t;
 }
 
@@ -325,6 +326,7 @@ let listen conn =
   Lwt.finalize receive_loop
     (fun () ->
       fail_receivers conn;
+      if conn.closing then Lwt.return_unit else
       conn.send (Frame.create ~opcode:Opcode.Close ()))
 
 let throttle conn =
@@ -401,6 +403,13 @@ let call ~decoder conn method_ params =
           Error (`Cannot_decode (msg, json)))
    | Error err -> Lwt.return_error (err : error :> [> error]))
 
+let close conn =
+  if conn.closing then Lwt.return_unit else begin
+    conn.closing <- true;
+    fail_receivers conn;
+    conn.send (Frame.create ~opcode:Opcode.Close ())
+  end
+
 let subscribe ~name ~params conn =
   let sub_id = conn.next_call_id in
   conn.next_call_id <- conn.next_call_id + 1;
@@ -449,6 +458,7 @@ let connect ~dns_client ?(call_delay = Ptime.Span.of_int_s 5) uri =
       next_call_id = 0;
       last_call_time = Ptime.min;
       latest_ping = Ptime.min;
+      closing = false;
       listener = Lwt.return_error `Lost_connection;
     }
   in
