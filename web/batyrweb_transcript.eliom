@@ -103,9 +103,10 @@ let fetch_message_counts (room_jid, pat_opt, tz) =
       |> Option.fold (fun pat -> (&&) (sql_of_pattern pat)) pat_opt in
     let cond_str, Batyr_core.Search_sql.Param (params_type, params) =
       Batyr_core.Search_sql.Expr.to_sql ~first_index:2 cond in
-    let q = Caqti_request.collect ~oneshot:true
-      Caqti_type.(tup2 string params_type)
-      Caqti_type.(tup2 int int)
+    let q =
+      let open Caqti_type.Std in
+      let open Caqti_request.Infix in
+      (tup2 string params_type ->* tup2 int int) ~oneshot:true
       (sprintf
         "SELECT batyr.intenc_date(seen_time AT TIME ZONE 'UTC' \
                                             AT TIME ZONE $1) AS t, \
@@ -149,10 +150,13 @@ let fetch_transcript (room_jid, tI_opt, tF_opt, pat_opt) =
       ) in
     let cond_str, Batyr_core.Search_sql.Param (params_type, params) =
       Batyr_core.Search_sql.Expr.to_sql cond in
-    let q = Caqti_request.collect ~oneshot:true
-      params_type
-      Caqti_type.(tup2 (tup3 ptime (option ptime) int)
-                       (tup3 (option string) (option string) (option string)))
+    let q =
+      let open Caqti_type.Std in
+      let open Caqti_request.Infix in
+      (params_type ->*
+       tup2 (tup3 ptime (option ptime) int)
+            (tup3 (option string) (option string) (option string)))
+        ~oneshot:true
       (sprintf
         "SELECT seen_time, edit_time, sender_id, subject, thread, body \
          FROM batyr.messages \

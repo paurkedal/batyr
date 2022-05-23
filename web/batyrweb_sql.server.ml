@@ -15,12 +15,14 @@
  *)
 
 open Lwt.Infix
+open Caqti_type.Std
+open Caqti_request.Infix
 
 module type CONNECTION = Caqti_lwt.CONNECTION
 
 module Muc_room = struct
-  let latest_message_time_q = Caqti_request.find
-    Caqti_type.int Caqti_type.(option ptime)
+  let latest_message_time_q =
+    Caqti_type.int -->! Caqti_type.(option ptime) @:-
     "SELECT max(seen_time)
       FROM batyr.messages
       JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
@@ -35,9 +37,9 @@ module Muc_room = struct
 end
 
 module Web = struct
-  let rooms_q = Caqti_request.collect
-    Caqti_type.unit
-    Caqti_type.(tup2 (tup4 int string string (option string)) bool)
+  let rooms_q =
+    Caqti_type.unit -->*
+    Caqti_type.(tup2 (tup4 int string string (option string)) bool) @:-
     "SELECT DISTINCT node_id, domain_name, node_name, room_alias, \
                      transcribe \
      FROM batyr.muc_rooms NATURAL JOIN batyr.nodes \
@@ -51,21 +53,21 @@ module Web = struct
 end
 
 module Admin = struct
-  let fetch_chatrooms_q = Caqti_request.collect
-    Caqti_type.unit
-    Caqti_type.(tup4 int (option string) (option string) bool)
+  let fetch_chatrooms_q =
+    Caqti_type.unit -->*
+    Caqti_type.(tup4 int (option string) (option string) bool) @:-
     "SELECT node_id, room_alias, room_description, transcribe \
      FROM batyr.muc_rooms"
   let fetch_chatrooms (module C : CONNECTION) =
     C.fold fetch_chatrooms_q List.cons () []
 
-  let update_chatroom_q = Caqti_request.exec
-    Caqti_type.(tup4 int (option string) (option string) bool)
+  let update_chatroom_q =
+    Caqti_type.(tup4 int (option string) (option string) bool) -->. unit @:-
     "UPDATE batyr.muc_rooms \
      SET room_alias = $2, room_description = $3, transcribe = $4 \
      WHERE node_id = $1"
-  let insert_chatroom_q = Caqti_request.exec
-    Caqti_type.(tup4 int (option string) (option string) bool)
+  let insert_chatroom_q =
+    Caqti_type.(tup4 int (option string) (option string) bool) -->. unit @:-
     "INSERT INTO batyr.muc_rooms \
       (node_id, room_alias, room_description, transcribe) \
      VALUES ($1, $2, $3, $4)"
@@ -73,14 +75,15 @@ module Admin = struct
                       (module C : CONNECTION) =
     C.exec (if do_ins then insert_chatroom_q else update_chatroom_q)
            (node_id, room_alias, room_description, transcribe)
-  let delete_chatroom_q = Caqti_request.exec Caqti_type.int
+  let delete_chatroom_q =
+    Caqti_type.int -->. unit @:-
     "DELETE FROM batyr.muc_rooms WHERE node_id = $1"
   let delete_chatroom node_id (module C : CONNECTION) =
     C.exec delete_chatroom_q node_id
 
-  let fetch_presences_q = Caqti_request.collect
-    Caqti_type.unit
-    Caqti_type.(tup4 string string bool (option string))
+  let fetch_presences_q =
+    Caqti_type.unit -->*
+    Caqti_type.(tup4 string string bool (option string)) @:-
     "SELECT resource.jid, account.jid, is_present, nick \
      FROM batyr.muc_presence NATURAL JOIN batyr.resource_jids AS resource \
                                INNER JOIN batyr.resource_jids AS account \
@@ -88,13 +91,13 @@ module Admin = struct
   let fetch_presences (module C : CONNECTION) =
     C.fold fetch_presences_q List.cons () []
 
-  let update_presence_q = Caqti_request.exec
-    Caqti_type.(tup4 int int (option string) bool)
+  let update_presence_q =
+    Caqti_type.(tup4 int int (option string) bool) -->. unit @:-
     "UPDATE batyr.muc_presence \
      SET account_id = $2, nick = $3, is_present = $4 \
      WHERE resource_id = $1"
-  let insert_presence_q = Caqti_request.exec
-    Caqti_type.(tup4 int int (option string) bool)
+  let insert_presence_q =
+    Caqti_type.(tup4 int int (option string) bool) -->. unit @:-
     "INSERT INTO batyr.muc_presence \
         (resource_id, account_id, nick, is_present) \
      VALUES ($1, $2, $3, $4)"
@@ -103,8 +106,8 @@ module Admin = struct
     C.exec (if do_ins then insert_presence_q else update_presence_q)
            (resource_id, account_id, nick, is_present)
 
-  let delete_presence_q = Caqti_request.exec
-    Caqti_type.int
+  let delete_presence_q =
+    Caqti_type.int -->. unit @:-
     "DELETE FROM batyr.muc_presence WHERE resource_id = $1"
   let delete_presence resource_id (module C : CONNECTION) =
     C.exec delete_presence_q resource_id
