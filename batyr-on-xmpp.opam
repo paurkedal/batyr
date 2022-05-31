@@ -20,6 +20,7 @@ depends: [
   "lwt_ppx"
   "lwt_react"
   "ocamlfind" {build}
+  "mirage-crypto-rng"
   "ppx_compose"
   "ppx_deriving"
   "prime"

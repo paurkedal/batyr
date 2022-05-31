@@ -61,7 +61,7 @@ let load_authenticator () =
   loop ca_paths >>= X509_lwt.authenticator
 
 let make_tls_socket host fd =
-  Nocrypto_entropy_lwt.initialize () >>= fun () ->
+  Mirage_crypto_rng_lwt.initialize ();
   let%lwt authenticator = load_authenticator () in
   let config = Tls.Config.client ~authenticator () in
   let%lwt tls_socket = Tls_lwt.Unix.client_of_fd config ~host fd in

@@ -15,6 +15,7 @@
     caqti-lwt
     caqti-type-calendar
     erm_xmpp
+    mirage-crypto-rng.lwt
     tls
     tls.lwt
     x509)
