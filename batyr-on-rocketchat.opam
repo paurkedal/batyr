@@ -7,7 +7,6 @@ homepage: "https://github.com/paurkedal/batyr/"
 bug-reports: "https://github.com/paurkedal/batyr/issues"
 depends: [
   "ocaml"
-  "adpkg" {build}
   "batyr-core"
   "calendar"
   "caqti" {>= "0.8"}
@@ -25,7 +24,6 @@ depends: [
   "lwt"
   "lwt_ppx"
   "lwt_react"
-  "ocamlfind" {build}
   "ppx_compose"
   "ppx_deriving_yojson"
   "ppx_regexp"
@@ -34,7 +32,6 @@ depends: [
   "re"
   "react"
   "tls"
-  "topkg" {build}
   "uri"
   "websocket"
   "websocket-lwt-unix"
