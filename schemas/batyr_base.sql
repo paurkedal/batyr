@@ -61,8 +61,8 @@ CREATE TYPE batyr.message_type AS
 
 CREATE TABLE batyr.messages (
   message_id SERIAL PRIMARY KEY,
-  seen_time timestamp NOT NULL DEFAULT (current_timestamp AT TIME ZONE 'UTC'),
-  edit_time timestamp,
+  seen_time timestamp with time zone NOT NULL DEFAULT (current_timestamp),
+  edit_time timestamp with time zone,
   sender_id integer NOT NULL REFERENCES batyr.resources,
   author_id integer REFERENCES batyr.resources,
   recipient_id integer REFERENCES batyr.resources,
