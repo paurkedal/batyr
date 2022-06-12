@@ -1,0 +1,5 @@
+(executable
+ (name listener)
+ (public_name batyr-on-xmpp)
+ (package batyr-on-xmpp)
+ (libraries caqti-dynload batyr-on-xmpp))

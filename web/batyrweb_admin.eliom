@@ -16,7 +16,6 @@
 
 [%%server
   open Batyr_core.Prereq
-  open Batyr_core.Data
   open Batyrweb_server
   open Caqti_lwt
   open Lwt.Infix
@@ -111,7 +110,7 @@ module%client Account = struct
       is_active = Js.to_bool ed.ed_is_active##.checked; }
 end
 
-module%server B = Batyr_xmpp_conn
+module%server B = Data
 
 module%server Account = struct
   include Account_shared
@@ -141,14 +140,17 @@ module%server Account = struct
         match password with
         | None -> Lwt.fail (Failure "Password is needed for new account.")
         | Some pw -> Lwt.return pw in
-      B.Account.create ~resource ~port ~password ~is_active ()
+      B.Account.create ~resource ~port ~password ~is_active () >|= ignore
+(*
         >|= fun account ->
       if is_active then ignore (Batyr_xmpp_listener.start account)
+*)
     | Some old_account ->
       let old_resource = B.Resource.of_string old_account.account_jid in
       begin match%lwt B.Account.of_resource old_resource with
       | None -> Lwt.return_unit
       | Some account ->
+(*
         begin if B.Account.is_active account then
           begin match Batyr_xmpp_listener.find account with
           | None -> Lwt.return_unit
@@ -157,9 +159,12 @@ module%server Account = struct
         else
           Lwt.return_unit
         end >>= fun () ->
+*)
         B.Account.update ~resource ~port ?password ~is_active account
+(*
           >|= fun () ->
         if is_active then ignore (Batyr_xmpp_listener.start account)
+*)
       end
     end >>= fun () ->
     Lwt.return (if hide_passwords then {a with client_password = None} else a)

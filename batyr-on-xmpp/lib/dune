@@ -14,6 +14,7 @@
     caqti
     caqti-lwt
     caqti-type-calendar
+    decoders-yojson
     erm_xmpp
     mirage-crypto-rng.lwt
     tls

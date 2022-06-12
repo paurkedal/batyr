@@ -42,7 +42,4 @@ let status_service =
   Eliom_service.(create ~path:(Path ["status"]) ~meth:(Get get) ())
 
 let db_uri = Uri.of_string Batyrweb_config.db_uri_cp#get
-module Batyr_xmpp_conn = (val Batyr_xmpp.Data.connect db_uri)
-module Batyr_xmpp_listener = Batyr_xmpp.Listener.Make (Batyr_xmpp_conn)
-
-let () = Lwt.async Batyr_xmpp_listener.start_all
+module Data = (val Batyr_core.Data.connect db_uri)

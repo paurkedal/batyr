@@ -15,14 +15,13 @@
  *)
 
 [%%server
-  open Batyr_core.Data
   open Batyrweb_server
   module type CONNECTION = Caqti_lwt.CONNECTION
   module Caqti_type = struct
     include Caqti_type
     include Caqti_type_calendar
   end
-  module B = Batyr_xmpp_conn
+  module B = Data
 ]
 [%%client
   open Js_of_ocaml
@@ -453,6 +452,7 @@ let transcript_handler (room_jid, pat) () =
                             (React.S.value fragment_date) in
     ref [d##getFullYear - y_min; d##getMonth; d##getDate - 1]
   ] in
+(*
   let relevant_message msg =
     let open Batyr_xmpp_listener in
     Lwt.return begin
@@ -469,6 +469,8 @@ let transcript_handler (room_jid, pat) () =
     end in
   let update_events =
     Lwt_react.E.fmap_s relevant_message Batyr_xmpp_listener.messages in
+*)
+  let update_events : message React.event = React.E.never in
   let update_comet =
     Eliom_comet.Channel.create (Lwt_react.E.to_stream update_events) in
   let info_span = span ~a:[a_class ["error"]] [] in

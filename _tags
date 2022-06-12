@@ -12,7 +12,6 @@ true: \
 <web/server/*>: \
     thread, \
     package(batyr-core), \
-    package(batyr-on-xmpp), \
     package(caqti), \
     package(caqti-lwt), \
     package(caqti-type-calendar), \

@@ -54,3 +54,5 @@ module Make (B : Data_sig.S) : sig
   (** [shutdown session] terminates the XMPP stream and closes resources
       associated with [session]. *)
 end
+
+include Batyr_core.Listener.LISTENER
