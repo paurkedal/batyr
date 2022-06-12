@@ -28,8 +28,6 @@ module type S = sig
 
     val of_jid : JID.t -> t
     val jid : t -> JID.t
-    val to_string : t -> string
-    val of_string : string -> t
   end
 
   module Resource : sig
@@ -39,8 +37,6 @@ module type S = sig
 
     val of_jid : JID.t -> t
     val jid : t -> JID.t
-    val to_string : t -> string
-    val of_string : string -> t
   end
 
   module Account = Base.Account
@@ -57,13 +53,7 @@ module type S = sig
     val to_string : t -> string
   end
 
-  module Muc_room : sig
-    include Batyr_core.Data_sig.Muc_room
-      with type node := Base.Node.t
-       and type t = Base.Muc_room.t
-
-    val to_string : t -> string
-  end
+  module Muc_room = Base.Muc_room
 
   module Message = Base.Message
 

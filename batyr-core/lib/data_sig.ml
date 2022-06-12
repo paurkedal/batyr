@@ -45,6 +45,7 @@ module type Node = sig
   val domain_name : t -> string
   val node_name : t -> string
   val to_string : t -> string
+  val of_string : string -> t
 
   val equal : t -> t -> bool
   val hash : t -> int
@@ -66,6 +67,9 @@ module type Resource = sig
     unit -> t
 
   val create_on_node : ?foreign_resource_id: string -> node -> string -> t
+
+  val of_string : string -> t
+  val to_string : t -> string
 
   val domain_name : t -> string
   val node_name : t -> string
@@ -118,6 +122,7 @@ module type Muc_room = sig
   val description : t -> string option
   val transcribe : t -> bool
   val min_message_time : t -> float option
+  val to_string : t -> string
 end
 
 (** High-level view of a row of the [messages] table. *)

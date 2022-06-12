@@ -74,10 +74,7 @@ let connect uri = (module struct
         nick ^ " <" ^ Resource.to_string resource ^ ">"
   end
 
-  module Muc_room = struct
-    include Base.Muc_room
-    let to_string room = Node.to_string (node room)
-  end
+  module Muc_room = Base.Muc_room
 
   module Message = Base.Message
 

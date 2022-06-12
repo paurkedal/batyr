@@ -17,7 +17,6 @@
 [%%server
   open Batyr_core.Prereq
   open Batyr_core.Data
-  open Batyr_xmpp.Data
   open Batyrweb_server
   open Caqti_lwt
   open Lwt.Infix

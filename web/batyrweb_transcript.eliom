@@ -16,7 +16,6 @@
 
 [%%server
   open Batyr_core.Data
-  open Batyr_xmpp.Data
   open Batyrweb_server
   module type CONNECTION = Caqti_lwt.CONNECTION
   module Caqti_type = struct

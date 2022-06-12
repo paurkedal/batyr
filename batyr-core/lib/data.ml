@@ -96,6 +96,13 @@ let connect uri = (module struct
         (Beacon.embed Grade.basic
           (fun beacon -> {id = id_unknown; domain_name; node_name; beacon}))
 
+    let of_string s =
+      if String.contains s '/' then failwith "Node.of_string" else
+      (match String.split_on_char '@' s with
+       | [domain_name] -> create ~domain_name ()
+       | [node_name; domain_name] -> create ~node_name ~domain_name ()
+       | _ -> failwith "Node.of_string")
+
     let domain_name {domain_name; _} = domain_name
     let node_name {node_name; _} = node_name
     let to_string node =
@@ -203,6 +210,29 @@ let connect uri = (module struct
       create
         ~domain_name:(Node.domain_name node)
         ~node_name:(Node.node_name node) ~resource_name ?foreign_resource_id ()
+
+    let of_string s =
+      let node_str, resource_name =
+        (match String.split_on_char '/' s with
+         | [node_str] -> (node_str, "")
+         | [node_str; resource_name] -> (node_str, resource_name)
+         | _ -> failwith "Resource.of_string")
+      in
+      let domain_name, node_name =
+        (match String.split_on_char '@' node_str with
+         | [domain_name] -> (domain_name, "")
+         | [node_name; domain_name] -> (domain_name, node_name)
+         | _ -> failwith "Resource.of_stirng")
+      in
+      create ~domain_name ~node_name ~resource_name ()
+
+    let to_string resource =
+      let node_str =
+        if resource.node_name = "" then resource.domain_name else
+        resource.node_name ^ "@" ^ resource.domain_name
+      in
+      if resource.resource_name = "" then node_str else
+      node_str ^ "/" ^ resource.resource_name
 
     let domain_name {domain_name; _} = domain_name
     let node_name {node_name; _} = node_name
@@ -440,6 +470,8 @@ let connect uri = (module struct
             in
             Option.map make_room qr
         end
+
+    let to_string room = Node.to_string (node room)
   end
 
   type message_type = [`Normal | `Chat | `Groupchat | `Headline]
