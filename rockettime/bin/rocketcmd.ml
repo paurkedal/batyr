@@ -14,11 +14,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Batyr_on_rocketchat
-open Batyr_prereq
+open Batyr_core
+open Batyr_core.Prereq
 open Lwt.Infix
 open Lwt.Syntax
 module R = Rockettime
+
+module Log = (val Logs_lwt.src_log (Logs.Src.create "rocketcmd"))
 
 module Duration = struct
   type t = Ptime.Span.t
@@ -35,16 +37,23 @@ module Duration = struct
   let to_yojson t = `Float (Ptime.Span.to_float_s t)
 end
 
+type nameserver = {
+  host: string;
+  port: int;
+}
+[@@deriving yojson]
+
 type config = {
-  log_level: Log.level_option [@default Some Logs.Warning];
+  log_level: Logging.Verbosity.t [@default Logging.Verbosity.default];
   rocketchat_uri: string;
   rocketchat_user: string option [@default None];
   rocketchat_token: string;
   rocketchat_ping_period: Duration.t [@default Ptime.Span.v (240, 0L)];
   rocketchat_ping_patience: Duration.t [@default Ptime.Span.v (600, 0L)];
   include_rooms: string list [@default []];
+  nameservers: nameserver list [@default [{host = "127.0.0.53"; port = 53}]];
 }
-[@@deriving yojson]
+[@@deriving yojson {strict = false}]
 
 let load_config config_path =
   let* config_string =
@@ -56,7 +65,7 @@ let load_config config_path =
    | Error msg -> Lwt.return_error (`Msg msg))
 
 let wrap_main f config_path =
-  Logs.set_reporter (Batyr_logging.lwt_reporter ());
+  Logs.set_reporter (Batyr_core.Logging.lwt_reporter ());
   let report_error = function
    | Ok () -> Lwt.return 0
    | Error err ->
@@ -65,11 +74,17 @@ let wrap_main f config_path =
   in
   Lwt_main.run (begin
     let*? config = load_config config_path in
-    Logs.Src.set_level Log.src config.log_level;
-    Logs.Src.set_level R.Log.src config.log_level;
+    Logging.setup ~verbosity:config.log_level ();
     let* () = Log.debug (fun f -> f "Conneting to %s" config.rocketchat_uri) in
+    let dns_client =
+      let nameservers =
+        let aux cfg = `Plaintext (Ipaddr.of_string_exn cfg.host, cfg.port) in
+        (`Tcp, (List.map aux config.nameservers))
+      in
+      Dns_client_lwt.create ~nameservers ()
+    in
     let*? conn =
-      R.Connection.connect (Uri.of_string config.rocketchat_uri)
+      R.Connection.connect ~dns_client (Uri.of_string config.rocketchat_uri)
     in
     f config conn
   end >>= report_error)

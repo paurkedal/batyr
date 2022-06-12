@@ -22,11 +22,20 @@ module Verbosity : sig
     per_source: (string * Logs.level option) list;
   }
 
+  val default : t
+
   val merge : t -> t -> t
 
   val of_string : string -> (t, [> `Msg of string]) result
 
+  val pp : t Fmt.t
+
   val cmdliner_term : t Cmdliner.Term.t
+
+  val to_yojson : t -> [> `String of string]
+
+  val of_yojson : [> `String of string] -> (t, string) result
+
 end
 
 val setup : ?verbosity: Verbosity.t -> unit -> unit

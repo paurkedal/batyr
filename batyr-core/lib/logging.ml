@@ -63,6 +63,8 @@ module Verbosity = struct
     using (fun {per_source; _} -> per_source)
       (list (comma ++ pair ~sep:(const string ":") string level))
 
+  let to_string = Fmt.to_to_string pp
+
   let cmdliner_conv = Cmdliner.Arg.conv (of_string, pp)
 
   let cmdliner_term =
@@ -72,6 +74,12 @@ module Verbosity = struct
     let env = Cmd.Env.info ~doc "BATYR_LOG_VERBOSITY" in
     Arg.(value @@ opt cmdliner_conv default @@
          info ~env ~doc ~docv ["verbosity"])
+
+  let to_yojson v = `String (to_string v)
+
+  let of_yojson = function
+   | `String s -> of_string s |> Result.map_error (function `Msg msg -> msg)
+   | _ -> Error "The log verbosity must be a string."
 end
 
 let pp_ptime = Ptime.pp_rfc3339 ~tz_offset_s:0 ()
