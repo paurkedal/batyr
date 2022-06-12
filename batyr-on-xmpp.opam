@@ -6,8 +6,8 @@ license: "GPL-3"
 homepage: "https://github.com/paurkedal/batyr/"
 bug-reports: "https://github.com/paurkedal/batyr/issues"
 depends: [
-  "ocaml"
   "batyr-core"
+  "dune" {>= "2.0"}
   "calendar"
   "caqti" {>= "0.8"}
   "caqti-dynload"
@@ -19,6 +19,7 @@ depends: [
   "lwt_ppx"
   "lwt_react"
   "mirage-crypto-rng"
+  "ocaml"
   "ppx_compose"
   "ppx_deriving"
   "prime"
