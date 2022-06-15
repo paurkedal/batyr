@@ -1,4 +1,4 @@
-(* Copyright (C) 2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,8 +14,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Config_file
+type t = {
+  site_prefix: string;  (* default: "" *)
+  storage_uri: Uri.t;   (* required *)
+  static_dir: string;   (* required *)
+}
 
-val db_uri_cp : string cp
-
-val hide_passwords_cp : bool cp
+val global : t

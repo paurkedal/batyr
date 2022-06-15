@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2019  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,10 +14,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Lwt.Syntax
 open Js_of_ocaml
-open Lwt.Infix
-open Eliom_content
-open Unprime_option
+open Js_of_ocaml_lwt
+open Js_of_ocaml_tyxml.Tyxml_js
+
+let log_src = Logs.Src.create "batyr"
+module Log_async = (val Logs.src_log log_src)
+module Log = (val Logs_lwt.src_log log_src)
+
+let current_url () =
+  Uri.of_string (Js.to_string Dom_html.window##.location##.href)
+
+let site_prefix () =
+  let html = Dom_html.document##.documentElement in
+  html##getAttribute (Js.string "data-batyr-root-vpath")
+    |> Fun.flip Js.Opt.get (fun () -> failwith "Cannot get root vpath.")
+    |> Js.to_string
 
 module Domx_html = struct
   let element_by_id : (#Dom_html.element Js.t -> 'a Js.opt) -> string -> 'a
@@ -28,7 +41,7 @@ module Domx_html = struct
 end
 
 module Caltime = struct
-  let to_epoch jd = 0.001 *. Js.to_float jd##valueOf
+  let to_epoch jd = 0.001 *. jd##valueOf
 
   let day_start d =
     new%js Js.date_day d##getFullYear d##getMonth d##getDate
@@ -81,13 +94,31 @@ module Live_table (Elt : LIVE_TABLE_ELEMENT) = struct
         row##.innerHTML := Js.string ""; row in
     List.iter
       (fun cell ->
-        ignore (row##appendChild((Html.To_dom.of_td cell :> Dom.node Js.t))))
+        ignore (row##appendChild((To_dom.of_td cell :> Dom.node Js.t))))
       (Elt.render_row elt)
 
   let remove t elt =
-    match Enset.locate elt t.enset with
-    | false, _ -> Eliom_lib.error "Element to delete not found."
-    | true, i ->
-      t.enset <- Enset.remove elt t.enset;
-      t.table##deleteRow (t.static_row_count + i)
+    (match Enset.locate elt t.enset with
+     | false, _ ->
+        Log_async.err (fun f -> f "Element to delete not found.")
+     | true, i ->
+        t.enset <- Enset.remove elt t.enset;
+        t.table##deleteRow (t.static_row_count + i))
 end
+
+let make_call method_path encode_request decode_response request =
+  let req = request |> encode_request |> Yojson.Safe.to_string in
+  let+ resp =
+    XmlHttpRequest.perform_raw method_path
+      ~response_type:XmlHttpRequest.Text
+      ~override_mime_type:"application/json"
+      ~content_type:"application/json"
+      ~contents:(`String req)
+  in
+  if resp.code = 200 then
+    resp.content
+      |> Js.to_string
+      |> Yojson.Safe.from_string
+      |> decode_response
+  else
+    Fmt.error "Call %s failed due to HTTP status %d." method_path resp.code

@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2016  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,22 +14,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-(** Global configuration. *)
+module Log = (val Logs_lwt.src_log (Logs.Src.create "batyr"))
 
-open Config_file
-
-let group = new group
-
-let db_uri_cp = new string_cp ~group ["db_uri"] "postgresql://"
-  "Caqti URI for connecting to database."
-
-let hide_passwords_cp = new bool_cp ~group ["admin"; "hide_passwords"] true
-  "Hide the account passwords in the admin interface."
-
-let () =
-  let section = Lwt_log.Section.make "Batyr.config" in
-  let fp =
-    try Unix.getenv "BATYR_CONF" with Not_found -> "/etc/batyr/batyr.conf" in
-  try group#read fp
-  with Sys_error reason ->
-    Lwt_log.ign_warning ~section reason
+let site_prefix () = Config.global.site_prefix

@@ -1,0 +1,21 @@
+(executable
+ (name batyrweb)
+ (modes js)
+ (preprocess (pps js_of_ocaml-ppx ppx_deriving_yojson))
+ (libraries
+    fmt
+    logs
+    logs.browser
+    logs.lwt
+    js_of_ocaml
+    js_of_ocaml-lwt
+    js_of_ocaml-tyxml
+    lwt
+    prime
+    prime.unstable
+    ptime
+    tyxml
+    uri
+    yojson))
+
+(copy_files# ../shared/*.ml{,i})

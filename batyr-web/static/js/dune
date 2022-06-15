@@ -1,0 +1,3 @@
+(rule
+ (alias build)
+ (action (copy ../../client/batyrweb.bc.js batyr.js)))

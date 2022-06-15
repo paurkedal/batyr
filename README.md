@@ -4,27 +4,28 @@
 ## Synopsis
 
 Batyr is a bot which logs messages from chatrooms to a PostgreSQL database
-and provides a web interface for browsing and searching the them.  The web
-interface runs under [Ocsigen][ocsigen].
+and provides a web interface for browsing and searching the them.
 
+Please note that development of this project is sporadic and that there is
+insufficient documentation.
 
 ## Installation
 
 Prepare an OPAM installation as described in http://opam.ocaml.org/, then
 
     opam repo add paurkedal https://github.com/paurkedal/opam-repo-paurkedal.git
-    opam install batyr
+    opam install batyr-core batyr-web batyr-on-rocketchat batyr-on-slack batyr-on-xmpp
 
-If you wish to try it in a local Git clone, add `--deps-only` to the last
-command, then in the top source directory:
+where irrelevant `batyr-on-*` packages can be omitted.
 
-    ocaml pkg/pkg.ml build
+To build from the git repository, add `--deps-only` to the last command and
+issue `dune build` from the source directory.
 
 
 ## Deployment
 
-See the [Ocsigen manual][ocsigen] for how to setup up the web server.  A
-sample configuration for Batyr is installed under `$prefix/share/batyr`.
+This guide is incomplete.
+
 Create a PostgreSQL database, say `batyr`, which can be accessed by the user
 running the Ocsigen server, and prepare it with
 
@@ -32,19 +33,21 @@ running the Ocsigen server, and prepare it with
     psql -U batyr batyr -f $prefix/share/batyr/schemas/batyr_proc.sql
 
 The first file contains the table definitions.  The second contains views
-and functions which can be updated without touching any data.  Then point to
-this database in the configuration file `/etc/batyr/batyr.conf`:
-```
-(* Caqti URI for connecting to database. *)
-db_uri = "postgresql://batyr@db-host/batyr"
+and functions which can be updated without touching any data.
 
-admin = {
-  (* Hide the account passwords in the admin interface. *)
-  hide_passwords = true
-}
-```
-A database URI `postgresql:/` would give you the ident-authenticated default
-database.
+The run the web interface can be started with
 
-[ocsigen]: http://ocsigen.org/ocsigenserver/
-[pgenv]: http://www.postgresql.org/docs/9.3/interactive/libpq-envars.html
+    export BATYR_CONFIG=<path-to-config-file>
+    batyr-web
+
+where the configuration is a JSON encoding of
+[batyr-web/server/config.mli]().
+
+For recording messages, the following commands are available:
+
+    batyr-on-rocketchat
+    batyr-on-slack
+    batyr-on-xmpp
+
+which all take a configuration file of different undocumented formats.  See
+the respective `config.mli` files.

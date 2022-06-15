@@ -6,32 +6,27 @@ license: "GPL-3"
 homepage: "https://github.com/paurkedal/batyr/"
 bug-reports: "https://github.com/paurkedal/batyr/issues"
 depends: [
-  "ocaml"
   "batyr-core"
-  "batyr-on-xmpp"
-  "calendar"
   "caqti" {>= "0.8"}
   "caqti-dynload"
   "caqti-lwt"
   "caqti-type-calendar"
-  "config-file"
-  "eliom"
+  "dream"
+  "dune" {>= "2.0"}
+  "fmt"
+  "logs"
   "js_of_ocaml"
+  "js_of_ocaml-compiler"
   "js_of_ocaml-ppx"
   "lwt"
-  "lwt_ppx"
-  "lwt_react"
-  "ocamlfind" {build}
-  "ppx_compose"
-  "ppx_deriving"
+  "ocaml"
+  "ppx_deriving_yojson"
   "prime"
   "ptime"
-  "react"
-  "topkg" {build}
+  "tyxml"
+  "uri"
   "yojson"
 ]
-build: [
-  "ocaml" "pkg/pkg_web.ml" "build" "--pkg-name" name "--dev-pkg" "%{pinned}%"
-]
+build: ["dune" "build" "-p" name "-j" jobs]
 dev-repo: "git+https://github.com/paurkedal/batyr.git"
-synopsis: "Eliom based web interface to Batyr logs"
+synopsis: "Web interface to Batyr logs"
