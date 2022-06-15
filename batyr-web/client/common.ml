@@ -14,9 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Lwt.Syntax
 open Js_of_ocaml
-open Js_of_ocaml_lwt
 open Js_of_ocaml_tyxml.Tyxml_js
 
 let log_src = Logs.Src.create "batyr"
@@ -105,20 +103,3 @@ module Live_table (Elt : LIVE_TABLE_ELEMENT) = struct
         t.enset <- Enset.remove elt t.enset;
         t.table##deleteRow (t.static_row_count + i))
 end
-
-let make_call method_path encode_request decode_response request =
-  let req = request |> encode_request |> Yojson.Safe.to_string in
-  let+ resp =
-    XmlHttpRequest.perform_raw method_path
-      ~response_type:XmlHttpRequest.Text
-      ~override_mime_type:"application/json"
-      ~content_type:"application/json"
-      ~contents:(`String req)
-  in
-  if resp.code = 200 then
-    resp.content
-      |> Js.to_string
-      |> Yojson.Safe.from_string
-      |> decode_response
-  else
-    Fmt.error "Call %s failed due to HTTP status %d." method_path resp.code

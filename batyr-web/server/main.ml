@@ -39,6 +39,6 @@ let () =
     Dream.get Vpaths.index index;
     Dream.get (Vpaths.room ":room_jid") Room.handle;
     Dream.get (Vpaths.static "**") (Dream.static Config.(global.static_dir));
-    Dream.post Protocol.count_messages_path Api.handle_count_messages;
-    Dream.post Protocol.fetch_messages_path Api.handle_fetch_messages;
+    Dream.post Api_protocol.count_messages_path Api.handle_count_messages;
+    Dream.post Api_protocol.fetch_messages_path Api.handle_fetch_messages;
   ]

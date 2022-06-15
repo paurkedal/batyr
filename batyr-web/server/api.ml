@@ -19,6 +19,7 @@ open Lwt.Infix
 open Lwt.Syntax
 open Printf
 
+open Api_protocol
 open Common
 
 let query_limit = 10000
@@ -60,7 +61,7 @@ let fetch_message_counts cond tz =
        cond_str)
   in
   Data.Db.use begin fun (module C : Data.CONNECTION) ->
-    let aux (date, count) acc = {Protocol.date; count} :: acc in
+    let aux (date, count) acc = {date; count} :: acc in
     C.fold req aux (tz, params) []
   end >|=
   (function
@@ -68,7 +69,7 @@ let fetch_message_counts cond tz =
    | Error err -> Error (Caqti_error.show err))
 
 let handle_count_messages' req =
-  let {room = room_jid; pattern; tz} : Protocol.count_messages_request = req in
+  let {room = room_jid; pattern; tz} : count_messages_request = req in
   let room = Data.Node.of_string room_jid in (* TODO: exception *)
   let*? room_id =
     Data.Node.stored_id room >|= function
@@ -85,8 +86,8 @@ let handle_count_messages' req =
 
 let handle_count_messages =
   make_handler
-    Protocol.count_messages_request_of_yojson
-    Protocol.count_messages_response_to_yojson
+    count_messages_request_of_yojson
+    count_messages_response_to_yojson
     handle_count_messages'
 
 let fetch_messages cond =
@@ -115,8 +116,7 @@ let fetch_messages cond =
         (fun ((time, edit_time, sender_id),
               (subject_opt, thread_opt, body_opt)) ->
           Data.Resource.stored_of_id sender_id >|= fun sender_resource ->
-          { Protocol.
-            msg_time = time;
+          { msg_time = time;
             msg_edit_time = edit_time;
             msg_sender_cls = "jid";
             msg_sender = Data.Resource.resource_name sender_resource;
@@ -133,8 +133,7 @@ let phrase_query pattern tI_opt tF_opt =
 
 let handle_fetch_messages' req =
   (* TODO: time zone *)
-  let {room = room_jid; time_start; time_stop; pattern}
-    : Protocol.fetch_messages_request = req in
+  let {room = room_jid; time_start; time_stop; pattern} = req in
   Log.debug (fun f ->
     f "Sending %s transcript%s."
       room_jid (phrase_query pattern time_start time_stop)) >>= fun () ->
@@ -156,6 +155,6 @@ let handle_fetch_messages' req =
 
 let handle_fetch_messages =
   make_handler
-    Protocol.fetch_messages_request_of_yojson
-    Protocol.fetch_messages_response_to_yojson
+    fetch_messages_request_of_yojson
+    fetch_messages_response_to_yojson
     handle_fetch_messages'

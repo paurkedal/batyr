@@ -38,16 +38,6 @@ module Chatroom = struct
 end
 module Chatrooms_live = Live_table (Chatroom)
 
-let fetch_message_counts =
-  make_call Protocol.count_messages_path
-    Protocol.count_messages_request_to_yojson
-    Protocol.count_messages_response_of_yojson
-
-let fetch_transcript =
-  make_call Protocol.fetch_messages_path
-    Protocol.fetch_messages_request_to_yojson
-    Protocol.fetch_messages_response_of_yojson
-
 module Message_counts = struct
 
   type t = {
@@ -68,10 +58,10 @@ module Message_counts = struct
       let init_year _ = {card = 0; branches = Array.init 12 init_month} in
       {card = 0; branches = Array.init (y_now - y_min + 1) init_year}
     in
-    fetch_message_counts {room; pattern; tz} >|= function
+    Api.count_messages {room; pattern; tz} >|= function
      | Ok counts ->
         List.iter
-          (fun {Protocol.date; count} ->
+          (fun {Api_protocol.date; count} ->
             let y = date lsr 16 in
             let m = date lsr 8 land 0xff in
             let d = date land 0xff in
@@ -107,7 +97,7 @@ module Transcript = struct
 
   let append_message ts msg =
     let msg_frag =
-      (match msg.Protocol.msg_body with
+      (match msg.Api_protocol.msg_body with
        | None -> []
        | Some body -> [H.span ~a:[H.a_class ["body"]] [H.txt body]])
     in
@@ -192,7 +182,7 @@ let render_transcript ~room ?tI ?tF ?pattern ?date update_comet =
   (match !shown_transcript with
    | None -> ()
    | Some ts -> Transcript.disable_updates ts; shown_transcript := None);
-  fetch_transcript {room; time_start = tI; time_stop = tF; pattern} >|= function
+  Api.fetch_messages {room; time_start = tI; time_stop = tF; pattern} >|= function
    | Error msg ->
       [H.p ~a:[H.a_class ["error"]] [H.txt msg]]
    | Ok msgs ->
