@@ -37,7 +37,7 @@ and functions which can be updated without touching any data.
 
 The run the web interface can be started with
 
-    export BATYR_CONFIG=<path-to-config-file>
+    export BATYR_CONFIG=<config-file>
     batyr-web
 
 where the configuration is a JSON encoding of
@@ -45,9 +45,9 @@ where the configuration is a JSON encoding of
 
 For recording messages, the following commands are available:
 
-    batyr-on-rocketchat
-    batyr-on-slack
-    batyr-on-xmpp
+    batyr-on-rocketchat <config-file>
+    batyr-on-slack <config-file>
+    batyr-on-xmpp <config-file>
 
-which all take a configuration file of different undocumented formats.  See
-the respective `config.mli` files.
+which each take a configuration file of different undocumented format as
+argument.  See the respective `config.mli` files.
