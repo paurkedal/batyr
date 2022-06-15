@@ -9,6 +9,7 @@ and provides a web interface for browsing and searching the them.
 Please note that development of this project is sporadic and that there is
 insufficient documentation.
 
+
 ## Installation
 
 Prepare an OPAM installation as described in http://opam.ocaml.org/, then
@@ -41,7 +42,7 @@ The run the web interface can be started with
     batyr-web
 
 where the configuration is a JSON encoding of
-[batyr-web/server/config.mli]().
+[batyr-web/server/config.mli](batyr-web/server/config.mli).
 
 For recording messages, the following commands are available:
 
@@ -49,5 +50,5 @@ For recording messages, the following commands are available:
     batyr-on-slack <config-file>
     batyr-on-xmpp <config-file>
 
-which each take a configuration file of different undocumented format as
-argument.  See the respective `config.mli` files.
+Each take a configuration file of different undocumented format as argument.
+See the respective `config.mli` files.
