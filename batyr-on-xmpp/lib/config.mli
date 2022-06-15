@@ -14,4 +14,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-include Batyr_core.Listener.Make (Batyr_on_xmpp.Listener)
+type t = {
+  storage_uri: Uri.t;
+  resource: string;
+  port: int;
+  password: string;
+  log_level: Batyr_core.Logging.Verbosity.t;
+}
+
+val load : string -> (t, [> `Msg of string]) result Lwt.t
+
+val verbosity : t -> Batyr_core.Logging.Verbosity.t
