@@ -25,7 +25,7 @@ type attachment = {
 
 let attachment_decoder =
   let open Decode in
-  let* ts = field "timestamp" ptime_decoder in
+  let* ts = field "ts" ptime_decoder in
   let+ text = field_opt "text" string in
   {ts; text}
 
