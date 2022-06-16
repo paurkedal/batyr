@@ -1,4 +1,0 @@
-(install
- (package batyr-web)
- (section share)
- (files batyr.css))

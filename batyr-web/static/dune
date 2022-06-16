@@ -1,0 +1,6 @@
+(install
+ (package batyr-web)
+ (section share)
+ (files
+    (css/batyr.css as static/css/batyr.css)
+    (js/batyr.js as static/js/batyr.js)))
