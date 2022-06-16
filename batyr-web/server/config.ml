@@ -32,7 +32,7 @@ let decoder =
 let global = Lwt_main.run begin
   let open Lwt.Syntax in
   let path =
-    try Sys.getenv "BATYR_CONFIG" with Not_found -> "/etc/batyr.json"
+    try Sys.getenv "BATYR_WEB_CONFIG" with Not_found -> "/etc/batyr-web.json"
   in
   let+ content = Lwt_io.with_file ~mode:Lwt_io.input path Lwt_io.read in
   (match Decode.decode_value decoder (Yojson.Basic.from_string content) with
