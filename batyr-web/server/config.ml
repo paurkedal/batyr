@@ -17,6 +17,11 @@
 module Decode = Decoders_yojson.Basic.Decode
 
 type t = {
+  listen_interface: string option;
+  listen_port: int option;
+  tls_enabled: bool option;
+  tls_certificate_file: string option;
+  tls_key_file: string option;
   site_prefix: string;
   storage_uri: Uri.t;
   static_dir: string;
@@ -24,10 +29,24 @@ type t = {
 
 let decoder =
   let open Decode in
+  let* listen_interface = field_opt "listen_interface" string in
+  let* listen_port = field_opt "listen_port" int in
+  let* tls_enabled = field_opt "tls_enabled" bool in
+  let* tls_certificate_file = field_opt "tls_certificate_file" string in
+  let* tls_key_file = field_opt "tls_key_file" string in
   let* site_prefix = field_opt_or ~default:"" "site_prefix" string in
   let* storage_uri = field "storage_uri" string in
   let+ static_dir = field "static_dir" string in
-  {site_prefix; storage_uri = Uri.of_string storage_uri; static_dir}
+  {
+    listen_interface;
+    listen_port;
+    tls_enabled;
+    tls_certificate_file;
+    tls_key_file;
+    site_prefix;
+    storage_uri = Uri.of_string storage_uri;
+    static_dir;
+  }
 
 let global = Lwt_main.run begin
   let open Lwt.Syntax in

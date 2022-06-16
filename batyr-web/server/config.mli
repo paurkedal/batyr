@@ -15,6 +15,11 @@
  *)
 
 type t = {
+  listen_interface: string option;
+  listen_port: int option;
+  tls_enabled: bool option;
+  tls_certificate_file: string option;
+  tls_key_file: string option;
   site_prefix: string;  (* default: "" *)
   storage_uri: Uri.t;   (* required *)
   static_dir: string;   (* required *)

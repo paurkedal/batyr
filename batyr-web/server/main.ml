@@ -33,7 +33,13 @@ let index _ =
   page ~title:"Room Index" [ul]
 
 let () =
-  Dream.run @@
+  Dream.run
+    ?interface:Config.global.listen_interface
+    ?port:Config.global.listen_port
+    ?tls:Config.global.tls_enabled
+    ?certificate_file:Config.global.tls_certificate_file
+    ?key_file:Config.global.tls_key_file
+    @@
   Dream.logger @@
   Dream.router [
     Dream.get Vpaths.index index;
