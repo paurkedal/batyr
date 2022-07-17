@@ -24,6 +24,10 @@ module Log = (val Logs_lwt.src_log log_src)
 let current_url () =
   Uri.of_string (Js.to_string Dom_html.window##.location##.href)
 
+let set_current_fragment frag =
+  let uri = current_url () |> Fun.flip Uri.with_fragment frag in
+  Dom_html.window##.location##.href := Js.string (Uri.to_string uri)
+
 let site_prefix () =
   let html = Dom_html.document##.documentElement in
   html##getAttribute (Js.string "data-batyr-root-vpath")

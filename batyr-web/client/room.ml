@@ -31,6 +31,35 @@ module H = Html
 type chatroom = string
 let query_limit = 10000
 
+module Page = struct
+
+  type t = int list
+
+  let latest () =
+    let d = new%js Js.date_now in
+    [d##getFullYear; d##getMonth + 1; d##getDate]
+
+  let of_fragment fragment =
+    let fragment_is_ok =
+      (match String.length fragment with
+       |  4 -> Ptime.of_rfc3339 (fragment ^ "-01-01T00:00:00Z") |> Result.is_ok
+       |  7 -> Ptime.of_rfc3339 (fragment ^ "-01T00:00:00Z") |> Result.is_ok
+       | 10 -> Ptime.of_rfc3339 (fragment ^ "T00:00:00Z") |> Result.is_ok
+       | _  -> false)
+    in
+    if fragment_is_ok then
+      List.map int_of_string (String.split_on_char '-' fragment)
+    else
+      latest ()
+
+  let to_fragment = function
+   | [iY] -> Some (sprintf "%04d" iY)
+   | [iY; iM] -> Some (sprintf "%04d-%02d" iY iM)
+   | [iY; iM; iD] -> Some (sprintf "%04d-%02d-%02d" iY iM iD)
+   | _ -> None
+
+end
+
 module Chatroom = struct
   type t = chatroom
   let compare = String.compare
@@ -213,57 +242,57 @@ let render_page ~room ~min_time ?pattern ~page transcript_dom update_comet =
   let y_now = jt_now##getFullYear in
 
   let render_day iY iM iD =
-    let date = new%js Js.date_day (y_min + iY) iM (1 + iD) in
+    let date = new%js Js.date_day iY (iM - 1) iD in
     let tI = Caltime.to_epoch (Caltime.day_start date) in
     let tF = Caltime.to_epoch (Caltime.day_end date) in
-    page := [iY; iM; iD];
+    set_current_fragment (Page.to_fragment [iY; iM; iD]);
     render_transcript ~room ~tI ~tF ?pattern ~date update_comet
   in
 
   let render_month mcY iY iM = function
    | [] ->
-      let date = new%js Js.date_month (y_min + iY) iM in
+      let date = new%js Js.date_month iY (iM - 1) in
       let tI = Caltime.to_epoch (Caltime.month_start date) in
       let tF = Caltime.to_epoch (Caltime.month_end date) in
-      page := [iY; iM];
+      set_current_fragment (Page.to_fragment [iY; iM]);
       render_transcript ~room ~tI ~tF ?pattern ~date update_comet
    | [iD] ->
-      let date = new%js Js.date_month (y_min + iY) iM in
-      let mcM = Message_counts.get mcY iM in
+      let date = new%js Js.date_month iY (iM - 1) in
+      let mcM = Message_counts.get mcY (iM - 1) in
       let label iD = sprintf "%d" (iD + 1) in
       Content.pager
-        ~default_index:iD
-        ~count:(fun iD -> Message_counts.(card (get mcM iD)))
+        ~default_index:(iD - 1)
+        ~count:(fun iD' -> Message_counts.(card (get mcM iD')))
         (Array.init (Caltime.days_in_month date) label)
-        (fun iD -> render_day iY iM iD)
+        (fun iD' -> render_day iY iM (iD' + 1))
    | _ -> assert false
   in
 
   let render_year mcA iY = function
    | [] ->
-      let tI = Caltime.to_epoch (new%js Js.date_month (y_min + iY) 0) in
-      let tF = Caltime.to_epoch (new%js Js.date_month (y_min + iY + 1) 0) in
-      page := [iY];
+      let tI = Caltime.to_epoch (new%js Js.date_month iY 0) in
+      let tF = Caltime.to_epoch (new%js Js.date_month (iY + 1) 0) in
+      set_current_fragment (Page.to_fragment [iY]);
       render_transcript ~room ~tI ~tF ?pattern update_comet
    | iM :: iDs ->
-      let mcY = Message_counts.get mcA iY in
+      let mcY = Message_counts.get mcA (iY - y_min) in
       Content.pager
-        ~default_index:iM
-        ~count:(fun iM -> Message_counts.(card (get mcY iM)))
+        ~default_index:(iM - 1)
+        ~count:(fun iM' -> Message_counts.(card (get mcY iM')))
         Caltime.month_names
-        (fun iM -> render_month mcY iY iM iDs)
+        (fun iM' -> render_month mcY iY (iM' + 1) iDs)
   in
 
   let render_all mcA = function
    | [] ->
       render_transcript ~room ?pattern update_comet
    | iY :: iMDs ->
-      let label iY = sprintf "%04d" (y_min + iY) in
+      let label iY' = sprintf "%04d" (y_min + iY') in
       Content.pager
-        ~default_index:iY
-        ~count:(fun iY -> Message_counts.(card (get mcA iY)))
+        ~default_index:(iY - y_min)
+        ~count:(fun iY' -> Message_counts.(card (get mcA iY')))
         (Array.init (y_now - y_min + 1) label)
-        (fun iY -> render_year mcA iY iMDs)
+        (fun iY' -> render_year mcA (y_min + iY') iMDs)
   in
 
   let is_current =
@@ -280,7 +309,7 @@ let render_page ~room ~min_time ?pattern ~page transcript_dom update_comet =
     let tz = sprintf "%d" (today##getTimezoneOffset / 60) in
     Message_counts.fetch room pattern y_min y_now tz >>= function
      | Ok counts ->
-        let+ content = render_all counts !page in
+        let+ content = render_all counts page in
         shown_counts := Some {
           sc_room = room;
           sc_pattern = pattern;
@@ -310,11 +339,16 @@ let start () =
           |> Js.to_string
           |> float_of_string
       in
-      let pattern = Uri.get_query_param (current_url ()) "pattern" in
-      let page = ref [0; 0; 0] (* FIXME: Last. *) in
+      let url = current_url () in
+      let pattern = Uri.get_query_param url "pattern" in
       let blocked_stream =
         let p, _ = Lwt.wait () in
         Lwt_stream.return_lwt p
+      in
+      let page =
+        (match Uri.fragment url with
+         | Some fragment -> Page.of_fragment fragment
+         | None -> Page.latest ())
       in
       Lwt.ignore_result
         (render_page ~room ~min_time ?pattern ~page elem blocked_stream))
