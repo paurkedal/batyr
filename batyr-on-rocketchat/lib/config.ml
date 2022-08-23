@@ -33,7 +33,7 @@ end
 
 type nameserver = {
   host: string;
-  port: int;
+  port: int [@default 53];
 }
 [@@deriving yojson]
 
