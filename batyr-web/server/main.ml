@@ -1,4 +1,4 @@
-(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +32,35 @@ let index _ =
   let ul = H.ul (List.map render_room rooms) in
   page ~title:"Room Index" [ul]
 
+let unauthorized msg =
+  Content.error_page ~status:`Unauthorized ~title:"Unauthorized" msg
+
+let authenticated =
+  (match Config.global.bearer_jwk with
+   | None -> Fun.id
+   | Some jwk ->
+      fun handler request ->
+        (match Dream.header request "Authorization" with
+         | None -> unauthorized "Missing authorization header."
+         | Some data ->
+            (match String.split_on_char ' ' data |> List.filter ((<>) "") with
+             | ["Bearer"; token] ->
+                let now = Ptime_clock.now () in
+                (match Jose.Jwt.of_string ~jwk ~now token with
+                 | Ok _ -> handler request
+                 | Error `Expired ->
+                    unauthorized "The bearer token has expired."
+                 | Error `Invalid_signature ->
+                    unauthorized "The signature of the bearer token is invalid."
+                 | Error (`Msg msg) ->
+                    unauthorized ("Bad bearer token: " ^ msg)
+                 | Error `Not_json ->
+                    unauthorized "Bearer token data is not JSON."
+                 | Error `Not_supported ->
+                    unauthorized "Bearer token format unsupported.")
+             | _ ->
+                unauthorized "Authorization header is no a bearer token.")))
+
 let () =
   Dream.run
     ?interface:Config.global.listen_interface
@@ -42,9 +71,11 @@ let () =
     @@
   Dream.logger @@
   Dream.router [
-    Dream.get Vpaths.index index;
-    Dream.get (Vpaths.room ":room_jid") Room.handle;
-    Dream.get (Vpaths.static "**") (Dream.static Config.(global.static_dir));
-    Dream.post Api_protocol.count_messages_path Api.handle_count_messages;
-    Dream.post Api_protocol.fetch_messages_path Api.handle_fetch_messages;
+    Dream.scope "/" [authenticated] [
+      Dream.get Vpaths.index index;
+      Dream.get (Vpaths.room ":room_jid") Room.handle;
+      Dream.get (Vpaths.static "**") (Dream.static Config.(global.static_dir));
+      Dream.post Api_protocol.count_messages_path Api.handle_count_messages;
+      Dream.post Api_protocol.fetch_messages_path Api.handle_fetch_messages;
+    ]
   ]

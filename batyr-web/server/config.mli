@@ -1,4 +1,4 @@
-(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ type t = {
   site_prefix: string;  (* default: "" *)
   storage_uri: Uri.t;   (* required *)
   static_dir: string;   (* required *)
+  bearer_jwk: Jose.Jwk.public Jose.Jwk.t option;
 }
 
 val global : t

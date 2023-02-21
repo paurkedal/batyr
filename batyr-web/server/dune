@@ -10,6 +10,7 @@
     decoders-yojson
     dream
     fmt
+    jose
     tyxml))
 
 (copy_files# ../shared/*.ml{,i})

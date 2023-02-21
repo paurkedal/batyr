@@ -1,4 +1,4 @@
-(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@ open Common
 
 module H = Tyxml.Html
 
-let page ~title content =
+let page ?status ~title content =
   let head =
     H.head (H.title (H.txt title)) [
       H.link ~rel:[`Stylesheet] ~href:Vpaths.batyr_css ();
@@ -28,4 +28,7 @@ let page ~title content =
   let html =
     H.html head body ~a:[H.a_user_data "batyr-root-vpath" (site_prefix ())]
   in
-  Dream.html (Format.asprintf "%a" (Tyxml.Html.pp ()) html)
+  Dream.html ?status (Format.asprintf "%a" (Tyxml.Html.pp ()) html)
+
+let error_page ~status ~title message =
+  page ~status ~title [H.p [H.txt message]]

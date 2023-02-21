@@ -1,4 +1,4 @@
-(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,17 @@ type t = {
   site_prefix: string;
   storage_uri: Uri.t;
   static_dir: string;
+  bearer_jwk: Jose.Jwk.public Jose.Jwk.t option;
 }
+
+let bearer_jwk_decoder json =
+  let conv_error = function
+   | `Json_parse_failed msg -> Decoders.Error.make ("JSON parse error: " ^ msg)
+   | `Msg msg -> Decoders.Error.make ("JWK parse error: " ^ msg)
+   | `Unsupported_kty -> Decoders.Error.make "Unsupported JWK key type."
+  in
+  Jose.Jwk.of_pub_json (json : Yojson.Basic.t :> Yojson.Safe.t)
+    |> Result.map_error conv_error
 
 let decoder =
   let open Decode in
@@ -36,7 +46,8 @@ let decoder =
   let* tls_key_file = field_opt "tls_key_file" string in
   let* site_prefix = field_opt_or ~default:"" "site_prefix" string in
   let* storage_uri = field "storage_uri" string in
-  let+ static_dir = field "static_dir" string in
+  let* static_dir = field "static_dir" string in
+  let+ bearer_jwk = field_opt "bearer_jwk" bearer_jwk_decoder in
   {
     listen_interface;
     listen_port;
@@ -46,6 +57,7 @@ let decoder =
     site_prefix;
     storage_uri = Uri.of_string storage_uri;
     static_dir;
+    bearer_jwk;
   }
 
 let global = Lwt_main.run begin
