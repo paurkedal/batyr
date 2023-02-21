@@ -14,9 +14,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Lwt.Infix
 open Lwt.Syntax
 
 open Content
+
+module Log_auth = (val Logs_lwt.src_log (Logs.Src.create "batyr.auth"))
 
 let index _ =
   let* rooms = Data.rooms () in
@@ -35,6 +38,9 @@ let index _ =
 let unauthorized msg =
   Content.error_page ~status:`Unauthorized ~title:"Unauthorized" msg
 
+let pp_jwt =
+  Fmt.(using (fun jwt -> Yojson.Safe.to_string jwt.Jose.Jwt.payload) string)
+
 let authenticated =
   (match Config.global.bearer_jwk with
    | None -> Fun.id
@@ -47,7 +53,10 @@ let authenticated =
              | ["Bearer"; token] ->
                 let now = Ptime_clock.now () in
                 (match Jose.Jwt.of_string ~jwk ~now token with
-                 | Ok _ -> handler request
+                 | Ok jwt ->
+                    Log_auth.info (fun f -> f "Auth %a" pp_jwt jwt)
+                      >>= fun () ->
+                    handler request
                  | Error `Expired ->
                     unauthorized "The bearer token has expired."
                  | Error `Invalid_signature ->
