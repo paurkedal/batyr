@@ -68,7 +68,7 @@ let authenticated =
                  | Error `Not_supported ->
                     unauthorized "Bearer token format unsupported.")
              | _ ->
-                unauthorized "Authorization header is no a bearer token.")))
+                unauthorized "Authorization header is not a bearer token.")))
 
 let () =
   Dream.run
