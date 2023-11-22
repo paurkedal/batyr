@@ -10,6 +10,7 @@
     calendar
     caqti
     caqti-lwt
+    caqti-lwt.unix
     caqti-type-calendar
     cmdliner
     extunix

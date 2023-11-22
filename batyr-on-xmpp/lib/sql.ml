@@ -1,4 +1,4 @@
-(* Copyright (C) 2018  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ end
 
 module Presence = struct
   let room_presence_q =
-    R.(int ->* tup3 int (option string) (option ctime))
+    R.(int ->* t3 int (option string) (option ctime))
     "SELECT resource_id, nick, \
             (SELECT max(seen_time) \
                FROM batyr.messages JOIN batyr.resources AS sender \
@@ -36,7 +36,7 @@ module Presence = struct
     C.fold room_presence_q List.cons account_id []
 
   let active_accounts_q =
-    R.(unit ->* tup3 int int string)
+    R.(unit ->* t3 int int string)
     "SELECT resource_id, server_port, client_password \
      FROM batyr.accounts NATURAL JOIN batyr.resources \
      WHERE is_active = true"

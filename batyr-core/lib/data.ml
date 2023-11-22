@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,12 +29,12 @@ let connect uri = (module struct
   module Db = struct
 
     let pool =
-      (match Caqti_lwt.connect_pool uri with
+      (match Caqti_lwt_unix.connect_pool uri with
        | Ok pool -> pool
        | Error err -> Caqti_error.pp Format.std_formatter err; exit 69)
 
     let use ?(quick = false) f =
-      Caqti_lwt.Pool.use ~priority:(if quick then 1.0 else 0.0) f pool
+      Caqti_lwt_unix.Pool.use ~priority:(if quick then 1.0 else 0.0) f pool
 
     let use_exn ?quick f =
       let f conn =

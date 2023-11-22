@@ -1,4 +1,4 @@
-(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@ include (val Batyr_core.Data.connect Config.global.storage_uri)
 
 let rooms =
   let req =
-    unit -->* tup2 (tup4 int string string (option string)) bool @:-
+    unit -->* t5 int string string (option string) bool @:-
     "SELECT DISTINCT node_id, domain_name, node_name, room_alias, \
                      transcribe \
      FROM batyr.muc_rooms NATURAL JOIN batyr.nodes \
@@ -31,7 +31,4 @@ let rooms =
   in
   fun () ->
     Db.use_exn @@ function (module C : CONNECTION) ->
-    C.fold req
-      (fun ((node_id, domain_name, node_name, room_alias), transcribe) ->
-        List.cons (node_id, domain_name, node_name, room_alias, transcribe))
-      () []
+    C.fold req List.cons () []

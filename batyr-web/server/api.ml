@@ -1,4 +1,4 @@
-(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,26 +43,25 @@ let sql_of_pattern pat_s =
   Batyr_core.Search.(denote_pattern (pattern_of_string pat_s))
 
 let fetch_message_counts cond tz =
-  let cond_str, Batyr_core.Search_sql.Param (params_type, params) =
-    Batyr_core.Search_sql.Expr.to_sql ~first_index:2 cond
-  in
+  let cond_query = Batyr_core.Search_sql.Expr.to_sql cond in
   let req =
     let open Caqti_type.Std in
     let open Caqti_request.Infix in
-    (tup2 string params_type ->* tup2 int int) ~oneshot:true
-    (sprintf
+    let open Caqti_query in
+    (string -->* t2 int int) ~oneshot:true @@ fun _ ->
+    qprintf
       "SELECT \
          batyr.intenc_date(seen_time AT TIME ZONE 'UTC' AT TIME ZONE $1) AS t, \
          count(*) \
        FROM batyr.messages \
        JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
          ON sender_id = sender.resource_id \
-       WHERE %s GROUP BY t"
-       cond_str)
+       WHERE %a GROUP BY t"
+      query cond_query
   in
   Data.Db.use begin fun (module C : Data.CONNECTION) ->
     let aux (date, count) acc = {date; count} :: acc in
-    C.fold req aux (tz, params) []
+    C.fold req aux tz []
   end >|=
   (function
    | Ok _ as r -> r
@@ -91,30 +90,30 @@ let handle_count_messages =
     handle_count_messages'
 
 let fetch_messages cond =
-  let cond_str, Batyr_core.Search_sql.Param (params_type, params) =
-    Batyr_core.Search_sql.Expr.to_sql cond in
+  let cond_query = Batyr_core.Search_sql.Expr.to_sql cond in
   let req =
     let open Caqti_type.Std in
     let open Caqti_request.Infix in
-    (params_type ->*
-     tup2 (tup3 ptime (option ptime) int)
-          (tup3 (option string) (option string) (option string)))
-      ~oneshot:true
-    (sprintf
+    let open Caqti_query in
+    (unit -->*
+      t6 ptime (option ptime) int
+         (option string) (option string) (option string))
+      ~oneshot:true @@ fun _ ->
+    qprintf
       "SELECT seen_time, edit_time, sender_id, subject, thread, body \
        FROM batyr.messages \
        JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
          ON sender_id = sender.resource_id \
-       WHERE %s \
+       WHERE %a \
        ORDER BY seen_time, message_id LIMIT %d"
-      cond_str query_limit) in
+      query cond_query query_limit
+  in
   (Data.Db.use @@ fun (module C : Data.CONNECTION) ->
-    C.fold req List.cons params []) >>=
+    C.fold req List.cons () []) >>=
   (function
    | Ok tuples ->
       Lwt_list.rev_map_p
-        (fun ((time, edit_time, sender_id),
-              (subject_opt, thread_opt, body_opt)) ->
+        (fun (time, edit_time, sender_id, subject_opt, thread_opt, body_opt) ->
           Data.Resource.stored_of_id sender_id >|= fun sender_resource ->
           { msg_time = time;
             msg_edit_time = edit_time;

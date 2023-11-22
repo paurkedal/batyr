@@ -1,4 +1,4 @@
-(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -63,7 +63,7 @@ module Make (B : Batyr_core.Data_sig.S) = struct
 
   let latest_timestamp =
     let q = let open Req in
-      int -->! tup2 (option ptime) (option ptime) @:-
+      int -->! t2 (option ptime) (option ptime) @:-
       {|SELECT max(seen_time), max(edit_time)
         FROM batyr.messages WHERE recipient_id = ?|}
     in
@@ -84,8 +84,7 @@ module Make (B : Batyr_core.Data_sig.S) = struct
 
   let store_message =
     let q = let open Req in
-      tup3 (tup2 int string) (tup4 ptime (option ptime) int (option int)) string
-        -->. unit @:-
+      t7 int string ptime (option ptime) int (option int) string -->. unit @:-
       {|INSERT INTO batyr.messages (
           recipient_id, foreign_message_id,
           seen_time, edit_time, sender_id, editor_id,
@@ -109,15 +108,15 @@ module Make (B : Batyr_core.Data_sig.S) = struct
       in
       let body = message.msg in
       let param =
-        (recipient_id, foreign_message_id),
-        (seen_time, edit_time, sender_id, editor_id),
+        recipient_id, foreign_message_id,
+        seen_time, edit_time, sender_id, editor_id,
         body
       in
       B.Db.use (fun (module Db) -> Db.exec q param)
 
   let delete_message =
     let q = let open Req in
-      tup2 int string -->. unit @:-
+      t2 int string -->. unit @:-
       "DELETE FROM batyr.messages \
        WHERE recipient_id = $1 AND foreign_message_id = $2"
     in

@@ -1,4 +1,4 @@
-(* Copyright (C) 2014--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2014--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,15 +36,15 @@ let required _tn id = function
 
 module Node = struct
   let get_q =
-    Req.(int ->! tup2 string string)
+    Req.(int ->! t2 string string)
     "SELECT domain_name, node_name \
      FROM batyr.nodes NATURAL JOIN batyr.domains WHERE node_id = ?"
   let locate_q =
-    Req.(tup2 string string ->? int)
+    Req.(t2 string string ->? int)
     "SELECT node_id FROM batyr.nodes NATURAL JOIN batyr.domains \
      WHERE domain_name = ? AND node_name = ?"
   let store_q =
-    Req.(tup2 string string ->! int)
+    Req.(t2 string string ->! int)
     "SELECT batyr.make_node(?, ?)"
 
   let get id (module C : CONNECTION) = C.find get_q id
@@ -56,17 +56,17 @@ end
 
 module Resource = struct
   let get_q =
-    Req.(int ->!  tup4 string string string (option string))
+    Req.(int ->! t4 string string string (option string))
     "SELECT domain_name, node_name, resource_name, foreign_resource_id \
      FROM batyr.resources NATURAL JOIN batyr.nodes NATURAL JOIN batyr.domains \
      WHERE resource_id = ?"
   let locate_q =
-    Req.(tup3 string string string ->? int)
+    Req.(t3 string string string ->? int)
     "SELECT resource_id \
      FROM batyr.resources NATURAL JOIN batyr.nodes NATURAL JOIN batyr.domains \
      WHERE domain_name = ? AND node_name = ? AND resource_name = ?"
   let store_q =
-    Req.(tup4 string string string (option string) ->! int)
+    Req.(t4 string string string (option string) ->! int)
     "SELECT batyr.make_resource(?, ?, ?, ?)"
 
   let get id (module C : CONNECTION) =
@@ -81,19 +81,19 @@ end
 module Account = struct
 
   let get_q =
-    Req.(int ->? tup3 int string bool)
+    Req.(int ->? t3 int string bool)
     "SELECT server_port, client_password, is_active \
      FROM batyr.accounts WHERE resource_id = ?"
   let get resource_id (module C : CONNECTION) =
     C.find_opt get_q resource_id
 
   let all_q =
-    Req.(unit ->* tup4 int int string bool)
+    Req.(unit ->* t4 int int string bool)
     "SELECT resource_id, server_port, client_password, is_active \
      FROM batyr.accounts"
 
   let all_active_q =
-    Req.(unit ->* tup4 int int string bool)
+    Req.(unit ->* t4 int int string bool)
     "SELECT resource_id, server_port, client_password, is_active \
      FROM batyr.accounts WHERE is_active = true"
 
@@ -102,7 +102,7 @@ module Account = struct
   let all_active conn = fetch_list all_active_q conn
 
   let create_q =
-    Req.(tup4 int int string bool ->. unit)
+    Req.(t4 int int string bool ->. unit)
     "INSERT INTO batyr.accounts \
       (resource_id, server_port, client_password, is_active) \
      VALUES (?, ?, ?, ?)"
@@ -116,16 +116,16 @@ module Account = struct
     C.exec delete_q resource_id
 
   let set_resource_q =
-    Req.(tup2 int int ->. unit)
+    Req.(t2 int int ->. unit)
     "UPDATE batyr.accounts SET resource_id = ? WHERE resource_id = ?"
   let set_port_q =
-    Req.(tup2 int int ->. unit)
+    Req.(t2 int int ->. unit)
     "UPDATE batyr.accounts SET server_port = ? WHERE resource_id = ?"
   let set_password_q =
-    Req.(tup2 string int ->. unit)
+    Req.(t2 string int ->. unit)
     "UPDATE batyr.accounts SET client_password = ? WHERE resource_id = ?"
   let set_is_active_q =
-    Req.(tup2 bool int ->. unit)
+    Req.(t2 bool int ->. unit)
     "UPDATE batyr.accounts SET is_active = ? WHERE resource_id = ?"
 
   let set_resource id x (module C : CONNECTION) =
@@ -140,7 +140,7 @@ end
 
 module Muc_room = struct
   let stored_of_node_q =
-    Req.(int ->? tup4 (option string) (option string) bool (option ctime))
+    Req.(int ->? t4 (option string) (option string) bool (option ctime))
     "SELECT room_alias, room_description, transcribe, \
             (SELECT min(seen_time) \
               FROM batyr.messages \
@@ -154,10 +154,9 @@ end
 
 module Message = struct
   let store_q =
-    Req.(tup3
-          (tup4 ptime int (option int) int)
-          (tup4 string (option string) (option string) (option string))
-          (option string) ->. unit)
+    Req.(t3 (t4 ptime int (option int) int)
+            (t4 string (option string) (option string) (option string))
+            (option string) ->. unit)
     "INSERT INTO batyr.messages \
       (seen_time, sender_id, author_id, recipient_id, \
        message_type, subject, thread, body, foreign_message_id) \

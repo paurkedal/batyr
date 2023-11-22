@@ -1,4 +1,4 @@
-(* Copyright (C) 2018--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -73,7 +73,7 @@ module Make (Batyr_data : Batyr_core.Data_sig.S) = struct
 
   let find_message_id =
     let q =
-      Req.(tup3 int ptime int ->! int32)
+      Req.(t3 int ptime int ->! int32)
       "SELECT message_id FROM batyr.messages \
        WHERE recipient_id = ? AND seen_time = ? AND sender_id = ?" in
     fun recipient seen_time sender ->
@@ -95,7 +95,7 @@ module Make (Batyr_data : Batyr_core.Data_sig.S) = struct
 
   let update_message_id =
     let q =
-      Req.(tup4 ptime int string int32 ->. unit)
+      Req.(t4 ptime int string int32 ->. unit)
       "UPDATE batyr.messages SET edit_time = ?, sender_id = ?, body = ? \
        WHERE message_id = ?" in
     fun message_id ~new_ts ~new_subtype ~new_sender ~new_text () ->
@@ -293,7 +293,7 @@ module Make (Batyr_data : Batyr_core.Data_sig.S) = struct
           channelname (Slack_utils.show_error err)))
 
   let transcribed_rooms_q =
-    Req.(string ->* tup2 string (option ptime))
+    Req.(string ->* t2 string (option ptime))
     {|
       SELECT
         room_node.node_name,

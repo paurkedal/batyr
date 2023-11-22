@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ type param = Param : 'a Caqti_type.t * 'a -> param
 module Expr : sig
   type 'a t
 
-  val to_sql : ?first_index: int -> 'a t -> string * param
+  val to_sql : 'a t -> Caqti_query.t
 
   val of_sql : string -> 'a t
   val of_sql_f : ('b, unit, string, 'a t) format4 -> 'b

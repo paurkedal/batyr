@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,11 +57,6 @@ module Expr = struct
 
   type u =
     | Literal of string
-(*
-    | Bool of bool
-    | Int of int
-    | Float of float
-*)
     | String of string
     | Var of string
     | Call of op * u list
@@ -70,73 +65,25 @@ module Expr = struct
 
   let p_comma = 1
 
-  type acc = {
-    mutable acc_index : int;
-    mutable acc_params : param;
-    acc_buffer : Buffer.t;
-  }
+  let paren_if cond q = if cond then Caqti_query.(S[L"("; q; L")"]) else q
 
-  let add_param acc s =
-    bprintf acc.acc_buffer "$%d" acc.acc_index;
-    acc.acc_index <- acc.acc_index + 1;
-    let Param (param_type, param) = acc.acc_params in
-    acc.acc_params <- Param (Caqti_type.(tup2 param_type string), (param, s))
+  let rec to_sql' prec =
+    let open Caqti_query in
+    (function
+     | Literal s -> L s
+     | String s -> Q s
+     | Var v -> L v
+     | Call (Func name, args) ->
+        S[L name; L"("; concat ", " (List.map (to_sql' p_comma) args)]
+     | Call (Prefix (name, p, p0), [arg]) ->
+        paren_if (prec > p) (S[L name; L" "; to_sql' p0 arg])
+     | Call (Suffix (name, p, p0), [arg]) ->
+        paren_if (prec > p) (S[to_sql' p0 arg; L" "; L name])
+     | Call ((Prefix _ | Suffix _), _) -> assert false
+     | Call (Infix (name, p, ps), args) ->
+        paren_if (prec > p) (concat (" "^name^" ") (List.map2 to_sql' ps args)))
 
-  let rec to_sql' acc prec = function
-    | Literal s -> Buffer.add_string acc.acc_buffer s
-(*
-    | Bool x -> add_param acc (string_of_bool x)
-    | Int x -> add_param acc (string_of_int x)
-    | Float x -> add_param acc (string_of_float x)
-*)
-    | String x -> add_param acc x
-    | Var v -> Buffer.add_string acc.acc_buffer v
-    | Call (Func name, args) ->
-      Buffer.add_string acc.acc_buffer name;
-      Buffer.add_char acc.acc_buffer '(';
-      let is_first = ref true in
-      List.iter
-        (fun arg ->
-          if !is_first then is_first := false else
-            Buffer.add_string acc.acc_buffer ", ";
-          to_sql' acc p_comma arg)
-        args;
-      Buffer.add_char acc.acc_buffer ')'
-    | Call (Prefix (name, p, p0), [arg]) ->
-      if prec > p then Buffer.add_char acc.acc_buffer '(';
-      Buffer.add_string acc.acc_buffer name;
-      Buffer.add_char acc.acc_buffer ' ';
-      to_sql' acc p0 arg;
-      if prec > p then Buffer.add_char acc.acc_buffer ')'
-    | Call (Suffix (name, p, p0), [arg]) ->
-      if prec > p then Buffer.add_char acc.acc_buffer '(';
-      to_sql' acc p0 arg;
-      Buffer.add_string acc.acc_buffer name;
-      Buffer.add_char acc.acc_buffer ' ';
-      if prec > p then Buffer.add_char acc.acc_buffer ')'
-    | Call ((Prefix _ | Suffix _), _) -> assert false
-    | Call (Infix (name, p, ps), args) ->
-      if prec > p then Buffer.add_char acc.acc_buffer '(';
-      let is_first = ref true in
-      List.iter2
-        (fun p arg ->
-          if !is_first then is_first := false else begin
-            Buffer.add_char acc.acc_buffer ' ';
-            Buffer.add_string acc.acc_buffer name;
-            Buffer.add_char acc.acc_buffer ' '
-          end;
-          to_sql' acc p arg)
-        ps args;
-      if prec > p then Buffer.add_char acc.acc_buffer ')'
-
-  let to_sql ?(first_index = 1) e =
-    let acc = {
-      acc_index = first_index;
-      acc_params = Param (Caqti_type.unit, ());
-      acc_buffer = Buffer.create 512;
-    } in
-    to_sql' acc 0 e;
-    (Buffer.contents acc.acc_buffer, acc.acc_params)
+  let to_sql e = to_sql' 0 e
 
   let prefix prec name = Prefix (name, prec, prec)
   let suffix prec name = Suffix (name, prec, prec)
@@ -150,11 +97,6 @@ module Expr = struct
 
   let of_sql x = Literal x
   let of_sql_f fmt = ksprintf (fun s -> Literal s) fmt
-(*
-  let bool x = Bool x
-  let int x = Int x
-  let float x = Float x
-*)
   let bool x = Literal (string_of_bool x)
   let int x = Literal (string_of_int x)
   let float x = Literal (string_of_float x)

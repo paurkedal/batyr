@@ -1,4 +1,4 @@
-(* Copyright (C) 2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2022--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -68,5 +68,5 @@ let handle request =
   let room_jid = Dream.param request "room_jid" in
   let room_node = Data.Node.of_string room_jid in
   Data.Muc_room.stored_of_node room_node >>= function
-   | None -> Dream.not_found request
+   | None -> Dream.empty `Not_Found
    | Some room -> render room_jid room
