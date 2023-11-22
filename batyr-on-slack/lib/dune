@@ -4,7 +4,7 @@
   (libraries
     batyr-core
     dns-client
-    dns-client.lwt
+    dns-client-lwt
     kojson
     logs
     logs.fmt

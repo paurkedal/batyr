@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -61,7 +61,7 @@ let load_authenticator () =
   loop ca_paths >>= X509_lwt.authenticator
 
 let make_tls_socket host fd =
-  Mirage_crypto_rng_lwt.initialize ();
+  Mirage_crypto_rng_lwt.initialize (module Mirage_crypto_rng.Fortuna);
   let%lwt authenticator = load_authenticator () in
   let config = Tls.Config.client ~authenticator () in
   let%lwt tls_socket = Tls_lwt.Unix.client_of_fd config ~host fd in

@@ -19,12 +19,14 @@ depends: [
   "lwt_ppx"
   "lwt_react"
   "mirage-crypto-rng"
+  "mirage-crypto-rng-lwt"
   "ocaml"
   "ppx_compose"
   "ppx_deriving"
   "prime"
   "react"
   "tls"
+  "tls-lwt"
   "x509"
 ]
 build: ["dune" "build" "-p" name "-j" jobs]

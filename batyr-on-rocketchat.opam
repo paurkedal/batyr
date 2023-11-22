@@ -19,6 +19,7 @@ depends: [
   "cryptokit"
   "decoders-yojson"
   "dns-client"
+  "dns-client-lwt"
   "logs"
   "lru"
   "lwt"
@@ -33,6 +34,7 @@ depends: [
   "re"
   "react"
   "tls"
+  "tls-lwt"
   "uri"
   "websocket" {>= "2.15"}
   "websocket-lwt-unix" {>= "2.15"}

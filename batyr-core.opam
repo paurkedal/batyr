@@ -23,6 +23,7 @@ depends: [
   "prime"
   "react"
   "tls"
+  "tls-lwt"
 ]
 build: ["dune" "build" "-p" name "-j" jobs]
 dev-repo: "git+https://github.com/paurkedal/batyr.git"

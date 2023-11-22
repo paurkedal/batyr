@@ -9,8 +9,8 @@
     caqti-type-calendar
     decoders-yojson
     erm_xmpp
-    mirage-crypto-rng.lwt
+    mirage-crypto-rng-lwt
     tls
-    tls.lwt
+    tls-lwt
     x509)
   (preprocess (pps lwt_ppx)))
