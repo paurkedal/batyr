@@ -7,11 +7,9 @@
     search_parser
     search_types)
  (libraries
-    calendar
     caqti
     caqti-lwt
     caqti-lwt.unix
-    caqti-type-calendar
     cmdliner
     extunix
     fmt

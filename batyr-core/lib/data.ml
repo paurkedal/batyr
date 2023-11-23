@@ -417,7 +417,7 @@ let connect uri = (module struct
       alias : string option;
       description : string option;
       transcribe : bool;
-      min_message_time : float option;
+      min_message_time : Ptime.t option;
       beacon : Beacon.t;
     }
     type t' = t
@@ -457,10 +457,7 @@ let connect uri = (module struct
             let+ cost, qr =
               Db.use_accounted_exn (Data_sql.Muc_room.stored_of_node node_id)
             in
-            let make_room (alias, description, transcribe, mmt) =
-              let min_message_time =
-                Option.map CalendarLib.Calendar.to_unixfloat mmt
-              in
+            let make_room (alias, description, transcribe, min_message_time) =
               let room =
                 Beacon.embed cost (fun beacon ->
                   {node; alias; description; transcribe; min_message_time;

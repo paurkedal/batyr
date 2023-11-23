@@ -19,12 +19,11 @@ module type CONNECTION = Caqti_lwt.CONNECTION
 module R = struct
   include Caqti_request.Infix
   include Caqti_type
-  include Caqti_type_calendar
 end
 
 module Presence = struct
   let room_presence_q =
-    R.(int ->* t3 int (option string) (option ctime))
+    R.(int ->* t3 int (option string) (option ptime))
     "SELECT resource_id, nick, \
             (SELECT max(seen_time) \
                FROM batyr.messages JOIN batyr.resources AS sender \

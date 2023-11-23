@@ -14,7 +14,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open CalendarLib
 open Printf
 open Unprime_list
 open Unprime_string
@@ -29,21 +28,9 @@ let escape_like s =
   Buffer.contents buf
 
 let timestamp_of_epoch x =
-  let open Unix in
-  let tm = gmtime x in
-  sprintf "%04d-%02d-%02d %02d:%02d:%02d"
-          (tm.tm_year + 1900) (tm.tm_mon + 1) tm.tm_mday
-          tm.tm_hour tm.tm_min tm.tm_sec
-
-let epoch_of_timestamp ts =
-  let sec, subsec =
-    try
-      let i = String.index ts '.' in
-      String.slice 0 i ts, float_of_string (String.slice_from i ts)
-    with Not_found ->
-      ts, 0.0 in
-  let caltime = Printer.Calendar.from_fstring "%F %T%z" (sec ^ "+0000") in
-  Calendar.to_unixfloat caltime +. subsec
+  (match Ptime.of_float_s x with
+   | None -> failwith "Ptime.of_float_s"
+   | Some t -> Ptime.to_rfc3339 ~tz_offset_s:0 t)
 
 type param = Param : 'a Caqti_type.t * 'a -> param
 
@@ -103,9 +90,6 @@ module Expr = struct
   let string x = String x
   let string_f fmt = ksprintf (fun s -> String s) fmt
   let epoch x = String (timestamp_of_epoch x)
-  let calendar ?(tz = "+00") cal =
-    let cts = CalendarLib.Printer.Calendar.sprint "%F %T" cal in
-    String (if tz.[0] = '+' then cts ^ tz else cts ^ " " ^ tz)
   let var v = Var v
 
   let not       = let op = prefix 12 "not" in call1 op

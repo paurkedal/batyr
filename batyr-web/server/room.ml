@@ -38,7 +38,7 @@ let help_span =
 let render room_jid room =
   let min_time =
     Prime_option.get_else
-      Unix.time (Data.Muc_room.min_message_time room)
+      Ptime_clock.now (Data.Muc_room.min_message_time room)
   in
   let info_span = H.span [] ~a:[H.a_class ["error"]] in
   let clear_button =
@@ -59,7 +59,8 @@ let render room_jid room =
     H.div [] ~a:[
       H.a_id "batyr.room.messages";
       H.a_user_data "batyr-room" room_jid;
-      H.a_user_data "batyr-min-seen-time" (string_of_float min_time);
+      H.a_user_data "batyr-min-seen-time"
+        (string_of_float (Ptime.to_float_s min_time));
     ];
     H.script ~a:[H.a_src (Vpaths.batyr_js)] (H.txt "");
   ]

@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,10 +16,10 @@
 
 open Erm_xml
 open Xmpp_inst
-open CalendarLib
 open Lwt.Infix
 open Lwt.Syntax
 open Printf
+open Scanf
 open Unprime
 open Unprime_list
 open Unprime_option
@@ -80,6 +80,25 @@ module Make (B : Data_sig.S) = struct
     else
       Lwt.return_unit
 
+  let convert_delay = function
+   | None -> Ptime_clock.now ()
+   | Some Chat.{delay_stamp; delay_legacy; _} ->
+      Lwt_log.ign_debug_f ~section "Got delay stamp %s." delay_stamp;
+      let delay_stamp_modern =
+        if not delay_legacy then delay_stamp ^ "Z" else
+        sscanf delay_stamp "%04d%02d%02dT%s" (sprintf "%04d-%02d-%02dT%sZ")
+      in
+      (match Ptime.of_rfc3339 delay_stamp_modern with
+       | Ok (t, tz, _) ->
+          assert (tz = Some 0);
+          Lwt_log.ign_debug_f ~section "Converted delay stamp to %s"
+            (Ptime.to_rfc3339 t);
+          t
+       | Error _ ->
+          Lwt_log.ign_error_f ~section "Received invalid delay stamp %s"
+            delay_stamp;
+          Ptime_clock.now ())
+
   let on_message cs _chat stanza =
     let open Xml in
     List.iter
@@ -94,22 +113,7 @@ module Make (B : Data_sig.S) = struct
       Chat.(stanza.x);
     match Chat.(stanza.jid_from, stanza.jid_to, stanza.content.message_type) with
     | Some sender, Some recipient, Some message_type ->
-      let seen_time =
-        match Chat.(stanza.content.message_delay) with
-        | None -> Ptime_clock.now ()
-        | Some Chat.{delay_stamp; delay_legacy; _} ->
-          Lwt_log.ign_debug_f ~section "Got delay stamp %s." delay_stamp;
-          try
-            let fmt = if delay_legacy then "%Y%m%dT%T%z" else "%FT%TZ%z" in
-            let t =
-              Printer.Calendar.from_fstring fmt (delay_stamp ^ "+0000")
-                |> Calendar.to_unixfloat
-                |> Ptime.of_float_s |> Option.get in
-            Lwt_log.ign_debug_f ~section "Converted to %s" (Ptime.to_rfc3339 t); t
-          with Invalid_argument msg ->
-            Lwt_log.ign_error_f ~section "Received invalid <delay/> stamp: %s"
-                                msg;
-            Ptime_clock.now () in
+      let seen_time = convert_delay Chat.(stanza.content.message_delay) in
       let sender = Resource.of_jid sender in
       let muc_room = Muc_room.cached_of_node (Resource.node sender) in
       let recipient = Resource.of_jid (JID.of_string recipient) in
@@ -273,7 +277,7 @@ module Make (B : Data_sig.S) = struct
       match cs.cs_chat with
       | Connected chat -> chat
       | _ -> assert false in
-    let since = Option.map CalendarLib.Calendar.to_unixfloat since in
+    let since = Option.map Ptime.to_float_s since in
     let nick = Option.get_or (Chat.get_myjid chat).JID.node nick in
     let%lwt resource = Resource.stored_of_id resource_id in
     let room_node = Resource.node resource in

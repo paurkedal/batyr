@@ -25,7 +25,6 @@ type error = Caqti_error.t
 module Req = struct
   include Caqti_request.Infix
   include Caqti_type.Std
-  include Caqti_type_calendar
 end
 
 let missing_id tn id =
@@ -140,7 +139,7 @@ end
 
 module Muc_room = struct
   let stored_of_node_q =
-    Req.(int ->? t4 (option string) (option string) bool (option ctime))
+    Req.(int ->? t4 (option string) (option string) bool (option ptime))
     "SELECT room_alias, room_description, transcribe, \
             (SELECT min(seen_time) \
               FROM batyr.messages \

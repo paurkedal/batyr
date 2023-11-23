@@ -18,9 +18,6 @@
 
 val escape_like : string -> string
 
-val epoch_of_timestamp : string -> float
-val timestamp_of_epoch : float -> string
-
 type param = Param : 'a Caqti_type.t * 'a -> param
 
 module Expr : sig
@@ -37,7 +34,6 @@ module Expr : sig
   val string : string -> string t
   val string_f : ('a, unit, string, string t) format4 -> 'a
   val epoch : float -> [`timestamp] t
-  val calendar : ?tz: string -> CalendarLib.Calendar.t -> [`timestamp] t
   val var : string -> 'a t
   val func1 : string -> 'a0 t -> 'r t
   val func2 : string -> 'a0 t -> 'a1 t -> 'r t
