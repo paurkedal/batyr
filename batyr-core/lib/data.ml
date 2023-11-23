@@ -234,6 +234,8 @@ let connect uri = (module struct
       if resource.resource_name = "" then node_str else
       node_str ^ "/" ^ resource.resource_name
 
+    let pp ppf resource = Format.pp_print_string ppf (to_string resource)
+
     let domain_name {domain_name; _} = domain_name
     let node_name {node_name; _} = node_name
     let resource_name {resource_name; _} = resource_name
@@ -409,6 +411,8 @@ let connect uri = (module struct
 
     let equal {resource = r0; _} {resource = r1; _} = Resource.equal r0 r1
     let hash {resource; _} = Resource.hash resource
+
+    let pp ppf account = Resource.pp ppf (resource account)
   end
 
   module Muc_room = struct
@@ -469,6 +473,7 @@ let connect uri = (module struct
         end
 
     let to_string room = Node.to_string (node room)
+    let pp ppf room = Format.pp_print_string ppf (to_string room)
   end
 
   type message_type = [`Normal | `Chat | `Groupchat | `Headline]

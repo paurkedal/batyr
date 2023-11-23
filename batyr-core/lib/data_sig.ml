@@ -70,6 +70,7 @@ module type Resource = sig
 
   val of_string : string -> t
   val to_string : t -> string
+  val pp : t Fmt.t
 
   val domain_name : t -> string
   val node_name : t -> string
@@ -109,6 +110,8 @@ module type Account = sig
 
   val equal : t -> t -> bool
   val hash : t -> int
+
+  val pp : t Fmt.t
 end
 
 module type Muc_room = sig
@@ -123,6 +126,7 @@ module type Muc_room = sig
   val transcribe : t -> bool
   val min_message_time : t -> Ptime.t option
   val to_string : t -> string
+  val pp : t Fmt.t
 end
 
 (** High-level view of a row of the [messages] table. *)

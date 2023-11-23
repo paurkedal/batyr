@@ -24,7 +24,10 @@ open Unprime
 open Unprime_list
 open Unprime_option
 
-let section = Lwt_log.Section.make "batyr.presence"
+let log_src = Logs.Src.create "batyr-on-xmpp.listener"
+module Log = (val Logs.src_log log_src)
+module Log_lwt = (val Logs_lwt.src_log log_src)
+let pp_ptime = Ptime.pp_rfc3339 ()
 
 exception Session_shutdown
 
@@ -83,7 +86,7 @@ module Make (B : Data_sig.S) = struct
   let convert_delay = function
    | None -> Ptime_clock.now ()
    | Some Chat.{delay_stamp; delay_legacy; _} ->
-      Lwt_log.ign_debug_f ~section "Got delay stamp %s." delay_stamp;
+      Log.debug (fun p -> p "Got delay stamp %s." delay_stamp);
       let delay_stamp_modern =
         if not delay_legacy then delay_stamp ^ "Z" else
         sscanf delay_stamp "%04d%02d%02dT%s" (sprintf "%04d-%02d-%02dT%sZ")
@@ -91,12 +94,10 @@ module Make (B : Data_sig.S) = struct
       (match Ptime.of_rfc3339 delay_stamp_modern with
        | Ok (t, tz, _) ->
           assert (tz = Some 0);
-          Lwt_log.ign_debug_f ~section "Converted delay stamp to %s"
-            (Ptime.to_rfc3339 t);
+          Log.debug (fun p -> p "Converted delay stamp to %a" pp_ptime t);
           t
        | Error _ ->
-          Lwt_log.ign_error_f ~section "Received invalid delay stamp %s"
-            delay_stamp;
+          Log.err (fun p -> p "Received invalid delay stamp %s" delay_stamp);
           Ptime_clock.now ())
 
   let on_message cs _chat stanza =
@@ -104,12 +105,11 @@ module Make (B : Data_sig.S) = struct
     List.iter
       (function
         | Xmlelement ((None, tag), _attrs, _els) ->
-          Lwt_log.ign_debug_f ~section "Unprocessed tag %s" tag
+          Log.debug (fun p -> p "Unprocessed tag %s" tag)
         | Xmlelement ((Some ns, tag), _attrs, _els) ->
-          Lwt_log.ign_debug_f ~section "Unprocessed tag [%s]:%s" ns tag
+          Log.debug (fun p -> p "Unprocessed tag [%s]:%s" ns tag)
         | Xmlcdata s ->
-          Lwt_log.ign_debug_f ~section "Unprocessed cdata \"%s\""
-                              (String.escaped s))
+          Log.debug (fun p -> p "Unprocessed cdata %S" s))
       Chat.(stanza.x);
     match Chat.(stanza.jid_from, stanza.jid_to, stanza.content.message_type) with
     | Some sender, Some recipient, Some message_type ->
@@ -140,8 +140,8 @@ module Make (B : Data_sig.S) = struct
           (match Hashtbl.find cs.cs_rooms room_id with
            | exception Not_found ->
               React.Step.execute step;            (* ... here and *)
-              Lwt_log.error_f "No MUC session established for %s."
-                              (Node.to_string room_node)
+              Log_lwt.err (fun p ->
+                p "No MUC session established for %a." Node.pp room_node)
            | ms ->
               ms.ms_emit_message ~step msg;
               React.Step.execute step;            (* ... here. *)
@@ -176,13 +176,13 @@ module Make (B : Data_sig.S) = struct
   let on_presence cs chat stanza =
     match stanza.Chat.jid_from with
     | None ->
-      Lwt_log.warning ~section "Ignoring presence stanza lacking \"from\"."
+      Log_lwt.warn (fun p -> p "Ignoring presence stanza lacking \"from\".")
     | Some sender_jid ->
-      Lwt_log.debug_f ~section "Received %s from %s."
+      Log_lwt.debug (fun p -> p "Received %s from %s."
         (match Chat.(stanza.content.presence_type) with
          | Some pt -> Chat.string_of_presence_type pt
          | None -> "presence")
-        (JID.string_of_jid sender_jid) >>= fun () ->
+        (JID.string_of_jid sender_jid)) >>= fun () ->
       begin match Chat.(stanza.content.presence_type) with
       | Some Chat.Subscribe ->
         Chat.send_presence chat ~jid_to:sender_jid ~kind:Chat.Subscribed ()
@@ -203,14 +203,14 @@ module Make (B : Data_sig.S) = struct
         begin match Chat.(stanza.content.presence_type), user_opt with
         | None, Some user ->
           Hashtbl.replace ms.ms_users_by_nick nick user;
-          Lwt_log.debug_f ~section "User %s is available in %s."
-                          (Muc_user.to_string user)
-                          (Muc_room.to_string ms.ms_room)
+          Log_lwt.debug (fun p ->
+            p "User %a is available in %a."
+              Muc_user.pp user Muc_room.pp ms.ms_room)
         | Some Chat.Unavailable, Some user ->
           Hashtbl.remove ms.ms_users_by_nick nick;
-          Lwt_log.debug_f ~section "User %s is unavailable in %s."
-                          (Muc_user.to_string user)
-                          (Muc_room.to_string ms.ms_room)
+          Log_lwt.debug (fun p ->
+            p "User %a is unavailable in %a."
+              Muc_user.pp user Muc_room.pp ms.ms_room)
         | _ -> Lwt.return_unit
         end
       end
@@ -221,8 +221,9 @@ module Make (B : Data_sig.S) = struct
       |> Option.fold (fun s acc -> sprintf "recipient = %s" s :: acc) jid_to
       |> Option.fold (fun s acc -> sprintf "sender = %s" s :: acc) jid_from
       |> Option.fold (fun s acc -> sprintf "id = %s" s :: acc) id in
-    Lwt_log.error_f ~section "%s error; %s; %s" kind
-                    (String.concat ", " props) error.StanzaError.err_text
+    Log_lwt.err (fun p ->
+      p "%s error; %a; %s"
+        kind Fmt.(list ~sep:comma string) props error.StanzaError.err_text)
 
   let track_presence_of my_jid is_present stanza =
     match Chat.(stanza.jid_from, stanza.content.presence_type) with
@@ -234,16 +235,18 @@ module Make (B : Data_sig.S) = struct
           Chat.(stanza.x)
       with
       | [] ->
-        Lwt_log.notice_f ~section "I was logged out as %s for unknown reason."
-                         (JID.string_of_jid my_jid) >>= fun () ->
+        Log_lwt.warn (fun p ->
+          p "I was logged out as %s for unknown reason."
+            (JID.string_of_jid my_jid)) >>= fun () ->
         Lwt.return_false
       | reason :: _ ->
-        Lwt_log.notice_f ~section "I was logged out as %s because: %s"
-                         (JID.string_of_jid my_jid) reason >>= fun () ->
+        Log_lwt.warn (fun p ->
+          p "I was logged out as %s because: %s"
+            (JID.string_of_jid my_jid) reason) >>= fun () ->
         Lwt.return_false
       end
     | Some sender_jid, None when sender_jid = my_jid ->
-      Lwt_log.info_f ~section "I logged in as %s." (JID.string_of_jid my_jid)
+      Log_lwt.info (fun p -> p "I logged in as %s." (JID.string_of_jid my_jid))
         >>= fun () ->
       Lwt.return_true
     | _ ->
@@ -264,7 +267,7 @@ module Make (B : Data_sig.S) = struct
         else
           let dt = Batyr_core.Backoff.next backoff in
           f () >>= fun () ->
-          Lwt_log.info_f ~section "Will wait %.3g s before next %s." dt what
+          Log_lwt.info (fun p -> p "Will wait %.3g s before next %s." dt what)
             >>= fun () ->
           Lwt_unix.sleep dt
       done in
@@ -284,8 +287,7 @@ module Make (B : Data_sig.S) = struct
     let room_jid = Resource.jid resource in
     match%lwt Muc_room.stored_of_node room_node with
     | None ->
-      Lwt_log.error_f ~section "Presence in non-room %s."
-                      (Node.to_string room_node)
+      Log_lwt.err (fun p -> p "Presence in non-room %a." Node.pp room_node)
     | Some room ->
       (* FIXME: Need <delay/> *)
       let since_r = ref (Option.map ((+.) 0.05) since) in
@@ -293,13 +295,15 @@ module Make (B : Data_sig.S) = struct
         let%lwt seconds =
           begin match !since_r with
           | None ->
-            Lwt_log.info_f ~section "Entering %s, no previous logs."
-                           (Resource.to_string resource) >>= fun () ->
+            Log_lwt.info (fun p ->
+              p "Entering %a, no previous logs." Resource.pp resource)
+              >>= fun () ->
             Lwt.return_none
           | Some t_disconn ->
             let t = Unix.time () -. t_disconn in
-            Lwt_log.info_f ~section "Entering %s, seconds = %f"
-                           (Resource.to_string resource) t >>= fun () ->
+            Log_lwt.info (fun p ->
+              p "Entering %a, seconds = %f" Resource.pp resource t)
+              >>= fun () ->
             Lwt.return (Some (int_of_float t))
           end in
         Chat_muc.enter_room ?seconds ~nick chat room_jid in
@@ -367,12 +371,12 @@ module Make (B : Data_sig.S) = struct
     try%lwt Xmpp_inst.with_chat (chat_handler cs) params with
     | End_of_file ->
       clear_cs ();
-      Lwt_log.error_f ~section "Lost connection."
+      Log_lwt.err (fun p -> p "Lost connection.")
     | xc ->
       clear_cs ();
-      Lwt_log.error_f ~section "Caught %s." (Printexc.to_string xc)
+      Log_lwt.err (fun p -> p "Caught %s." (Printexc.to_string xc))
         >>= fun () ->
-      Lwt_log.debug ~section (Printexc.get_backtrace ())
+      Log_lwt.debug (fun p -> p "%s" (Printexc.get_backtrace ()))
 
   let create account =
     let key = account_key account in
@@ -394,15 +398,18 @@ module Make (B : Data_sig.S) = struct
     let cs = create account in
     let backoff = Batyr_core.Backoff.create () in
     let rec connect_loop () =
+      Log_lwt.info (fun p -> p "Starting session for %a." Account.pp account)
+        >>= fun () ->
       let t_start = Unix.time () in
       run_once cs >>= fun () ->
       let t_dur = Unix.time () -. t_start in
       if cs.cs_chat = Shutdown then
-        Lwt_log.info_f ~section "Session shut down after %g s." t_dur
+        Log_lwt.info (fun p -> p "Session shut down after %g s." t_dur)
       else
         let t_sleep = Batyr_core.Backoff.next backoff in
-        Lwt_log.info_f ~section "Session lasted %g s, will re-connect in %g s."
-                       t_dur t_sleep >>= fun () ->
+        Log_lwt.info (fun p ->
+          p "Session lasted %g s, will re-connect in %g s." t_dur t_sleep)
+          >>= fun () ->
         Lwt_unix.sleep t_sleep >>= fun () ->
         connect_loop ()
     in

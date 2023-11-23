@@ -1,4 +1,4 @@
-(* Copyright (C) 2018--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2018--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@ let connect uri = (module struct
 
     let to_string node_name = JID.string_of_jid (jid node_name)
     let of_string s = of_jid (JID.of_string s)
+    let pp ppf node = Format.pp_print_string ppf (to_string node)
   end
 
   module Resource = struct
@@ -72,6 +73,7 @@ let connect uri = (module struct
       | {nick; resource = None; _} -> nick
       | {nick; resource = Some resource; _} ->
         nick ^ " <" ^ Resource.to_string resource ^ ">"
+    let pp ppf u = Format.pp_print_string ppf (to_string u)
   end
 
   module Muc_room = Base.Muc_room

@@ -8,6 +8,7 @@
     caqti-lwt
     decoders-yojson
     erm_xmpp
+    fmt
     mirage-crypto-rng-lwt
     tls
     tls-lwt

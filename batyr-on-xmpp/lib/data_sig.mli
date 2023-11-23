@@ -1,4 +1,4 @@
-(* Copyright (C) 2019--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2019--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ module type S = sig
 
     val of_jid : JID.t -> t
     val jid : t -> JID.t
+    val pp : t Fmt.t
   end
 
   module Resource : sig
@@ -51,6 +52,7 @@ module type S = sig
     val role : t -> Chat_muc.role
     val affiliation : t -> Chat_muc.affiliation
     val to_string : t -> string
+    val pp : t Fmt.t
   end
 
   module Muc_room = Base.Muc_room

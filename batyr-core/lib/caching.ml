@@ -1,4 +1,4 @@
-(* Copyright (C) 2013--2022  Petter A. Urkedal <paurkedal@gmail.com>
+(* Copyright (C) 2013--2023  Petter A. Urkedal <paurkedal@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,22 +14,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-let section = Lwt_log.Section.make "batyr.cache"
+module Log = (val Logs.src_log (Logs.Src.create "batyr-core.caching"))
 
 let cache_hertz = Int64.to_float ExtUnix.Specific.(sysconf CLK_TCK)
 let cache_second = 1.0 /. cache_hertz
 let cache_metric =
   let current_time () =
     let tms = Unix.times () in
-    Unix.(tms.tms_utime +. tms.tms_stime) in
+    Unix.(tms.tms_utime +. tms.tms_stime)
+  in
   let current_memory_pressure =
-    fun () -> cache_hertz (* 1 GHz / 1 Gword *) in
+    fun () -> cache_hertz (* 1 GHz / 1 Gword *)
+  in
   let report cs =
     let open Prime_cache_metric in
-    Lwt_log.ign_debug_f ~section
-      "Beacon collection: time = %g; p = %g; n_live = %d; n_dead = %d"
+    Log.debug (fun p ->
+      p "Beacon collection: time = %g; p = %g; n_live = %d; n_dead = %d"
       cs.cs_time cs.cs_memory_pressure
-      cs.cs_live_count cs.cs_dead_count in
+      cs.cs_live_count cs.cs_dead_count)
+  in
   Prime_cache_metric.create ~current_time ~current_memory_pressure ~report ()
 
 module Beacon = Prime_beacon.Make (struct let cache_metric = cache_metric end)

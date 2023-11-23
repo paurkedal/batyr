@@ -18,7 +18,7 @@ open Erm_xml
 open Lwt.Infix
 open Unprime_option
 
-let section = Lwt_log.Section.make "batyr.xmpp"
+module Log = (val Logs_lwt.src_log (Logs.Src.create "batyr-on-xmpp"))
 
 module JID = JID
 
@@ -78,13 +78,13 @@ let make_tls_socket host fd =
       for i = 0 to len' - 1 do
         Bytes.set buf (start + i) (Cstruct.get_char cs i)
       done;
-      Lwt_log.debug_f ~section "In: [%s]" (Bytes.sub_string buf start len')
+      Log.debug (fun p -> p "In: [%s]" (Bytes.sub_string buf start len'))
         >>= fun () ->
       Lwt.return len'
 
     let write socket s =
       Tls_lwt.Unix.write socket (Cstruct.of_string s) >>= fun () ->
-      Lwt_log.debug_f ~section "Out: [%s]" s
+      Log.debug (fun p -> p "Out: [%s]" s)
 
     let close = Tls_lwt.Unix.close
   end in
@@ -110,7 +110,8 @@ let with_chat session {server; username; password; resource; port} =
 
   (* Connect fd to server *)
   let myjid = JID.make_jid username server resource in
-  Lwt_log.info_f ~section "Connecting %s@%s/%s." username server resource >>= fun () ->
+  Log.info (fun p -> p "Connecting %s@%s/%s." username server resource)
+    >>= fun () ->
   let inetaddr =
     try Unix.inet_addr_of_string server
     with Failure _ -> (Unix.gethostbyname server).Unix.h_addr_list.(0) in
@@ -136,7 +137,7 @@ let with_chat session {server; username; password; resource; port} =
     let module Socket = (val session_data.Chat.socket : Chat.Socket) in
     Socket.close Socket.socket] >>= fun () ->
 
-  Lwt_log.info_f ~section "Disconnected %s@%s/%s." username server resource
+  Log.info (fun p -> p "Disconnected %s@%s/%s." username server resource)
 
 module Chat_version = struct
   include XEP_version.Make (Chat)
@@ -173,13 +174,13 @@ module Chat_disco = struct
         Option.get_else (fun () -> extract_features chat) features in
       match jid_from with
       | Some jid_from ->
-        Lwt_log.info_f ~section "Received disco request from %s." jid_from
+        Log.info (fun p -> p "Received disco request from %s." jid_from)
           >>= fun () ->
         let els = make_disco_info ~category ~type_ ~name ~features () in
         let el = Xml.Xmlelement ((ns_disco_info, "query"), [], els) in
         Lwt.return (Chat.IQResult (Some el))
       | None ->
-        Lwt_log.warning ~section "Failing disco request lacking from-field."
+        Log.warn (fun p -> p "Failing disco request lacking from-field.")
           >>= fun () ->
         Lwt.fail Chat.BadRequest in
     Chat.register_iq_request_handler chat ns_disco_info on_disco
@@ -205,15 +206,15 @@ module Chat_ping = struct
     | Some jid_from ->
       begin match req with
       | Chat.IQGet _ ->
-        Lwt_log.info_f ~section "Received ping from %s." jid_from >>= fun () ->
+        Log.info (fun p -> p "Received ping from %s." jid_from) >>= fun () ->
         Lwt.return (Chat.IQResult None)
       | Chat.IQSet _ ->
-        Lwt_log.warning_f ~section "Failing ping set request from %s."
-                          jid_from >>= fun () ->
+        Log.warn (fun p -> p "Failing ping set request from %s." jid_from)
+          >>= fun () ->
         Lwt.fail Chat.BadRequest
       end
     | None ->
-      Lwt_log.warning ~section "Failing ping request lacking from-field."
+      Log.warn (fun p -> p "Failing ping request lacking from-field.")
         >>= fun () ->
       Lwt.fail Chat.BadRequest
 

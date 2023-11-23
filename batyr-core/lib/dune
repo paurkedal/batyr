@@ -15,8 +15,8 @@
     fmt
     logs
     logs.fmt
+    logs.lwt
     lwt
-    lwt_log
     lwt_react
     prime
     prime.unstable
