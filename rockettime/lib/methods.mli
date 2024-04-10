@@ -17,7 +17,7 @@
 type login_response = {
   id: string;
   token: string;
-  token_expires: Ptime.t;
+  token_expires: Ptime.t option;
   type_: string option;
 }
 

@@ -55,7 +55,7 @@ let operational_error_decoder =
 
 type result_error = {
   is_client_safe: bool;
-  error: string;
+  error: int;
   message: string;
   reason: string;
   error_type: string;
@@ -65,7 +65,7 @@ type result_error = {
 let result_error_decoder =
   let open Decode in
   let* is_client_safe = field "isClientSafe" bool in
-  let* error = field "error" string in
+  let* error = field "error" int in
   let* message = field "message" string in
   let* reason = field "reason" string in
   let+ error_type = field "errorType" string in

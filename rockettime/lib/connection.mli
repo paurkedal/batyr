@@ -27,7 +27,7 @@ type operational_error = {
 
 type result_error = {
   is_client_safe: bool;
-  error: string;
+  error: int;
   message: string;
   reason: string;
   error_type: string;

@@ -19,3 +19,5 @@ type 'a encoder = 'a Decoders_yojson.Basic.Encode.encoder
 
 val ptime_decoder : Ptime.t decoder
 val ptime_encoder : Ptime.t encoder
+val ptime_option_decoder : Ptime.t option decoder
+val ptime_option_encoder : Ptime.t option encoder

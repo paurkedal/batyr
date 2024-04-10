@@ -106,7 +106,7 @@ let login = wrap_main begin fun config conn ->
   in
   Log.debug (fun f ->
     f "Logged in as %s with token %s which expires %a."
-      id token Ptime.pp token_expires) >|= fun () ->
+      id token (Fmt.option Ptime.pp) token_expires) >|= fun () ->
   Ok ()
 end
 

@@ -30,7 +30,7 @@ let yojson_of_option f = function
 type login_response = {
   id: string;
   token: string;
-  token_expires: Ptime.t;
+  token_expires: Ptime.t option;
   type_: string option;
 }
 
@@ -38,7 +38,7 @@ let login_decoder =
   let open Decode in
   let* id = field "id" string in
   let* token = field "token" string in
-  let* token_expires = field "tokenExpires" ptime_decoder in
+  let* token_expires = field "tokenExpires" ptime_option_decoder in
   let+ type_ = field_opt "type" string in
   {id; token; token_expires; type_}
 
