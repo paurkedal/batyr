@@ -47,8 +47,8 @@ let fetch_message_counts cond tz =
   let req =
     let open Caqti_type.Std in
     let open Caqti_request.Infix in
-    let open Caqti_query in
     (string -->* t2 int int) ~oneshot:true @@ fun _ ->
+    let open Caqti_query_fmt in
     qprintf
       "SELECT \
          batyr.intenc_date(seen_time AT TIME ZONE 'UTC' AT TIME ZONE $1) AS t, \
@@ -94,11 +94,11 @@ let fetch_messages cond =
   let req =
     let open Caqti_type.Std in
     let open Caqti_request.Infix in
-    let open Caqti_query in
     (unit -->*
       t6 ptime (option ptime) int
          (option string) (option string) (option string))
       ~oneshot:true @@ fun _ ->
+    let open Caqti_query_fmt in
     qprintf
       "SELECT seen_time, edit_time, sender_id, subject, thread, body \
        FROM batyr.messages \
