@@ -352,7 +352,8 @@ let launch config =
       let aux cfg = `Plaintext (Ipaddr.of_string_exn cfg.host, cfg.port) in
       (`Tcp, (List.map aux config.nameservers))
     in
-    Dns_client_lwt.create ~nameservers ()
+    let happy_eyeballs = Happy_eyeballs_lwt.create () in
+    Dns_client_lwt.create ~nameservers happy_eyeballs
   in
 
   let cache = Slack_cache.create ~token:config.slack_token () in

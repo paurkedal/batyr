@@ -61,9 +61,13 @@ let load_authenticator () =
   loop ca_paths >>= X509_lwt.authenticator
 
 let make_tls_socket host fd =
-  Mirage_crypto_rng_lwt.initialize (module Mirage_crypto_rng.Fortuna);
+  Mirage_crypto_rng_unix.use_default ();
   let%lwt authenticator = load_authenticator () in
-  let config = Tls.Config.client ~authenticator () in
+  let config =
+    (match Tls.Config.client ~authenticator () with
+     | Ok config -> config
+     | Error (`Msg msg) -> failwith ("Invalid TLS config: " ^ msg))
+  in
   let%lwt tls_socket = Tls_lwt.Unix.client_of_fd config ~host fd in
 
   let module Socket = struct
@@ -73,17 +77,17 @@ let make_tls_socket host fd =
     let socket = tls_socket
 
     let read socket buf start len =
-      let cs = Cstruct.create len in
+      let cs = Bytes.create len in
       let%lwt len' = Tls_lwt.Unix.read socket cs in
       for i = 0 to len' - 1 do
-        Bytes.set buf (start + i) (Cstruct.get_char cs i)
+        Bytes.set buf (start + i) (Bytes.get cs i)
       done;
       Log.debug (fun p -> p "In: [%s]" (Bytes.sub_string buf start len'))
         >>= fun () ->
       Lwt.return len'
 
     let write socket s =
-      Tls_lwt.Unix.write socket (Cstruct.of_string s) >>= fun () ->
+      Tls_lwt.Unix.write socket s >>= fun () ->
       Log.debug (fun p -> p "Out: [%s]" s)
 
     let close = Tls_lwt.Unix.close

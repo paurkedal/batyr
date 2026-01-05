@@ -16,6 +16,7 @@ depends: [
   "conduit-lwt"
   "dns-client"
   "dns-client-lwt"
+  "happy-eyeballs-lwt"
   "kojson"
   "logs"
   "lru"

@@ -9,7 +9,7 @@
     decoders-yojson
     erm_xmpp
     fmt
-    mirage-crypto-rng-lwt
+    mirage-crypto-rng.unix
     tls
     tls-lwt
     x509)

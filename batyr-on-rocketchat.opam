@@ -18,6 +18,7 @@ depends: [
   "decoders-yojson"
   "dns-client"
   "dns-client-lwt"
+  "happy-eyeballs-lwt"
   "logs"
   "lru"
   "lwt"
