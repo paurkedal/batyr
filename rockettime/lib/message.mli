@@ -17,7 +17,7 @@
 open Types
 
 type attachment = {
-  ts: Ptime.t;
+  ts: Ptime.t option;
   text: string option;
   (* many more fields *)
 }

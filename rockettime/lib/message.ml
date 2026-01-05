@@ -18,14 +18,14 @@ open Types
 module Decode = Decoders_yojson.Basic.Decode
 
 type attachment = {
-  ts: Ptime.t;
+  ts: Ptime.t option;
   text: string option;
   (* many more fields *)
 }
 
 let attachment_decoder =
   let open Decode in
-  let* ts = field "ts" ptime_decoder in
+  let* ts = field_opt "ts" ptime_decoder in
   let+ text = field_opt "text" string in
   {ts; text}
 
