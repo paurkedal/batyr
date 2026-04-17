@@ -80,13 +80,21 @@ let join_channel ~room_id ?join_code conn =
 
 type get_rooms_response = {
   update: Room.t list;
-  remove: string list; (* room IDs *)
+  remove: (string * Ptime.t option) list; (* room IDs *)
 }
 
 let get_rooms_decoder =
   let open Decode in
   let* update = field "update" (list Room.decoder) in
-  let+ remove = field "remove" (list string) in
+  let+ remove =
+    let obsolete = string >|= (fun id -> (id, None)) in
+    let current =
+      let* id = field "_id" string in
+      let+ time = field "_deletedAt" ptime_decoder in
+      (id, Some time)
+    in
+    field "remove" (list (one_of ["obsolete", obsolete; "current", current]))
+  in
   {update; remove}
 
 let get_rooms ?(since = Ptime.epoch) conn =

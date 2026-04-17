@@ -37,7 +37,7 @@ val join_channel :
 
 type get_rooms_response = {
   update: Room.t list;
-  remove: string list; (* room IDs *)
+  remove: (string * Ptime.t option) list; (* room IDs with removal times *)
 }
 
 val get_rooms :
