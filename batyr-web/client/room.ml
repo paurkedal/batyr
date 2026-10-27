@@ -155,7 +155,8 @@ module Transcript = struct
           ])
     in
     let jstime =
-      new%js Js.date_fromTimeValue ((Ptime.to_float_s msg.msg_time) *. 1000.0)
+      let t_us = (Ptime.to_float_s msg.msg_time) *. 1000.0 in
+      new%js Js.date_fromTimeValue (Js.float t_us)
     in
     let day = jstime##getFullYear, jstime##getMonth + 1, jstime##getDate in
     if day <> ts.ts_day then begin
@@ -236,7 +237,7 @@ type shown_counts = {
 let shown_counts = ref None
 
 let render_page ~room ~min_time ?pattern ~page transcript_dom update_comet =
-  let jt_min = new%js Js.date_fromTimeValue (min_time *. 1000.0) in
+  let jt_min = new%js Js.date_fromTimeValue (Js.float (min_time *. 1000.0)) in
   let jt_now = new%js Js.date_now in
   let y_min = jt_min##getFullYear in
   let y_now = jt_now##getFullYear in

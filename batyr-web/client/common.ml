@@ -43,7 +43,7 @@ module Domx_html = struct
 end
 
 module Caltime = struct
-  let to_epoch jd = 0.001 *. jd##valueOf
+  let to_epoch jd = 0.001 *. Js.to_float jd##valueOf
 
   let day_start d =
     new%js Js.date_day d##getFullYear d##getMonth d##getDate
