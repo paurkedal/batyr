@@ -56,13 +56,9 @@ let (>>=?) m f =
    | Ok x -> f x
    | Error error -> Lwt.return_error error
 
-module Req = struct
-  include Caqti_request.Infix
-  include Caqti_type.Std
-end
-
 module Make (Batyr_data : Batyr_core.Data_sig.S) = struct
   open Batyr_data
+  open Caqti.Templater
 
   type monitor_state = {
     cache: Slack_cache.t;
@@ -73,9 +69,10 @@ module Make (Batyr_data : Batyr_core.Data_sig.S) = struct
 
   let find_message_id =
     let q =
-      Req.(t3 int ptime int ->! int32)
-      "SELECT message_id FROM batyr.messages \
-       WHERE recipient_id = ? AND seen_time = ? AND sender_id = ?" in
+      static T.(t3 int ptime int -->! int32)
+        "SELECT message_id FROM batyr.messages \
+         WHERE recipient_id = ? AND seen_time = ? AND sender_id = ?"
+    in
     fun recipient seen_time sender ->
       (Resource.stored_id recipient >|= require "recipient")
         >>=? fun recipient_id ->
@@ -89,15 +86,17 @@ module Make (Batyr_data : Batyr_core.Data_sig.S) = struct
 
   let delete_message_id =
     let q =
-      Req.(int32 ->. unit)
-      "DELETE FROM batyr.messages WHERE message_id = ?" in
+      static T.(int32 -->. unit)
+        "DELETE FROM batyr.messages WHERE message_id = ?"
+    in
     fun message_id -> Db.use (fun (module C) -> C.exec q message_id)
 
   let update_message_id =
     let q =
-      Req.(t4 ptime int string int32 ->. unit)
-      "UPDATE batyr.messages SET edit_time = ?, sender_id = ?, body = ? \
-       WHERE message_id = ?" in
+      static T.(t4 ptime int string int32 -->. unit)
+        "UPDATE batyr.messages SET edit_time = ?, sender_id = ?, body = ? \
+         WHERE message_id = ?"
+    in
     fun message_id ~new_ts ~new_subtype ~new_sender ~new_text () ->
       (Resource.stored_id new_sender >|= require "sender")
         >>=? fun new_sender_id ->
@@ -246,9 +245,9 @@ module Make (Batyr_data : Batyr_core.Data_sig.S) = struct
      | Error (#Slack_utils.showable_error as err) ->
         Log.err (fun m ->
           m "Failed to store message: %a" Slack_utils.pp_error err)
-     | Error (#Caqti_error.t as err) ->
+     | Error (#Caqti.Error.t as err) ->
         Log.err (fun m ->
-          m "Failed to store message: %a" Caqti_error.pp err))
+          m "Failed to store message: %a" Caqti.Error.pp err))
 
   let messages_ts_range message_objs =
     let aux (message_obj : Slacko.message_obj) (ts_min, ts_max) =
@@ -293,7 +292,7 @@ module Make (Batyr_data : Batyr_core.Data_sig.S) = struct
           channelname (Slack_utils.show_error err)))
 
   let transcribed_rooms_q =
-    Req.(string ->* t2 string (option ptime))
+    static T.(string -->* t2 string (option ptime))
     {|
       SELECT
         room_node.node_name,
@@ -329,9 +328,9 @@ module Make (Batyr_data : Batyr_core.Data_sig.S) = struct
          | Error (#Slack_cache.error as error) ->
             Log.err (fun m ->
               m "Failed to capture message event: %a" Slack_utils.pp_error error)
-         | Error (#Caqti_error.t as error) ->
+         | Error (#Caqti.Error.t as error) ->
             Log.err (fun m ->
-              m "Failed to update database: %a" Caqti_error.pp error)
+              m "Failed to update database: %a" Caqti.Error.pp error)
          | Error (`Msg msg) ->
             Log.err (fun m ->
               m "Failed to assimilate message event: %s" msg))

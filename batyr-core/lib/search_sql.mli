@@ -18,12 +18,12 @@
 
 val escape_like : string -> string
 
-type param = Param : 'a Caqti_type.t * 'a -> param
+type param = Param : 'a Caqti.Template.Row_type.t * 'a -> param
 
 module Expr : sig
   type 'a t
 
-  val to_sql : 'a t -> Caqti_query.t
+  val to_sql : 'a t -> Caqti.Template.Query.t
 
   val of_sql : string -> 'a t
   val of_sql_f : ('b, unit, string, 'a t) format4 -> 'b

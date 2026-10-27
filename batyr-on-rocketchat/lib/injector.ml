@@ -21,38 +21,34 @@ open Batyr_core.Prereq
 
 module R = Rockettime
 
-module Req = struct
-  include Caqti_type.Std
-  include Caqti_request.Infix
-end
-
 module type S = sig
 
   type resource
 
   val enable_room :
     recipient: resource -> unit ->
-    (unit, [> Caqti_error.t]) result Lwt.t
+    (unit, [> Caqti.Error.t]) result Lwt.t
 
   val latest_timestamp :
     recipient: resource -> unit ->
-    (Ptime.t, [> Caqti_error.t]) result Lwt.t
+    (Ptime.t, [> Caqti.Error.t]) result Lwt.t
 
   val store_message :
     recipient: resource -> R.Message.t ->
-    (unit, [> Caqti_error.t]) result Lwt.t
+    (unit, [> Caqti.Error.t]) result Lwt.t
 
   val delete_message :
     recipient: resource -> string ->
-    (unit, [> Caqti_error.t]) result Lwt.t
+    (unit, [> Caqti.Error.t]) result Lwt.t
 
 end
 
 module Make (B : Batyr_core.Data_sig.S) = struct
+  open Caqti.Templater
 
   let enable_room =
-    let q = let open Req in
-      int -->. unit @:-
+    let q =
+      direct T.(int -->. unit)
       {|INSERT INTO batyr.muc_rooms (node_id, transcribe) VALUES ($1, true)
         ON CONFLICT (node_id) DO NOTHING|}
     in
@@ -62,8 +58,8 @@ module Make (B : Batyr_core.Data_sig.S) = struct
       B.Db.use (fun (module Db) -> Db.exec q recipient_node_id)
 
   let latest_timestamp =
-    let q = let open Req in
-      int -->! t2 (option ptime) (option ptime) @:-
+    let q =
+      direct T.(int -->! t2 (option ptime) (option ptime))
       {|SELECT max(seen_time), max(edit_time)
         FROM batyr.messages WHERE recipient_id = ?|}
     in
@@ -83,8 +79,9 @@ module Make (B : Batyr_core.Data_sig.S) = struct
       ~foreign_resource_id:user.R.User.uid
 
   let store_message =
-    let q = let open Req in
-      t7 int string ptime (option ptime) int (option int) string -->. unit @:-
+    let q =
+      direct
+        T.(t7 int string ptime (option ptime) int (option int) string -->. unit)
       {|INSERT INTO batyr.messages (
           recipient_id, foreign_message_id,
           seen_time, edit_time, sender_id, editor_id,
@@ -115,8 +112,8 @@ module Make (B : Batyr_core.Data_sig.S) = struct
       B.Db.use (fun (module Db) -> Db.exec q param)
 
   let delete_message =
-    let q = let open Req in
-      t2 int string -->. unit @:-
+    let q =
+      direct T.(t2 int string -->. unit)
       "DELETE FROM batyr.messages \
        WHERE recipient_id = $1 AND foreign_message_id = $2"
     in

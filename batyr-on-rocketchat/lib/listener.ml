@@ -79,7 +79,7 @@ module Make_listener (B : Batyr_core.Data_sig.S) = struct
          | Error err ->
             Log.err (fun f ->
               f "Failed to update %a: %a" pp_message_ids messages
-                Caqti_error.pp err))
+                Caqti.Error.pp err))
      | Delete_messages message_ids ->
         Lwt_result_list.iter_s (I.delete_message ~recipient) message_ids >>=
         (function
@@ -89,7 +89,7 @@ module Make_listener (B : Batyr_core.Data_sig.S) = struct
          | Error err ->
             Log.err (fun f ->
               f "Failed to delete %a: %a" pp_strings message_ids
-                Caqti_error.pp err))
+                Caqti.Error.pp err))
     in
     R.Connection.subscribe_to_room_messages ~on_event ~room conn
 
@@ -133,7 +133,7 @@ end
 
 let pp_error ppf = function
  | #R.Connection.error as err -> R.Connection.pp_error ppf err
- | #Caqti_error.t as err -> Caqti_error.pp ppf err
+ | #Caqti.Error.t as err -> Caqti.Error.pp ppf err
 
 let launch config =
 

@@ -45,11 +45,9 @@ let sql_of_pattern pat_s =
 let fetch_message_counts cond tz =
   let cond_query = Batyr_core.Search_sql.Expr.to_sql cond in
   let req =
-    let open Caqti_type.Std in
-    let open Caqti_request.Infix in
-    (string -->* t2 int int) ~oneshot:true @@ fun _ ->
-    let open Caqti_query_fmt in
-    qprintf
+    let open Caqti.Templater in
+    direct_gen T.(string -->* t2 int int) @@ fun _ ->
+    Qf.qprintf
       "SELECT \
          batyr.intenc_date(seen_time AT TIME ZONE 'UTC' AT TIME ZONE $1) AS t, \
          count(*) \
@@ -57,7 +55,7 @@ let fetch_message_counts cond tz =
        JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
          ON sender_id = sender.resource_id \
        WHERE %a GROUP BY t"
-      query cond_query
+      Qf.query cond_query
   in
   Data.Db.use begin fun (module C : Data.CONNECTION) ->
     let aux (date, count) acc = {date; count} :: acc in
@@ -65,7 +63,7 @@ let fetch_message_counts cond tz =
   end >|=
   (function
    | Ok _ as r -> r
-   | Error err -> Error (Caqti_error.show err))
+   | Error err -> Error (Caqti.Error.show err))
 
 let handle_count_messages' req =
   let {room = room_jid; pattern; tz} : count_messages_request = req in
@@ -92,21 +90,20 @@ let handle_count_messages =
 let fetch_messages cond =
   let cond_query = Batyr_core.Search_sql.Expr.to_sql cond in
   let req =
-    let open Caqti_type.Std in
-    let open Caqti_request.Infix in
-    (unit -->*
+    let open Caqti.Templater in
+    direct_gen T.(
+      unit -->*
       t6 ptime (option ptime) int
-         (option string) (option string) (option string))
-      ~oneshot:true @@ fun _ ->
-    let open Caqti_query_fmt in
-    qprintf
+         (option string) (option string) (option string)
+    ) @@ fun _ ->
+    Qf.qprintf
       "SELECT seen_time, edit_time, sender_id, subject, thread, body \
        FROM batyr.messages \
        JOIN (batyr.resources NATURAL JOIN batyr.nodes) AS sender \
          ON sender_id = sender.resource_id \
        WHERE %a \
        ORDER BY seen_time, message_id LIMIT %d"
-      query cond_query query_limit
+      Qf.query cond_query query_limit
   in
   (Data.Db.use @@ fun (module C : Data.CONNECTION) ->
     C.fold req List.cons () []) >>=
@@ -123,7 +120,7 @@ let fetch_messages cond =
             msg_thread = thread_opt;
             msg_body = body_opt })
         tuples >|= (fun msgs -> Ok msgs)
-   | Error err -> Lwt.return_error (Caqti_error.show err))
+   | Error err -> Lwt.return_error (Caqti.Error.show err))
 
 let phrase_query pattern tI_opt tF_opt =
     (match pattern with None -> "" | Some pat -> " matching " ^ pat)

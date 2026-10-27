@@ -14,6 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
+open Caqti.Template
 open Printf
 open Unprime_list
 open Unprime_string
@@ -32,7 +33,7 @@ let timestamp_of_epoch x =
    | None -> failwith "Ptime.of_float_s"
    | Some t -> Ptime.to_rfc3339 ~tz_offset_s:0 t)
 
-type param = Param : 'a Caqti_type.t * 'a -> param
+type param = Param : 'a Row_type.t * 'a -> param
 
 module Expr = struct
 
@@ -52,23 +53,31 @@ module Expr = struct
 
   let p_comma = 1
 
-  let paren_if cond q = if cond then Caqti_query.(S[L"("; q; L")"]) else q
+  let paren_if cond q = if cond then Query.(concat [lit "("; q; lit ")"]) else q
 
   let rec to_sql' prec =
-    let open Caqti_query in
+    let open Caqti.Templater in
     (function
-     | Literal s -> L s
-     | String s -> Q s
-     | Var v -> L v
+     | Literal s -> Q.lit s
+     | String s -> Q.quote s
+     | Var v -> Q.lit v
      | Call (Func name, args) ->
-        S[L name; L"("; concat ", " (List.map (to_sql' p_comma) args)]
+        Q.concat [
+          Q.lit name;
+          Q.lit "(";
+          Q.concat ~sep:", " (List.map (to_sql' p_comma) args);
+          Q.lit ")";
+        ]
      | Call (Prefix (name, p, p0), [arg]) ->
-        paren_if (prec > p) (S[L name; L" "; to_sql' p0 arg])
+        paren_if (prec > p)
+          (Q.concat [Q.lit name; Q.lit " "; to_sql' p0 arg])
      | Call (Suffix (name, p, p0), [arg]) ->
-        paren_if (prec > p) (S[to_sql' p0 arg; L" "; L name])
+        paren_if (prec > p)
+          (Q.concat [to_sql' p0 arg; Q.lit " "; Q.lit name])
      | Call ((Prefix _ | Suffix _), _) -> assert false
      | Call (Infix (name, p, ps), args) ->
-        paren_if (prec > p) (concat (" "^name^" ") (List.map2 to_sql' ps args)))
+        paren_if (prec > p)
+          (Q.concat ~sep:(" "^name^" ") (List.map2 to_sql' ps args)))
 
   let to_sql e = to_sql' 0 e
 

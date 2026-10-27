@@ -20,21 +20,21 @@ module type Db = sig
 
   val use : ?quick: bool ->
     ((module Caqti_lwt.CONNECTION) ->
-      ('a, ([> Caqti_error.connect]) as 'e) result Lwt.t) ->
+      ('a, ([> Caqti.Error.connect]) as 'e) result Lwt.t) ->
     ('a, 'e) result Lwt.t
 
   val use_exn : ?quick: bool ->
     ((module Caqti_lwt.CONNECTION) ->
-      ('a, [< Caqti_error.t]) result Lwt.t) -> 'a Lwt.t
+      ('a, [< Caqti.Error.t]) result Lwt.t) -> 'a Lwt.t
 
   val use_accounted : ?quick: bool ->
     ((module Caqti_lwt.CONNECTION) ->
-      ('a, ([> Caqti_error.connect]) as 'e) result Lwt.t) ->
+      ('a, ([> Caqti.Error.connect]) as 'e) result Lwt.t) ->
     (float * 'a, 'e) result Lwt.t
 
   val use_accounted_exn : ?quick: bool ->
     ((module Caqti_lwt.CONNECTION) ->
-      ('a, [< Caqti_error.t]) result Lwt.t) ->
+      ('a, [< Caqti.Error.t]) result Lwt.t) ->
     (float * 'a) Lwt.t
 end
 
@@ -157,7 +157,7 @@ module type Message = sig
   val foreign_message_id : t -> string option
 
   val store : ?muc_author: resource -> t ->
-    (unit, [> Caqti_error.t]) result Lwt.t
+    (unit, [> Caqti.Error.t]) result Lwt.t
 end
 
 module type S = sig

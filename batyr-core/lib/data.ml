@@ -31,14 +31,14 @@ let connect uri = (module struct
     let pool =
       (match Caqti_lwt_unix.connect_pool uri with
        | Ok pool -> pool
-       | Error err -> Caqti_error.pp Format.std_formatter err; exit 69)
+       | Error err -> Caqti.Error.pp Format.std_formatter err; exit 69)
 
     let use ?(quick = false) f =
       Caqti_lwt_unix.Pool.use ~priority:(if quick then 1.0 else 0.0) f pool
 
     let use_exn ?quick f =
       let f conn =
-        f conn >|= function (Ok _ | Error (#Caqti_error.t)) as r -> r
+        f conn >|= function (Ok _ | Error (#Caqti.Error.t)) as r -> r
       in
       use ?quick f >>= Caqti_lwt.or_fail
 
@@ -54,7 +54,7 @@ let connect uri = (module struct
 
     let use_accounted_exn ?quick f =
       let f conn =
-        f conn >|= function (Ok _ | Error (#Caqti_error.t)) as r -> r
+        f conn >|= function (Ok _ | Error (#Caqti.Error.t)) as r -> r
       in
       use_accounted ?quick f >>= Caqti_lwt.or_fail
   end

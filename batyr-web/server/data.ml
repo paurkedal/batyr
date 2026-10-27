@@ -14,15 +14,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *)
 
-open Caqti_request.Infix
-open Caqti_type.Std
 module type CONNECTION = Caqti_lwt.CONNECTION
 
 include (val Batyr_core.Data.connect Config.global.storage_uri)
 
 let rooms =
   let req =
-    unit -->* t5 int string string (option string) bool @:-
+    let open Caqti.Templater in
+    static T.(unit -->* t5 int string string (option string) bool)
     "SELECT DISTINCT node_id, domain_name, node_name, room_alias, \
                      transcribe \
      FROM batyr.muc_rooms NATURAL JOIN batyr.nodes \
